@@ -1,0 +1,85 @@
+=========================================================
+NITT GUEST HOUSE SYSTEM - PROJECT SUMMARY
+=========================================================
+
+1. ARCHITECTURE OVERVIEW
+---------------------------------------------------------
+We designed and built a robust Node.js + Express backend 
+backed by a PostgreSQL database. The core philosophy of 
+this architecture is to enforce the physical NITT Guest 
+House application rules strictly at both the database 
+and backend logic layers. This ensures that no invalid 
+data or double-bookings can ever occur, even if the 
+frontend makes a mistake.
+
+2. DATABASE SCHEMA & STRICT CONSTRAINTS (schema.sql)
+---------------------------------------------------------
+Instead of hardcoding rules (like CAT-II vs CAT-III), 
+we created a dynamic rule engine in the database.
+
+Key Tables & Rules Built:
+- category_rules: Stores the actual rules for each category 
+  (allowed roles, max guests, project code requirements).
+- applicants: Stores NITT faculty, staff, and students. 
+  Added a database CHECK constraint ensuring students 
+  must provide a roll_no, while faculty/staff must 
+  provide a staff_no.
+- guests: Stores the actual visitors separate from applicants.
+- rooms: Stores available rooms, capacity, and current status.
+- booking_requests: The main table. Enforces constraints like 
+  "departure must be after arrival" and "undertaking must 
+  be accepted".
+- booking_rooms: Enforces an advanced PostgreSQL EXCLUDE 
+  constraint using `tsrange` (time ranges). This mathematically 
+  guarantees that no two bookings can ever overlap for the 
+  same room.
+
+3. BACKEND CONNECTION (db.js)
+---------------------------------------------------------
+We set up `pg` (node-postgres) to connect to the database 
+using environment variables (.env). 
+We configured a "Connection Pool" which allows the backend 
+to handle multiple simultaneous booking requests efficiently 
+without crashing. We also exported a way to get dedicated 
+clients for "Transactions".
+
+4. BUSINESS LOGIC ENGINE (bookingService.js)
+---------------------------------------------------------
+This is the brain of the backend. When a booking request 
+comes in, it doesn't just blindly save it. It executes 
+a "Database Transaction" (BEGIN ... COMMIT). 
+
+It performs the following checks dynamically against the DB:
+- Does the applicant exist?
+- Are they eligible for the requested category? (e.g., a student 
+  cannot book CAT-II).
+- If it's CAT-II, did they provide a project code?
+- Is the visit type (official/personal) allowed for this category?
+- Are they requesting too many rooms or bringing too many guests?
+
+If any rule is violated, the transaction is rolled back, and 
+an error is thrown. If all rules pass, the booking is saved.
+
+5. REST API SERVER (server.js)
+---------------------------------------------------------
+We built an Express.js server to expose our business logic 
+to the internet (or a frontend app). 
+We created the `POST /api/bookings` endpoint, which parses 
+JSON requests, sends them to the BookingService, and returns 
+standardized HTTP responses (201 Created for success, 400 Bad 
+Request for rule violations).
+
+6. SEEDING & TESTING (seed.js)
+---------------------------------------------------------
+Because our database enforces strict rules and uses secure 
+UUIDs (random alphanumeric strings instead of 1, 2, 3), we 
+needed valid data to test the API.
+We wrote a script to inject:
+- 2 Categories (CAT-II and CAT-III)
+- 1 Faculty Applicant
+- 1 Guest
+- 1 Room
+
+The script outputs the generated IDs so we can copy-paste 
+them into an API testing tool (like Postman) and verify 
+that the complete flow works flawlessly from end-to-end.
