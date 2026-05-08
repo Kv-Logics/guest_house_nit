@@ -1,5 +1,11 @@
 -- schema.sql
 -- 1. SAFELY DROP OLD TABLES
+DROP TABLE IF EXISTS audit_logs CASCADE;
+DROP TABLE IF EXISTS booking_documents CASCADE;
+DROP TABLE IF EXISTS booking_approvals CASCADE;
+DROP TABLE IF EXISTS booking_workflow_instances CASCADE;
+DROP TABLE IF EXISTS workflow_steps CASCADE;
+DROP TABLE IF EXISTS workflow_definitions CASCADE;
 DROP TABLE IF EXISTS refunds CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS sponsorship_requests CASCADE;
@@ -15,6 +21,7 @@ DROP TABLE IF EXISTS rooms CASCADE;
 DROP TABLE IF EXISTS room_tariff CASCADE;
 DROP TABLE IF EXISTS category_rules CASCADE;
 DROP TABLE IF EXISTS applicants CASCADE;
+DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS role_permissions CASCADE;
 DROP TABLE IF EXISTS permissions CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
@@ -24,22 +31,47 @@ DROP TABLE IF EXISTS roles CASCADE;
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 -- 3. ENTERPRISE RBAC ARCHITECTURE
+-- Roles define a job function or title (e.g., 'HOD', 'Admin').
 CREATE TABLE roles (
     role_id SERIAL PRIMARY KEY,
     role_name VARCHAR(50) NOT NULL UNIQUE,
     description TEXT
 );
 
+-- Permissions are granular actions a user can perform (e.g., 'approve_booking', 'edit_room').
+CREATE TABLE permissions (
+    permission_id SERIAL PRIMARY KEY,
+    permission_name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
+-- Maps permissions to roles.
+CREATE TABLE role_permissions (
+    role_id INTEGER NOT NULL REFERENCES roles(role_id) ON DELETE CASCADE,
+    permission_id INTEGER NOT NULL REFERENCES permissions(permission_id) ON DELETE CASCADE,
+    PRIMARY KEY (role_id, permission_id)
+);
+
+-- User table with soft delete and versioning support.
 CREATE TABLE users (
     user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     full_name VARCHAR(120) NOT NULL,
     email VARCHAR(120) UNIQUE NOT NULL,
-    role VARCHAR(50) NOT NULL,
     department VARCHAR(100),
     designation VARCHAR(100),
     employee_id VARCHAR(50),
     is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Assigns roles to users, allowing a user to have multiple roles.
+CREATE TABLE user_roles (
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    role_id INTEGER NOT NULL REFERENCES roles(role_id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, role_id)
 );
 
 -- 4. CATEGORY ENGINE
@@ -96,19 +128,19 @@ CREATE TABLE booking_requests (
     extra_beds INTEGER DEFAULT 0,
     total_estimated_amount NUMERIC DEFAULT 0,
     undertaking_accepted BOOLEAN NOT NULL,
-    booking_state VARCHAR(50) DEFAULT 'PENDING_APPROVAL' CHECK (booking_state IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PAYMENT_PENDING', 'PAID', 'INSTITUTE_BILLED', 'SPONSORED', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED', 'REFUNDED', 'REJECTED')),
-    payment_state VARCHAR(50) DEFAULT 'PENDING' CHECK (payment_state IN ('NOT_REQUIRED', 'PENDING', 'SUCCESS', 'FAILED', 'REFUNDED', 'SPONSORED', 'INSTITUTE_BILLED')),
-    approval_state VARCHAR(50) DEFAULT 'PENDING_HOD' CHECK (approval_state IN ('NOT_REQUIRED', 'PENDING_HOD', 'PENDING_DEAN', 'PENDING_REGISTRAR', 'APPROVED', 'REJECTED')),
+    booking_state VARCHAR(50) DEFAULT 'SUBMITTED' CHECK (booking_state IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'COMPLETED')),
+    payment_state VARCHAR(50) DEFAULT 'PENDING' CHECK (payment_state IN ('NOT_APPLICABLE', 'PENDING', 'PAID', 'FAILED', 'REFUND_INITIATED', 'REFUNDED')),
     sponsor_status VARCHAR(50) DEFAULT 'NOT_REQUIRED' CHECK (sponsor_status IN ('NOT_REQUIRED', 'PENDING', 'ACCEPTED', 'REJECTED')),
     payment_deadline TIMESTAMP,
     invoice_id UUID,
     payment_responsible VARCHAR(50) CHECK (payment_responsible IN ('guest', 'coordinator', 'department', 'project', 'institute')),
-    approved_by UUID REFERENCES users(user_id),
-    approved_at TIMESTAMP,
+    version INTEGER NOT NULL DEFAULT 1,
     checked_in_at TIMESTAMP,
     checked_out_at TIMESTAMP,
     cancelled_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE,
 
     CONSTRAINT chk_dates CHECK (departure_datetime > arrival_datetime),
     CONSTRAINT chk_undertaking CHECK (undertaking_accepted = true)
@@ -128,7 +160,8 @@ CREATE TABLE guests (
     address TEXT,
     identity_proof_type VARCHAR(50),
     identity_proof_number VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE
 );
 
 -- 9. FOOD PREFERENCES
@@ -182,15 +215,6 @@ CREATE TABLE payments (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 13. PAYMENT TRANSACTIONS
-CREATE TABLE payment_transactions (
-    transaction_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    payment_id UUID REFERENCES payments(payment_id) ON DELETE CASCADE,
-    event_type VARCHAR(50) NOT NULL,
-    event_data JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 -- 14. APPROVAL LOGS
 CREATE TABLE approval_logs (
     log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -230,3 +254,105 @@ CREATE TABLE refunds (
     razorpay_refund_id VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 18. DYNAMIC WORKFLOW ENGINE
+CREATE TABLE workflow_definitions (
+    workflow_id SERIAL PRIMARY KEY,
+    workflow_name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
+CREATE TABLE workflow_steps (
+    step_id SERIAL PRIMARY KEY,
+    workflow_id INTEGER NOT NULL REFERENCES workflow_definitions(workflow_id),
+    step_order INTEGER NOT NULL,
+    step_name VARCHAR(100) NOT NULL,
+    approver_role_id INTEGER NOT NULL REFERENCES roles(role_id),
+    is_mandatory BOOLEAN DEFAULT true,
+    UNIQUE (workflow_id, step_order)
+);
+
+CREATE TABLE booking_workflow_instances (
+    instance_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id UUID NOT NULL REFERENCES booking_requests(booking_id) ON DELETE CASCADE,
+    workflow_id INTEGER NOT NULL REFERENCES workflow_definitions(workflow_id),
+    current_step_id INTEGER REFERENCES workflow_steps(step_id),
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'REJECTED')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(booking_id)
+);
+
+CREATE TABLE booking_approvals (
+    approval_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    instance_id UUID NOT NULL REFERENCES booking_workflow_instances(instance_id) ON DELETE CASCADE,
+    step_id INTEGER NOT NULL REFERENCES workflow_steps(step_id),
+    approver_user_id UUID NOT NULL REFERENCES users(user_id),
+    action VARCHAR(50) NOT NULL CHECK (action IN ('APPROVED', 'REJECTED', 'COMMENTED')),
+    remarks TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 19. BOOKING DOCUMENTS
+CREATE TABLE booking_documents (
+    document_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id UUID NOT NULL REFERENCES booking_requests(booking_id) ON DELETE CASCADE,
+    uploaded_by_user_id UUID NOT NULL REFERENCES users(user_id),
+    document_type VARCHAR(100) NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(512) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    file_size_bytes BIGINT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE
+);
+
+-- 20. AUDIT LOGS
+CREATE TABLE audit_logs (
+    log_id BIGSERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(user_id),
+    action VARCHAR(255) NOT NULL,
+    target_entity VARCHAR(100),
+    target_id TEXT,
+    old_value JSONB,
+    new_value JSONB,
+    remarks TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 21. INDEXING STRATEGY
+CREATE INDEX idx_bookings_user_id ON booking_requests(user_id);
+CREATE INDEX idx_bookings_state ON booking_requests(booking_state);
+CREATE INDEX idx_guests_booking_id ON guests(booking_id);
+CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
+CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
+CREATE INDEX idx_workflow_instances_booking_id ON booking_workflow_instances(booking_id);
+CREATE INDEX idx_audit_logs_target ON audit_logs(target_entity, target_id);
+
+-- 22. MOCK DATA SETUP (Temporary Credentials for Testing)
+-- Insert Roles
+INSERT INTO roles (role_name, description) VALUES
+('student', 'Student of NITT'),
+('registrar', 'Registrar of NITT'),
+('admin', 'System Administrator'),
+('dean', 'Dean of NITT'),
+('receptionist', 'Guest House Receptionist'),
+('hod', 'Head of Department');
+
+-- Insert Users
+INSERT INTO users (full_name, email, designation) VALUES
+('Toni', 'toni@nitt.edu', 'Student'),
+('Keerthi', 'keerthi@nitt.edu', 'Registrar'),
+('Hari', 'hari@nitt.edu', 'Admin'),
+('Shivam', 'shivam@nitt.edu', 'Dean'),
+('Tagore', 'tagore@nitt.edu', 'Receptionist'),
+('Shyam', 'shyam@nitt.edu', 'Hod');
+
+-- Assign Roles to Users (Example Mapping)
+INSERT INTO user_roles (user_id, role_id) VALUES
+((SELECT user_id FROM users WHERE email = 'toni@nitt.edu'), (SELECT role_id FROM roles WHERE role_name = 'student')),
+((SELECT user_id FROM users WHERE email = 'keerthi@nitt.edu'), (SELECT role_id FROM roles WHERE role_name = 'registrar')),
+((SELECT user_id FROM users WHERE email = 'hari@nitt.edu'), (SELECT role_id FROM roles WHERE role_name = 'admin')),
+((SELECT user_id FROM users WHERE email = 'shivam@nitt.edu'), (SELECT role_id FROM roles WHERE role_name = 'dean')),
+((SELECT user_id FROM users WHERE email = 'tagore@nitt.edu'), (SELECT role_id FROM roles WHERE role_name = 'receptionist')),
+((SELECT user_id FROM users WHERE email = 'shyam@nitt.edu'), (SELECT role_id FROM roles WHERE role_name = 'hod'));

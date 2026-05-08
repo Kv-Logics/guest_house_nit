@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, CheckCircle2, ClipboardList, Calendar, Users, Wallet, FileText, AlertCircle, Utensils, User } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ClipboardList, Calendar, Users, Wallet, FileText, AlertCircle, Utensils, User, Paperclip, ShieldCheck } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
@@ -12,6 +12,7 @@ export default function PreviewPage() {
   const { formData, user } = location.state || {};
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [undertakingAccepted, setUndertakingAccepted] = useState(false);
 
   if (!formData || !user) {
     return (
@@ -31,7 +32,7 @@ export default function PreviewPage() {
         age: g.age ? parseInt(g.age) : null
       }));
 
-      const payload = {
+      const bookingData = {
         ...formData,
         guests: sanitizedGuests,
         user_id: user.user_id,
@@ -45,9 +46,23 @@ export default function PreviewPage() {
         undertaking_accepted: true
       };
 
+      // Create a FormData object to send multipart data
+      const data = new FormData();
+
+      // Append the JSON data as a string under a specific key
+      data.append('bookingData', JSON.stringify(bookingData));
+
+      // Append the file objects if they exist
+      if (formData.document_1) {
+        data.append('document_1', formData.document_1);
+      }
+      if (formData.document_2) {
+        data.append('document_2', formData.document_2);
+      }
+
       const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_BASE_URL}/bookings`, payload, {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await axios.post(`${API_BASE_URL}/bookings`, data, {
+        headers: { Authorization: `Bearer ${token}` } // Axios sets multipart header automatically
       });
       
       localStorage.removeItem('nitt_booking_draft');
@@ -175,39 +190,66 @@ export default function PreviewPage() {
               <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Visit Type</p><p className="font-semibold text-slate-800 capitalize">{formData.visit_type}</p></div>
               {formData.project_code && <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Project Code</p><p className="font-semibold text-slate-800">{formData.project_code}</p></div>}
               <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Purpose of Visit</p><p className="text-slate-700 italic">"{formData.purpose_of_visit}"</p></div>
+              {(formData.document_1 || formData.document_2) && (
+                <div className="pt-3 border-t border-slate-100">
+                  <p className="text-xs font-bold text-slate-400 uppercase mb-2">Attached Documents</p>
+                  {formData.document_1 && <p className="text-xs text-indigo-600 font-semibold flex items-center"><Paperclip className="w-3 h-3 mr-1" /> {formData.document_1.name}</p>}
+                  {formData.document_2 && <p className="text-xs text-indigo-600 font-semibold flex items-center mt-1"><Paperclip className="w-3 h-3 mr-1" /> {formData.document_2.name}</p>}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Financials & Submit */}
-          <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-lg text-white">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center border-b border-slate-700 pb-3"><Wallet className="w-5 h-5 mr-2 text-emerald-400" /> Financial Summary</h3>
+          {/* Financial Summary */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center border-b border-slate-100 pb-3"><Wallet className="w-5 h-5 mr-2 text-emerald-500" /> Financial Summary</h3>
             
-            <div className="space-y-4 mb-6">
+            <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-slate-400">Est. Total Amount</span>
-                <span className="text-xl font-extrabold text-emerald-400">₹{formData.total_estimated_amount}</span>
+                <span className="text-sm font-medium text-slate-500">Est. Total Amount</span>
+                <span className="text-xl font-extrabold text-emerald-600">₹{formData.total_estimated_amount}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-slate-400">Payment Routing</span>
-                <span className="text-sm font-bold bg-slate-800 px-2 py-1 rounded capitalize">{formData.category_id === '1' ? 'Institute Billed' : formData.payment_responsibility}</span>
+                <span className="text-sm font-medium text-slate-500">Payment Routing</span>
+                <span className="text-sm font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded capitalize">{formData.category_id === '1' ? 'Institute Billed' : formData.payment_responsibility}</span>
               </div>
             </div>
-            
-            <div className="bg-slate-800 p-3 rounded-xl mb-6 flex items-start gap-3 border border-slate-700">
-               <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-               <p className="text-xs font-medium text-slate-300 leading-relaxed">By submitting, you confirm all details are correct and accept the NITT Guest House booking conditions.</p>
-            </div>
-
-            <button 
-              onClick={handleSubmit} 
-              disabled={isLoading} 
-              className={`w-full flex items-center justify-center py-4 px-6 rounded-xl shadow-md text-base font-bold text-slate-900 transition-all ${isLoading ? 'opacity-70 cursor-not-allowed bg-emerald-300' : 'bg-emerald-400 hover:bg-emerald-300 hover:shadow-emerald-500/20 hover:-translate-y-0.5'}`}
-            >
-              {isLoading ? <><LoadingSpinner /> Securing Booking...</> : 'Confirm & Submit Application'}
-            </button>
           </div>
-
         </div>
+      </div>
+
+      {/* Undertaking & Submit - Full Width */}
+      <div className="bg-white p-6 sm:p-10 rounded-3xl border border-slate-200 shadow-sm mt-8">
+        <h4 className="text-lg font-bold text-slate-800 mb-6 flex items-center border-b border-slate-100 pb-4">
+          <ShieldCheck className="w-6 h-6 mr-2 text-emerald-500" /> Undertaking by Applicant
+        </h4>
+        
+        <div className="text-sm text-slate-600 space-y-4 leading-relaxed font-medium mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+          <p>a. Certified that the visit of the guest(s) is related to the activities of official/personal. I take responsibility for the payment of bills including food charges (if any) of the Guest House.</p>
+          <p>b. The guest(s) is (are) personally known to me and I am responsible for his/her conduct.</p>
+          <p>c. I hereby undertake to vacate the room in the Guest House, if allotted, on the expiry of the sanctioned period. In case I fail to do so, I will be liable to be charged penal rent (if any).</p>
+          <p>d. I have read the NITT Guest house terms & conditions and these are acceptable.</p>
+        </div>
+        
+        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-8 flex items-start sm:items-center gap-3">
+           <CheckCircle2 className="w-6 h-6 text-blue-500 flex-shrink-0" />
+           <p className="text-sm font-bold text-blue-900">By submitting, you confirm all details are correct and accept the NITT Guest House booking conditions.</p>
+        </div>
+
+        <label className="flex items-center cursor-pointer group bg-white hover:bg-slate-50 p-4 rounded-xl border border-slate-200 transition-colors mb-8 shadow-sm">
+          <input type="checkbox" checked={undertakingAccepted} onChange={(e) => setUndertakingAccepted(e.target.checked)} className="w-6 h-6 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 transition-colors cursor-pointer" />
+          <span className="ml-4 text-base font-bold text-slate-700 group-hover:text-slate-900 transition-colors select-none">
+            I agree to the above undertaking conditions. <span className="text-red-500">*</span>
+          </span>
+        </label>
+
+        <button 
+          onClick={handleSubmit} 
+          disabled={isLoading || !undertakingAccepted} 
+          className={`w-full flex items-center justify-center py-4 px-6 rounded-xl shadow-md text-lg font-bold transition-all ${isLoading || !undertakingAccepted ? 'opacity-70 cursor-not-allowed bg-slate-200 text-slate-500' : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-emerald-600/20 hover:-translate-y-0.5'}`}
+        >
+          {isLoading ? <><LoadingSpinner /> Securing Booking...</> : 'Confirm & Submit Application'}
+        </button>
       </div>
     </div>
   );

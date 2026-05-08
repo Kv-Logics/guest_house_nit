@@ -96,7 +96,7 @@ export default function BookingForm({ formData, setFormData, user }) {
 
       <form onSubmit={handleSubmit} className="relative z-10 flex flex-col space-y-10">
           <StayDetailsSection formData={formData} handleChange={handleChange} />
-          <CategoryVisitSection formData={formData} handleChange={handleChange} />
+        <CategoryVisitSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
           <MultiGuestSection formData={formData} setFormData={setFormData} user={user} />
           {/* <UndertakingSection formData={formData} handleChange={handleChange} /> */}
           <ApprovalAuthoritySection formData={formData} />
