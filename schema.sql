@@ -126,3 +126,12 @@ CREATE TABLE booking_rooms (
         tsrange(allocated_from, allocated_to) WITH &&
     )
 );
+
+-- 10. MOCK DATA SETUP (Temporary Credentials for Testing)
+INSERT INTO users (full_name, email, role, designation) VALUES
+('Toni', 'toni@nitt.edu', 'student', 'Student'),
+('Keerthi', 'keerthi@nitt.edu', 'registrar', 'Registrar'),
+('Hari', 'hari@nitt.edu', 'admin', 'Admin'),
+('Shivam', 'shivam@nitt.edu', 'dean', 'Dean'),
+('Tagore', 'tagore@nitt.edu', 'receptionist', 'Receptionist'),
+('Shyam', 'shyam@nitt.edu', 'hod', 'Hod');
