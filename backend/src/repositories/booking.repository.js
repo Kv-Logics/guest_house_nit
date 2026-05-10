@@ -1,0 +1,98 @@
+const db = require('../db/db');
+
+exports.getBookingsByUserId = async (userId) => {
+    const query = `
+        SELECT b.*, c.category_code, a.full_name as assigned_approver_name
+        FROM booking_requests b
+        JOIN category_rules c ON b.category_id = c.category_id
+        LEFT JOIN users a ON b.assigned_approver_id = a.user_id
+        WHERE b.user_id = $1 
+        ORDER BY c.category_id ASC, b.created_at DESC
+    `;
+    const result = await db.query(query, [userId]);
+    return result.rows;
+};
+
+exports.getAllBookingsWithDetails = async () => {
+    const query = `
+        SELECT b.booking_id, b.booking_state, b.payment_state, b.arrival_datetime, b.departure_datetime, b.rooms_required, b.created_at,
+               b.purpose_of_visit, b.visit_type, b.project_code, b.payment_responsible, b.category_id, b.room_type, b.extra_beds, b.total_estimated_amount,
+               u.full_name as applicant_name, u.department, u.email as applicant_email,
+               a.full_name as assigned_approver_name,
+               (SELECT r.role_name FROM roles r JOIN user_roles ur ON ur.role_id = r.role_id WHERE ur.user_id = u.user_id LIMIT 1) as applicant_role,
+               (SELECT r.role_name FROM roles r JOIN user_roles ur ON ur.role_id = r.role_id WHERE ur.user_id = u.user_id LIMIT 1) as applicant_role,
+               (SELECT category_code FROM category_rules c WHERE c.category_id = b.category_id) as category_code,
+               (
+                   SELECT json_agg(row_to_json(g)::jsonb || jsonb_build_object('food_preferences', (SELECT json_agg(row_to_json(fp)) FROM guest_food_preferences fp WHERE fp.guest_id = g.guest_id)))
+                   FROM guests g WHERE g.booking_id = b.booking_id
+               ) as guests,
+               (
+                   SELECT json_agg(row_to_json(d)) FROM booking_documents d WHERE d.booking_id = b.booking_id
+               ) as documents
+        FROM booking_requests b
+        JOIN users u ON b.user_id = u.user_id
+        LEFT JOIN users a ON b.assigned_approver_id = a.user_id
+        ORDER BY b.created_at DESC
+    `;
+    const result = await db.query(query);
+    return result.rows;
+};
+
+exports.getAllTariffs = async () => {
+    const result = await db.query('SELECT * FROM room_tariff');
+    return result.rows;
+};
+
+exports.updatePaymentState = async (bookingId, bookingState) => {
+    const query = `UPDATE booking_requests SET booking_state = $1, payment_state = 'PAID', updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`;
+    const result = await db.query(query, [bookingState, bookingId]);
+    return result.rows[0];
+};
+
+exports.updateAdminState = async (bookingId, bookingState) => {
+    const query = `UPDATE booking_requests SET booking_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`;
+    const result = await db.query(query, [bookingState, bookingId]);
+    return result.rows[0];
+};
+
+exports.getBookingDetailsById = async (bookingId) => {
+    const query = `
+        SELECT b.booking_id, b.booking_state, b.payment_state, b.arrival_datetime, b.departure_datetime, b.rooms_required, b.created_at,
+               b.purpose_of_visit, b.visit_type, b.project_code, b.payment_responsible, b.category_id, b.room_type, b.extra_beds, b.total_estimated_amount,
+               u.full_name as applicant_name, u.department, u.email as applicant_email,
+               a.full_name as assigned_approver_name,
+               (SELECT category_code FROM category_rules c WHERE c.category_id = b.category_id) as category_code,
+               (
+                   SELECT json_agg(row_to_json(g)::jsonb || jsonb_build_object('food_preferences', (SELECT json_agg(row_to_json(fp)) FROM guest_food_preferences fp WHERE fp.guest_id = g.guest_id)))
+                   FROM guests g WHERE g.booking_id = b.booking_id
+               ) as guests,
+               (
+                   SELECT json_agg(row_to_json(d)) FROM booking_documents d WHERE d.booking_id = b.booking_id
+               ) as documents
+        FROM booking_requests b
+        JOIN users u ON b.user_id = u.user_id
+        LEFT JOIN users a ON b.assigned_approver_id = a.user_id
+        WHERE b.booking_id = $1
+    `;
+    const result = await db.query(query, [bookingId]);
+    return result.rows[0];
+};
+
+exports.cancelBookingByUser = async (bookingId, userId, cancelState) => {
+    const query = `UPDATE booking_requests SET booking_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 AND user_id = $3 RETURNING *`;
+    const result = await db.query(query, [cancelState, bookingId, userId]);
+    return result.rows[0];
+};
+
+exports.getAuthoritiesByCategoryId = async (categoryId) => {
+    const query = `
+        SELECT u.user_id, u.full_name, u.department, r.role_name as role
+        FROM users u
+        JOIN user_roles ur ON u.user_id = ur.user_id
+        JOIN roles r ON ur.role_id = r.role_id
+        JOIN category_rules c ON c.category_id = $1
+        WHERE c.approval_hierarchy LIKE '%' || r.role_name || '%'
+    `;
+    const result = await db.query(query, [categoryId]);
+    return result.rows;
+};

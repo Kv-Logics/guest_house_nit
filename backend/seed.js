@@ -5,18 +5,34 @@ async function seedDatabase() {
     // EDITABLE SAMPLE DATA FOR EASY TESTING
     // =========================================================================
     const sampleUsers = [
-        { full_name: 'Dr. Admin User', email: 'admin@nitt.edu', role: 'super_admin', dept: 'Administration', desig: 'Guest House Admin', emp_id: 'EMP-001' },
-        { full_name: 'Student Test', email: 'student@nitt.edu', role: 'student', dept: 'Computer Science', desig: 'B.Tech', emp_id: '101123456' },
-        { full_name: 'Faculty Test', email: 'faculty@nitt.edu', role: 'faculty', dept: 'Electrical Eng', desig: 'Professor', emp_id: 'EMP-002' },
-        { full_name: 'HOD Test', email: 'hod@nitt.edu', role: 'hod', dept: 'Mechanical Eng', desig: 'Head of Dept', emp_id: 'EMP-003' }
+        { full_name: 'G. Aghila', email: 'director@nitt.edu', role: 'director', dept: 'Administration', desig: 'Director', emp_id: 'EMP-DIR' },
+        { full_name: 'S. A. Senthil Kumar', email: 'registrar@nitt.edu', role: 'registrar', dept: 'Administration', desig: 'Registrar', emp_id: 'EMP-REG' },
+        { full_name: 'S. T. Ramesh', email: 'deanap@nitt.edu', role: 'dean', dept: 'Academic Affairs', desig: 'Dean', emp_id: 'EMP-DEAN' },
+        { full_name: 'Kunwar Singh', email: 'hodcse@nitt.edu', role: 'hod', dept: 'Computer Science & Engineering', desig: 'HOD', emp_id: 'EMP-HOD1' },
+        { full_name: 'Sishaj P Simon', email: 'hodeee@nitt.edu', role: 'hod', dept: 'Electrical & Electronics Engineering', desig: 'HOD', emp_id: 'EMP-HOD2' },
+        { full_name: 'R. Pandeeswari', email: 'hodece@nitt.edu', role: 'hod', dept: 'Electronics & Communication Engineering', desig: 'HOD', emp_id: 'EMP-HOD3' },
+        { full_name: 'S. Suresh', email: 'hodmech@nitt.edu', role: 'hod', dept: 'Mechanical Engineering', desig: 'HOD', emp_id: 'EMP-HOD4' },
+        { full_name: 'P. Sridevi', email: 'hodmba@nitt.edu', role: 'hod', dept: 'Management Studies', desig: 'HOD', emp_id: 'EMP-HOD5' },
+        { full_name: 'S. Moses Santhakumar', email: 'moses@nitt.edu', role: 'faculty', dept: 'Civil Engineering', desig: 'Faculty', emp_id: 'EMP-FAC1' },
+        { full_name: 'G. Swaminathan', email: 'gs@nitt.edu', role: 'faculty', dept: 'Civil Engineering', desig: 'Faculty', emp_id: 'EMP-FAC2' },
+        { full_name: 'Samson Mathew', email: 'sams@nitt.edu', role: 'faculty', dept: 'Civil Engineering', desig: 'Faculty', emp_id: 'EMP-FAC3' },
+        { full_name: 'K. Baskar', email: 'kbaskar@nitt.edu', role: 'faculty', dept: 'Civil Engineering', desig: 'Faculty', emp_id: 'EMP-FAC4' },
+        { full_name: 'Nisha Radhakrishnan', email: 'nisha@nitt.edu', role: 'faculty', dept: 'Civil Engineering', desig: 'Faculty', emp_id: 'EMP-FAC5' },
+        { full_name: 'Keerthana S', email: 'keerthana241001@nitt.edu', role: 'student', dept: 'B.Tech CSE', desig: 'Student', emp_id: 'STU-1' },
+        { full_name: 'Rahul V', email: 'rahul241114@nitt.edu', role: 'student', dept: 'B.Tech ECE', desig: 'Student', emp_id: 'STU-2' },
+        { full_name: 'Nivetha R', email: 'nivetha240221@nitt.edu', role: 'student', dept: 'M.Tech VLSI', desig: 'Student', emp_id: 'STU-3' },
+        { full_name: 'Aravind K', email: 'aravind240045@nitt.edu', role: 'student', dept: 'MBA', desig: 'Student', emp_id: 'STU-4' },
+        { full_name: 'Sanjay M', email: 'sanjay241332@nitt.edu', role: 'student', dept: 'MCA', desig: 'Student', emp_id: 'STU-5' },
+        { full_name: 'Admin User', email: 'admin@nitt.edu', role: 'super_admin', dept: 'Administration', desig: 'Guest House Admin', emp_id: 'EMP-001' },
+        { full_name: 'Receptionist', email: 'reception@nitt.edu', role: 'reception_staff', dept: 'Guest House', desig: 'Front Desk', emp_id: 'EMP-006' }
     ];
 
     const sampleBookings = [
-        { applicant_email: 'faculty@nitt.edu', cat_id: 2, visit_type: 'official', purpose: 'Conference Visit', rooms: 1, status: 'PENDING_APPROVAL', stage: 'PENDING_DEAN',
+        { applicant_email: 'moses@nitt.edu', cat_id: 2, visit_type: 'official', purpose: 'Conference Visit', rooms: 1, status: 'PENDING_APPROVER', stage: 'PENDING_DEAN',
           guest_name: 'Prof. Alan Turing', guest_phone: '9876543210' },
-        { applicant_email: 'student@nitt.edu', cat_id: 3, visit_type: 'personal', purpose: 'Parent Visit', rooms: 1, status: 'PENDING_APPROVAL', stage: 'PENDING_HOD',
+        { applicant_email: 'keerthana241001@nitt.edu', cat_id: 3, visit_type: 'personal', purpose: 'Parent Visit', rooms: 1, status: 'PENDING_APPROVER', stage: 'PENDING_HOD',
           guest_name: 'Mr. John Doe (Parent)', guest_phone: '1234567890' },
-        { applicant_email: 'hod@nitt.edu', cat_id: 1, visit_type: 'official', purpose: 'Institute Guest Lecturer', rooms: 2, status: 'PENDING_APPROVAL', stage: 'PENDING_REGISTRAR',
+        { applicant_email: 'hodcse@nitt.edu', cat_id: 1, visit_type: 'official', purpose: 'Institute Guest Lecturer', rooms: 2, status: 'PENDING_APPROVER', stage: 'PENDING_REGISTRAR',
           guest_name: 'Dr. Albert Einstein', guest_phone: '5555555555' }
     ];
     // =========================================================================
@@ -29,7 +45,6 @@ async function seedDatabase() {
         await db.query(`DELETE FROM notifications`);
         await db.query(`DELETE FROM sponsorship_requests`);
         await db.query(`DELETE FROM approval_logs`);
-        await db.query(`DELETE FROM payment_transactions`);
         await db.query(`DELETE FROM payments`);
         await db.query(`DELETE FROM invoices`);
         await db.query(`DELETE FROM guests`);
@@ -48,7 +63,8 @@ async function seedDatabase() {
             (6, 'hod', 'Head of Department'),
             (7, 'faculty', 'Faculty Member'),
             (8, 'staff', 'Staff Member'),
-            (9, 'student', 'Student')
+            (9, 'student', 'Student'),
+            (10, 'director', 'Director')
             ON CONFLICT (role_id) DO UPDATE SET
                 role_name = EXCLUDED.role_name, 
                 description = EXCLUDED.description;
@@ -56,14 +72,22 @@ async function seedDatabase() {
 
         // 2. Insert Sample Users dynamically
         for (const u of sampleUsers) {
-            await db.query(`
-                INSERT INTO users (full_name, email, role, department, designation, employee_id)
-                VALUES ($1, $2, $3, $4, $5, $6)
+            const userRes = await db.query(`
+                INSERT INTO users (full_name, email, department, designation, employee_id)
+                VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (email) DO UPDATE SET 
-                    role = EXCLUDED.role, 
+                    full_name = EXCLUDED.full_name,
                     department = EXCLUDED.department, 
-                    designation = EXCLUDED.designation;
-            `, [u.full_name, u.email, u.role, u.dept, u.desig, u.emp_id]);
+                    designation = EXCLUDED.designation
+                RETURNING user_id;
+            `, [u.full_name, u.email, u.dept, u.desig, u.emp_id]);
+
+            const userId = userRes.rows[0].user_id;
+            await db.query(`
+                INSERT INTO user_roles (user_id, role_id)
+                SELECT $1, role_id FROM roles WHERE role_name = $2
+                ON CONFLICT (user_id, role_id) DO NOTHING;
+            `, [userId, u.role]);
         }
 
         // 3. Insert Full Category Intelligence
@@ -111,10 +135,10 @@ async function seedDatabase() {
             if (userRes.rows.length === 0) continue;
             
             const reqRes = await db.query(`
-                INSERT INTO booking_requests (user_id, category_id, purpose_of_visit, visit_type, arrival_datetime, departure_datetime, rooms_required, undertaking_accepted, booking_state, approval_state, payment_responsible)
-                VALUES ($1, $2, $3, $4, NOW() + INTERVAL '1 day', NOW() + INTERVAL '3 days', $5, true, $6, $7, 'guest')
+                INSERT INTO booking_requests (user_id, category_id, purpose_of_visit, visit_type, arrival_datetime, departure_datetime, rooms_required, undertaking_accepted, booking_state, payment_responsible)
+                VALUES ($1, $2, $3, $4, NOW() + INTERVAL '1 day', NOW() + INTERVAL '3 days', $5, true, $6, 'guest')
                 RETURNING booking_id;
-            `, [userRes.rows[0].user_id, b.cat_id, b.purpose, b.visit_type, b.rooms, b.status, b.stage]);
+            `, [userRes.rows[0].user_id, b.cat_id, b.purpose, b.visit_type, b.rooms, b.status]);
 
             await db.query(`
                 INSERT INTO guests (booking_id, guest_name, phone, relation_to_applicant)

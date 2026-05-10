@@ -1,48 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CheckCircle, XCircle, FileText, ClipboardCheck, ChevronDown, ChevronUp, Plus, Users, Utensils, Trash2, CreditCard } from 'lucide-react';
+import { LayoutDashboard, CheckCircle, XCircle, FileText, ClipboardCheck, Plus, Trash2, CreditCard, Eye } from 'lucide-react';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
+import BookingDetailsModal from '../components/ui/BookingDetailsModal';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 export default function AdminDashboard() {
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [myBookings, setMyBookings] = useState([]);
   const [approvalBookings, setApprovalBookings] = useState([]);
   const [activeTab, setActiveTab] = useState('my_bookings'); // 'my_bookings' or 'approvals'
-  const [expandedBooking, setExpandedBooking] = useState(null);
-  const [showFood, setShowFood] = useState({});
+  const [previewId, setPreviewId] = useState(null);
   const navigate = useNavigate();
-
-  const toggleFood = (bookingId) => {
-    setShowFood(prev => ({ ...prev, [bookingId]: !prev[bookingId] }));
-  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
 
-    if (!token || !storedUser) {
-      navigate('/login');
+    if (!token || !user) {
       return;
     }
 
-    const parsedUser = JSON.parse(storedUser);
-    setUser(parsedUser);
     
     // PERFECT ROUTING: Send Admins straight to Approvals, Regular users to My Bookings
-    const role = String(parsedUser.role || '').trim().toLowerCase();
-    const isAuthority = ['super_admin', 'admin', 'guest_house_admin', 'hod', 'dean', 'registrar'].includes(role) || ['admin@nitt.edu', 'hod@nitt.edu'].includes(parsedUser.email);
+    const role = String(user.role || '').trim().toLowerCase();
+    const isAuthority = ['super_admin', 'admin', 'guest_house_admin', 'hod', 'dean', 'registrar'].includes(role) || ['admin@nitt.edu', 'hod@nitt.edu'].includes(user.email);
     
     if (isAuthority) setActiveTab('approvals');
 
     fetchMyBookings(token);
     fetchApprovalBookings(token);
-  }, [navigate]);
+  }, [user]);
 
   const fetchMyBookings = async (token) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/bookings/me`, {
+      const response = await axios.get(`${API_BASE_URL}/bookings/my`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.success) setMyBookings(response.data.data);
@@ -53,7 +46,7 @@ export default function AdminDashboard() {
 
   const fetchApprovalBookings = async (token) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/admin/bookings`, {
+      const response = await axios.get(`${API_BASE_URL}/bookings/admin/all`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.success) {
@@ -67,7 +60,7 @@ export default function AdminDashboard() {
   const handleUpdateStatus = async (id, status, stage) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`${API_BASE_URL}/admin/bookings/${id}/status`, { status, stage }, {
+      await axios.patch(`${API_BASE_URL}/bookings/${id}/admin-status`, { status }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchApprovalBookings(token); // Refresh list
@@ -93,7 +86,7 @@ export default function AdminDashboard() {
     if (!window.confirm('Are you sure you want to delete this pending request?')) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE_URL}/bookings/${id}`, {
+      await axios.patch(`${API_BASE_URL}/bookings/${id}/cancel`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchMyBookings(token); // Refresh list
@@ -111,8 +104,8 @@ export default function AdminDashboard() {
     isSuperAdmin || ['hod', 'dean', 'registrar'].includes(userRole) || 
     ['admin@nitt.edu', 'hod@nitt.edu'].includes(user.email);
 
-  const adminPending = approvalBookings.filter(b => b.booking_state === 'PENDING_APPROVAL');
-  const adminProcessed = approvalBookings.filter(b => b.booking_state !== 'PENDING_APPROVAL');
+  const adminPending = approvalBookings.filter(b => b.booking_state && b.booking_state.startsWith('PENDING_'));
+  const adminProcessed = approvalBookings.filter(b => b.booking_state && !b.booking_state.startsWith('PENDING_'));
   const activeAdminList = activeTab === 'approvals' ? adminPending : adminProcessed;
 
   return (
@@ -200,7 +193,7 @@ export default function AdminDashboard() {
                       booking.booking_state === 'REJECTED' ? 'bg-red-100 text-red-800' :
                       'bg-amber-100 text-amber-800'
                     }`}>
-                      {booking.booking_state === 'PENDING_APPROVAL' ? 'Pending Approval' : booking.booking_state.replace(/_/g, ' ')}
+                      {booking.booking_state.startsWith('PENDING_') ? 'Pending Approval' : booking.booking_state.replace(/_/g, ' ')}
                     </span>
                   </td>
                   <td className="p-4 text-right space-x-2 whitespace-nowrap">
@@ -209,7 +202,7 @@ export default function AdminDashboard() {
                         Pay Now
                       </button>
                     )}
-                  {booking.booking_state === 'PENDING_APPROVAL' && (
+                  {booking.booking_state.startsWith('PENDING_') && (
                     <button onClick={() => handleDelete(booking.booking_id)} className="inline-flex items-center p-1.5 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-lg transition-colors border border-red-200 shadow-sm ml-2" title="Delete Request">
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -253,7 +246,7 @@ export default function AdminDashboard() {
               <tr className="hover:bg-slate-50 transition-colors">
                   <td className="p-4">
                     <p className="font-bold text-slate-800">{booking.applicant_name}</p>
-                    <p className="text-xs text-slate-500 capitalize">{booking.department} | {booking.applicant_role.replace(/_/g, ' ')}</p>
+                    <p className="text-xs text-slate-500 capitalize">{booking.department}{booking.applicant_role ? ` | ${String(booking.applicant_role).replace(/_/g, ' ')}` : ''}</p>
                   </td>
                   <td className="p-4">
                     <p className="text-sm font-medium text-slate-800">{new Date(booking.arrival_datetime).toLocaleDateString()}</p>
@@ -265,19 +258,19 @@ export default function AdminDashboard() {
                       booking.booking_state === 'REJECTED' ? 'bg-red-100 text-red-800' :
                       'bg-amber-100 text-amber-800'
                     }`}>
-                      {booking.booking_state === 'PENDING_APPROVAL' ? 'Pending Approval' : booking.booking_state.replace(/_/g, ' ')}
+                      {booking.booking_state.startsWith('PENDING_') ? 'Pending Approval' : booking.booking_state.replace(/_/g, ' ')}
                     </span>
                   </td>
                   <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                  <button onClick={() => setExpandedBooking(expandedBooking === booking.booking_id ? null : booking.booking_id)} className="inline-flex items-center p-2 bg-slate-50 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 shadow-sm" title="View Application Details">
-                    {expandedBooking === booking.booking_id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                  <button onClick={() => setPreviewId(booking.booking_id)} className="inline-flex items-center p-2 bg-slate-50 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 shadow-sm" title="Preview Application">
+                    <Eye className="w-5 h-5" />
                   </button>
-                        {booking.booking_state === 'PENDING_APPROVAL' && (
+                        {booking.booking_state.startsWith('PENDING_') && (
                       <>
-                        <button onClick={() => handleUpdateStatus(booking.booking_id, 'APPROVED', 'APPROVED')} className="inline-flex items-center p-2 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-700 rounded-lg transition-colors border border-green-200 shadow-sm" title="Approve">
+                        <button onClick={() => handleUpdateStatus(booking.booking_id, 'APPROVED')} className="inline-flex items-center p-2 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-700 rounded-lg transition-colors border border-green-200 shadow-sm" title="Approve">
                           <CheckCircle className="w-5 h-5" />
                         </button>
-                        <button onClick={() => handleUpdateStatus(booking.booking_id, 'REJECTED', 'REJECTED')} className="inline-flex items-center p-2 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-lg transition-colors border border-red-200 shadow-sm" title="Reject">
+                        <button onClick={() => handleUpdateStatus(booking.booking_id, 'REJECTED')} className="inline-flex items-center p-2 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-lg transition-colors border border-red-200 shadow-sm" title="Reject">
                           <XCircle className="w-5 h-5" />
                         </button>
                       </>
@@ -297,117 +290,6 @@ export default function AdminDashboard() {
                         </button>
                   </td>
                 </tr>
-              {expandedBooking === booking.booking_id && (
-                <tr className="bg-slate-50/50 border-b border-slate-200">
-                  <td colSpan="5" className="p-6">
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
-                      
-                      {/* Application & Stay Details */}
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-3 flex items-center">
-                          <FileText className="w-4 h-4 mr-2 text-slate-400" />
-                          Application Details
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Applicant</p>
-                            <p className="text-slate-800 font-semibold">{booking.applicant_name}</p>
-                            <p className="text-xs text-slate-500">{booking.applicant_email}</p>
-                          </div>
-                          <div>
-                            <p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Category & Visit</p>
-                            <p className="text-slate-800 font-semibold">{booking.category_code || `CAT-${booking.category_id}`} - <span className="capitalize">{booking.visit_type}</span></p>
-                          </div>
-                          <div>
-                            <p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Purpose</p>
-                            <p className="text-slate-800 font-semibold">{booking.purpose_of_visit}</p>
-                          </div>
-                          <div>
-                            <p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Duration</p>
-                            <p className="text-slate-800 font-semibold">{new Date(booking.arrival_datetime).toLocaleDateString()} to {new Date(booking.departure_datetime).toLocaleDateString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Payment</p>
-                            <p className="text-slate-800 font-semibold capitalize">{booking.payment_responsible}</p>
-                          </div>
-                          {booking.project_code && (
-                            <div>
-                              <p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Project Code</p>
-                              <p className="text-slate-800 font-semibold">{booking.project_code}</p>
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Rooms</p>
-                            <p className="text-slate-800 font-semibold">{booking.rooms_required} x {booking.room_type || 'Standard Room'}</p>
-                            {booking.extra_beds > 0 && <p className="text-xs text-slate-500">+{booking.extra_beds} Extra Bed(s)</p>}
-                          </div>
-                          <div>
-                            <p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Est. Amount</p>
-                            <p className="text-emerald-700 font-bold">₹{booking.total_estimated_amount || 0}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Guest Details */}
-                      <div>
-                        <div className="border-b border-slate-100 pb-2 mb-3 flex items-center justify-between">
-                          <h4 className="text-sm font-bold text-slate-800 flex items-center">
-                            <Users className="w-4 h-4 mr-2 text-slate-400" />
-                            Guest Information
-                          </h4>
-                          <button 
-                            onClick={() => toggleFood(booking.booking_id)} 
-                            className="text-xs bg-orange-50 text-orange-600 hover:bg-orange-100 px-3 py-1.5 rounded-lg font-bold border border-orange-200 transition-colors flex items-center shadow-sm">
-                            <Utensils className="w-3 h-3 mr-1.5" />
-                            {showFood[booking.booking_id] ? 'Hide Food' : 'View Food'}
-                          </button>
-                        </div>
-                        {booking.guests && booking.guests.filter(Boolean).length > 0 ? (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                            {booking.guests.filter(Boolean).map((guest, idx) => (
-                              <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm transition-all">
-                                <p className="font-bold text-slate-800">{guest.guest_name}</p>
-                                <p className="text-xs font-medium text-slate-500 mt-1 uppercase tracking-wider">{guest.relation_to_applicant || 'Guest'}</p>
-                                <div className="mt-2 space-y-1 text-slate-600">
-                                  {guest.phone && <p>📞 {guest.phone}</p>}
-                                  {guest.email && <p>✉️ {guest.email}</p>}
-                                  {(guest.gender || guest.age) && <p>👤 {[guest.gender, guest.age ? `${guest.age} yrs` : null].filter(Boolean).join(', ')}</p>}
-                                </div>
-
-                                {/* Food Details Dropdown */}
-                                {showFood[booking.booking_id] && (
-                                  <div className="mt-3 pt-3 border-t border-slate-200 animate-fade-in">
-                                    <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider flex items-center">
-                                      <Utensils className="w-3 h-3 mr-1" /> Meal Requests
-                                    </p>
-                                    {guest.food_preferences && guest.food_preferences.filter(Boolean).length > 0 ? (
-                                      <div className="space-y-1">
-                                        {guest.food_preferences.filter(Boolean).map((meal, mIdx) => (
-                                           <div key={mIdx} className="text-xs bg-white p-2 rounded-lg border border-slate-100 grid grid-cols-4 gap-1 text-center shadow-sm">
-                                             <span className="font-semibold text-slate-700 text-left">{new Date(meal.meal_date).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</span>
-                                             <span className="text-slate-600 font-medium" title="Breakfast">B: <span className={meal.breakfast > 0 ? 'text-green-600 font-extrabold text-sm' : 'text-slate-300'}>{meal.breakfast > 0 ? '✓' : '—'}</span></span>
-                                             <span className="text-slate-600 font-medium" title="Lunch">L: <span className={meal.lunch > 0 ? 'text-green-600 font-extrabold text-sm' : 'text-slate-300'}>{meal.lunch > 0 ? '✓' : '—'}</span></span>
-                                             <span className="text-slate-600 font-medium" title="Dinner">D: <span className={meal.dinner > 0 ? 'text-green-600 font-extrabold text-sm' : 'text-slate-300'}>{meal.dinner > 0 ? '✓' : '—'}</span></span>
-                                           </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-xs text-slate-400 italic">No food requested.</p>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-slate-500 italic bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">No external guests listed.</p>
-                        )}
-                      </div>
-
-                    </div>
-                  </td>
-                </tr>
-              )}
               </React.Fragment>
               ))}
             </tbody>
@@ -466,6 +348,8 @@ export default function AdminDashboard() {
         </table>
       </div>
     )}
+
+    {previewId && <BookingDetailsModal bookingId={previewId} onClose={() => setPreviewId(null)} />}
     </div>
   );
 }

@@ -1,0 +1,24 @@
+exports.ROLES = {
+    STUDENT: 'student',
+    FACULTY: 'faculty',
+    HOD: 'hod',
+    DEAN: 'dean',
+    REGISTRAR: 'registrar',
+    ADMIN: 'super_admin',
+    GUEST_HOUSE_ADMIN: 'guest_house_admin',
+    RECEPTIONIST: 'reception_staff'
+};
+
+exports.BOOKING_STATUS = {
+    PENDING_APPROVER: 'PENDING_APPROVER',
+    APPROVER_APPROVED: 'APPROVER_APPROVED',
+    APPROVER_REJECTED: 'APPROVER_REJECTED',
+    PENDING_ADMIN: 'PENDING_ADMIN',
+    ADMIN_APPROVED: 'ADMIN_APPROVED',
+    ADMIN_REJECTED: 'ADMIN_REJECTED',
+    READY_FOR_CHECKIN: 'READY_FOR_CHECKIN',
+    CHECKED_IN: 'CHECKED_IN',
+    CHECKED_OUT: 'CHECKED_OUT',
+    NO_SHOW: 'NO_SHOW',
+    CANCELLED: 'CANCELLED'
+};

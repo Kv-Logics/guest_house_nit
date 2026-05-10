@@ -5,25 +5,28 @@ const bookingRoutes = require('./booking.routes');
 const approvalRoutes = require('./approval.routes');
 const receptionRoutes = require('./reception.routes');
 
-// Helper to safely mount routers even if they are exported incorrectly
-// (e.g. module.exports = { router } instead of module.exports = router)
-const safeMount = (routeModule) => {
-    if (typeof routeModule === 'function') return routeModule; // Exported correctly
-    if (routeModule && typeof routeModule.router === 'function') return routeModule.router; // Object export
-    
-    // Fallback dummy router to prevent app crash if export is missing completely
-    const fallback = require('express').Router();
-    fallback.use((req, res) => res.status(500).json({ 
-        success: false, 
-        message: 'Route module not exported correctly. Please verify module.exports in this route file.' 
-    }));
-    return fallback;
+// Helper to safely mount routers and prevent application crashes
+const safeMount = (path, routeModule) => {
+    // If exported correctly: `module.exports = router;`
+    if (typeof routeModule === 'function') { 
+        router.use(path, routeModule);
+    } 
+    // If mistakenly exported as an object: `module.exports = { router };`
+    else if (routeModule && typeof routeModule.router === 'function') {
+        router.use(path, routeModule.router);
+    } 
+    // If empty/missing, provide a dummy router to prevent Node.js from crashing
+    else {
+        const fallback = require('express').Router();
+        fallback.use((req, res) => res.status(501).json({ error: `Route for ${path} is currently unavailable or missing its export.` }));
+        router.use(path, fallback);
+    }
 };
 
 // Mount centralized routes
-router.use('/auth', safeMount(authRoutes));
-router.use('/bookings', safeMount(bookingRoutes));
-router.use('/approvals', safeMount(approvalRoutes));
-router.use('/reception', safeMount(receptionRoutes));
+safeMount('/auth', authRoutes);
+safeMount('/bookings', bookingRoutes);
+safeMount('/approvals', approvalRoutes);
+safeMount('/reception', receptionRoutes);
 
 module.exports = router;
