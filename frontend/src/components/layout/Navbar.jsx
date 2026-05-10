@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { LogOut, Menu, X, PlusCircle, ClipboardCheck, ShieldCheck, Key, FileText } from 'lucide-react';
 import { ROLES } from '../../utils/constants';
-import nitLogo from '../../../nitlogo.png';
+import nitLogo from '../../assets/images/nitlogo.png';
 
 export default function Navbar() {
     const { user, logout } = useAuth();

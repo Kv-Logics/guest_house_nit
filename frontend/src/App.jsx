@@ -1,10 +1,10 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import BookingPage from './pages/BookingPage';
-import SuccessPage from './pages/SuccessPage';
-import ErrorPage from './pages/ErrorPage';
-import LoginPage from './pages/LoginPage';
-import AdminDashboard from './pages/AdminDashboard';
-import PreviewPage from './pages/PreviewPage';
+import BookingPage from './pages/booking/BookingPage';
+import SuccessPage from './pages/booking/SuccessPage';
+import ErrorPage from './pages/booking/ErrorPage';
+import LoginPage from './pages/auth/LoginPage';
+import AdminDashboard from './pages/dashboard/AdminDashboard';
+import PreviewPage from './pages/booking/PreviewPage';
 import ApplicantDashboard from './pages/dashboard/ApplicantDashboard';
 import ApproverDashboard from './pages/dashboard/ApproverDashboard';
 import ReceptionDashboard from './pages/dashboard/ReceptionDashboard';

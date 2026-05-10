@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import MultiGuestSection from './MultiGuestSection';
 import CategoryVisitSection from './CategoryVisitSection';
 import StayDetailsSection from './StayDetailsSection';
-import UndertakingSection from './UndertakingSection';
 import { AlertCircle, Eye, FileText, ShieldAlert } from 'lucide-react';
 
 export default function BookingForm({ formData, setFormData, user, authorities = [] }) {
@@ -41,16 +40,18 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       return;
     }
 
-    const arrival = new Date(`${formData.arrival_date}T${formData.arrival_time}`);
-    const departure = new Date(`${formData.departure_date}T${formData.departure_time}`);
-
-    if (arrival < new Date(new Date().setHours(0,0,0,0))) {
-      setLocalError('Arrival date cannot be in the past.');
-      return;
-    }
-    if (departure <= arrival) {
-      setLocalError('Departure date & time must be strictly after arrival.');
-      return;
+    for (let i = 0; i < formData.guests.length; i++) {
+      const guest = formData.guests[i];
+      const arrival = new Date(`${guest.arrival_date}T${guest.arrival_time}`);
+      const departure = new Date(`${guest.departure_date}T${guest.departure_time}`);
+      if (arrival < new Date(new Date().setHours(0,0,0,0))) {
+        setLocalError(`Guest ${i + 1}: Arrival date cannot be in the past.`);
+        return;
+      }
+      if (departure <= arrival) {
+        setLocalError(`Guest ${i + 1}: Departure date & time must be strictly after arrival.`);
+        return;
+      }
     }
     if (formData.category_id === '2' && !formData.project_code.trim()) {
       setLocalError('Project code is strictly required for CAT II bookings.');
@@ -88,13 +89,6 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-
-    /* --- UNDERTAKING TEMPORARILY DISABLED ---
-    if (!formData.undertaking_1 || !formData.undertaking_2 || !formData.undertaking_3 || !formData.undertaking_4 || !formData.undertaking_5) {
-      setLocalError('You must check and accept all Undertaking conditions to proceed.');
-      return;
-    }
-    ---------------------------------------- */
 
     // Proceed to preview page with form data
     navigate('/preview', { state: { formData, user, authorities } });
@@ -139,10 +133,9 @@ export default function BookingForm({ formData, setFormData, user, authorities =
         </div>
 
         <div className={`transition-all duration-500 space-y-10 ${guidelinesAccepted ? 'opacity-100 translate-y-0' : 'opacity-40 grayscale-[30%] pointer-events-none translate-y-2'}`}>
-          <StayDetailsSection formData={formData} handleChange={handleChange} />
         <CategoryVisitSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
           <MultiGuestSection formData={formData} setFormData={setFormData} user={user} />
-          {/* <UndertakingSection formData={formData} handleChange={handleChange} /> */}
+          <StayDetailsSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
           
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm">
             <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center border-b border-slate-100 pb-3">

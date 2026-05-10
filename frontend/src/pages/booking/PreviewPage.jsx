@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, CheckCircle2, ClipboardList, Calendar, Users, Wallet, FileText, AlertCircle, Utensils, User, Paperclip, ShieldCheck } from 'lucide-react';
-import LoadingSpinner from '../components/LoadingSpinner';
-import nitLogo from '../../nitlogo.png';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import nitLogo from '../../assets/images/nitlogo.png';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
@@ -38,26 +38,21 @@ export default function PreviewPage() {
         if (!guest.age) delete guest.age; // Zod optional() expects undefined, not null
         else guest.age = parseInt(guest.age);
         
-        if (guest.arrival_date && guest.arrival_time) {
-             guest.arrival_datetime = new Date(`${guest.arrival_date}T${guest.arrival_time}`).toISOString();
-        } else {
-             guest.arrival_datetime = new Date(`${formData.arrival_date}T${formData.arrival_time}`).toISOString();
-        }
-        if (guest.departure_date && guest.departure_time) {
-             guest.departure_datetime = new Date(`${guest.departure_date}T${guest.departure_time}`).toISOString();
-        } else {
-             guest.departure_datetime = new Date(`${formData.departure_date}T${formData.departure_time}`).toISOString();
-        }
+        guest.arrival_datetime = new Date(`${guest.arrival_date}T${guest.arrival_time}`).toISOString();
+        guest.departure_datetime = new Date(`${guest.departure_date}T${guest.departure_time}`).toISOString();
         
         return guest;
       });
+
+      const earliestArrival = new Date(Math.min(...sanitizedGuests.map(g => new Date(g.arrival_datetime))));
+      const latestDeparture = new Date(Math.max(...sanitizedGuests.map(g => new Date(g.departure_datetime))));
 
       const bookingData = {
         ...formData,
         guests: sanitizedGuests,
         user_id: user.user_id,
-        arrival_datetime: new Date(`${formData.arrival_date}T${formData.arrival_time}`).toISOString(),
-        departure_datetime: new Date(`${formData.departure_date}T${formData.departure_time}`).toISOString(),
+        arrival_datetime: earliestArrival.toISOString(),
+        departure_datetime: latestDeparture.toISOString(),
         category_id: parseInt(formData.category_id),
         rooms_required: parseInt(formData.rooms_required),
         extra_beds: parseInt(formData.extra_beds) || 0,
@@ -159,8 +154,8 @@ export default function PreviewPage() {
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center border-b border-slate-100 pb-3"><Calendar className="w-5 h-5 mr-2 text-purple-500" /> Stay Schedule</h3>
             <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
-              <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Check-in</p><p className="font-semibold text-slate-800">{new Date(`${formData.arrival_date}T${formData.arrival_time}`).toLocaleString()}</p></div>
-              <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Check-out</p><p className="font-semibold text-slate-800">{new Date(`${formData.departure_date}T${formData.departure_time}`).toLocaleString()}</p></div>
+              <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Earliest Check-in</p><p className="font-semibold text-slate-800">{new Date(Math.min(...formData.guests.map(g => new Date(`${g.arrival_date}T${g.arrival_time}`)))).toLocaleString()}</p></div>
+              <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Latest Check-out</p><p className="font-semibold text-slate-800">{new Date(Math.max(...formData.guests.map(g => new Date(`${g.departure_date}T${g.departure_time}`)))).toLocaleString()}</p></div>
               <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Rooms Requested</p><p className="font-semibold text-slate-800">{formData.rooms_required} x {formData.room_type}</p></div>
               <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Extra Beds</p><p className="font-semibold text-slate-800">{formData.extra_beds}</p></div>
             </div>
@@ -180,9 +175,9 @@ export default function PreviewPage() {
                     {guest.phone && <p>📞 {guest.phone} &nbsp; ✉️ {guest.email}</p>}
                     <p>🆔 {guest.id_proof_type}: <span className="font-mono bg-white px-1 border border-slate-200 rounded">{guest.id_proof_number}</span></p>
                     <p className="mt-2 font-bold text-slate-700 bg-slate-200 px-2 py-1 rounded inline-block">
-                       📅 Stay: {guest.arrival_date ? new Date(`${guest.arrival_date}T${guest.arrival_time}`).toLocaleString() : new Date(`${formData.arrival_date}T${formData.arrival_time}`).toLocaleString()} 
+                       📅 Stay: {new Date(`${guest.arrival_date}T${guest.arrival_time}`).toLocaleString()} 
                        {' to '}
-                       {guest.departure_date ? new Date(`${guest.departure_date}T${guest.departure_time}`).toLocaleString() : new Date(`${formData.departure_date}T${formData.departure_time}`).toLocaleString()}
+                       {new Date(`${guest.departure_date}T${guest.departure_time}`).toLocaleString()}
                     </p>
                   </div>
                   

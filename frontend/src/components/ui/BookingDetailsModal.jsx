@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
 import { X, FileText, Users, Utensils, Paperclip, Loader2 } from 'lucide-react';
 import StatusBadge from './StatusBadge';
-import nitLogo from '../../../nitlogo.png';
+import nitLogo from '../../assets/images/nitlogo.png';
 
 export default function BookingDetailsModal({ bookingId, onClose }) {
     const [showFood, setShowFood] = useState(true); // Default to showing food implicitly

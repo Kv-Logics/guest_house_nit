@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutDashboard, CheckCircle, XCircle, FileText, ClipboardCheck, Plus, Trash2, CreditCard, Eye } from 'lucide-react';
 import axios from 'axios';
-import { useAuth } from '../context/AuthContext';
-import BookingDetailsModal from '../components/ui/BookingDetailsModal';
+import { useAuth } from '../../context/AuthContext';
+import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
