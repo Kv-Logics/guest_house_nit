@@ -1,18 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, CheckCircle2, ClipboardList, Calendar, Users, Wallet, FileText, AlertCircle, Utensils, User, Paperclip, ShieldCheck } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import nitLogo from '../../nitlogo.png';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 export default function PreviewPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { formData, user } = location.state || {};
+  const { formData, user, authorities } = location.state || {};
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [undertakingAccepted, setUndertakingAccepted] = useState(false);
+
+  // Ensure the page always starts at the very top when navigating from the form
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   if (!formData || !user) {
     return (
@@ -27,10 +33,24 @@ export default function PreviewPage() {
     setIsLoading(true);
     setError('');
     try {
-      const sanitizedGuests = formData.guests.map(g => ({
-        ...g,
-        age: g.age ? parseInt(g.age) : null
-      }));
+      const sanitizedGuests = formData.guests.map(g => {
+        const guest = { ...g };
+        if (!guest.age) delete guest.age; // Zod optional() expects undefined, not null
+        else guest.age = parseInt(guest.age);
+        
+        if (guest.arrival_date && guest.arrival_time) {
+             guest.arrival_datetime = new Date(`${guest.arrival_date}T${guest.arrival_time}`).toISOString();
+        } else {
+             guest.arrival_datetime = new Date(`${formData.arrival_date}T${formData.arrival_time}`).toISOString();
+        }
+        if (guest.departure_date && guest.departure_time) {
+             guest.departure_datetime = new Date(`${guest.departure_date}T${guest.departure_time}`).toISOString();
+        } else {
+             guest.departure_datetime = new Date(`${formData.departure_date}T${formData.departure_time}`).toISOString();
+        }
+        
+        return guest;
+      });
 
       const bookingData = {
         ...formData,
@@ -42,33 +62,34 @@ export default function PreviewPage() {
         rooms_required: parseInt(formData.rooms_required),
         extra_beds: parseInt(formData.extra_beds) || 0,
         total_estimated_amount: formData.total_estimated_amount,
-        payment_responsibility: formData.category_id === '1' ? 'institute' : formData.payment_responsibility,
+        payment_responsibility: formData.category_id === '1' || formData.category_id === 1 ? 'institute' : formData.payment_responsibility,
+        assigned_approver_id: formData.assigned_approver_id || '',
         undertaking_accepted: true
       };
 
-      // Create a FormData object to send multipart data
-      const data = new FormData();
-
-      // Append the JSON data as a string under a specific key
-      data.append('bookingData', JSON.stringify(bookingData));
-
-      // Append the file objects if they exist
-      if (formData.document_1) {
-        data.append('document_1', formData.document_1);
-      }
-      if (formData.document_2) {
-        data.append('document_2', formData.document_2);
-      }
+      const formDataToSend = new FormData();
+      formDataToSend.append('payload', JSON.stringify(bookingData));
+      
+      if (formData.document_1) formDataToSend.append('document_1', formData.document_1);
+      if (formData.document_2) formDataToSend.append('document_2', formData.document_2);
 
       const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_BASE_URL}/bookings`, data, {
-        headers: { Authorization: `Bearer ${token}` } // Axios sets multipart header automatically
+      const response = await axios.post(`${API_BASE_URL}/bookings`, formDataToSend, {
+        headers: { 
+            Authorization: `Bearer ${token}`
+            // Note: Axios automatically sets the multipart boundary header for FormData
+        } 
       });
       
       localStorage.removeItem('nitt_booking_draft');
       navigate('/success', { state: { bookingId: response.data.data.booking_id } });
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Failed to submit booking');
+      // Extract precise Zod validation messages if the payload gets rejected again
+      let errorMsg = err.response?.data?.message || err.message || 'Failed to submit booking';
+      if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
+          errorMsg = err.response.data.errors.map(e => `${e.path.replace('body.', '')}: ${e.message}`).join(' | ');
+      }
+      setError(errorMsg);
       window.scrollTo(0, 0);
     } finally {
       setIsLoading(false);
@@ -76,18 +97,21 @@ export default function PreviewPage() {
   };
 
   const catMap = { '1': 'CAT I (Priority)', '2': 'CAT II (Project)', '3': 'CAT III (Internal)', '4': 'CAT IV (Personal)' };
+  
+  const selectedApprover = authorities?.find(a => a.user_id === formData.assigned_approver_id);
+  const approverName = selectedApprover ? `${selectedApprover.full_name} (${selectedApprover.department})` : 'Unknown Authority';
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
       {/* Header */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl shadow-sm border border-blue-100">
-            <ClipboardList className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Application Preview</h2>
-            <p className="text-slate-500 font-medium">Please review all details before final submission.</p>
+        <div className="flex items-center gap-5">
+          <img src={nitLogo} alt="NIT Logo" className="w-14 h-14 object-contain" />
+          <div className="flex flex-col">
+            <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+              Application Preview
+            </h2>
+            <p className="text-xs text-slate-500 font-bold tracking-wider mt-1 uppercase">National Institute of Technology, Tiruchirappalli</p>
           </div>
         </div>
         <button onClick={() => navigate('/book', { state: { formData } })} className="flex items-center text-sm font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition-colors border border-slate-200">
@@ -155,6 +179,11 @@ export default function PreviewPage() {
                   <div className="text-xs text-slate-600 space-y-1 mb-3">
                     {guest.phone && <p>📞 {guest.phone} &nbsp; ✉️ {guest.email}</p>}
                     <p>🆔 {guest.id_proof_type}: <span className="font-mono bg-white px-1 border border-slate-200 rounded">{guest.id_proof_number}</span></p>
+                    <p className="mt-2 font-bold text-slate-700 bg-slate-200 px-2 py-1 rounded inline-block">
+                       📅 Stay: {guest.arrival_date ? new Date(`${guest.arrival_date}T${guest.arrival_time}`).toLocaleString() : new Date(`${formData.arrival_date}T${formData.arrival_time}`).toLocaleString()} 
+                       {' to '}
+                       {guest.departure_date ? new Date(`${guest.departure_date}T${guest.departure_time}`).toLocaleString() : new Date(`${formData.departure_date}T${formData.departure_time}`).toLocaleString()}
+                    </p>
                   </div>
                   
                   {/* Guest Meals */}
@@ -189,12 +218,23 @@ export default function PreviewPage() {
               <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Category</p><p className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded inline-block">{catMap[formData.category_id]}</p></div>
               <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Visit Type</p><p className="font-semibold text-slate-800 capitalize">{formData.visit_type}</p></div>
               {formData.project_code && <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Project Code</p><p className="font-semibold text-slate-800">{formData.project_code}</p></div>}
+              <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Routed To</p><p className="font-bold text-slate-800">{approverName}</p></div>
               <div><p className="text-xs font-bold text-slate-400 uppercase mb-1">Purpose of Visit</p><p className="text-slate-700 italic">"{formData.purpose_of_visit}"</p></div>
               {(formData.document_1 || formData.document_2) && (
                 <div className="pt-3 border-t border-slate-100">
                   <p className="text-xs font-bold text-slate-400 uppercase mb-2">Attached Documents</p>
-                  {formData.document_1 && <p className="text-xs text-indigo-600 font-semibold flex items-center"><Paperclip className="w-3 h-3 mr-1" /> {formData.document_1.name}</p>}
-                  {formData.document_2 && <p className="text-xs text-indigo-600 font-semibold flex items-center mt-1"><Paperclip className="w-3 h-3 mr-1" /> {formData.document_2.name}</p>}
+                  <div className="grid grid-cols-2 gap-4">
+                      {formData.document_1 && (
+                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                              <p className="text-xs text-indigo-600 font-semibold flex items-center truncate"><Paperclip className="w-3 h-3 mr-1 flex-shrink-0" /> {formData.document_1.name}</p>
+                          </div>
+                      )}
+                      {formData.document_2 && (
+                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                              <p className="text-xs text-indigo-600 font-semibold flex items-center truncate"><Paperclip className="w-3 h-3 mr-1 flex-shrink-0" /> {formData.document_2.name}</p>
+                          </div>
+                      )}
+                  </div>
                 </div>
               )}
             </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import BookingForm from '../components/BookingForm';
+import { useAuth } from '../context/AuthContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
@@ -19,8 +20,9 @@ const formatToYYYYMMDD = (date) => {
 export default function BookingPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [tariffs, setTariffs] = useState([]);
+  const [authorities, setAuthorities] = useState([]);
 
   const [formData, setFormData] = useState(location.state?.formData || {
     arrival_date: formatToYYYYMMDD(today), arrival_time: '12:00', departure_date: formatToYYYYMMDD(tomorrow), departure_time: '12:00',
@@ -32,6 +34,7 @@ export default function BookingPage() {
     visit_type: 'official',
     project_code: 'DST-2026-TEST',
     payment_responsibility: 'guest',
+    assigned_approver_id: '',
     undertaking_1: true, undertaking_2: true, undertaking_3: true, undertaking_4: true, undertaking_5: true,
     guests: [{
       guest_name: 'Test Guest', designation: 'Visiting Professor', relation_to_applicant: 'Colleague', phone: '9876543210', email: 'guest@example.com',
@@ -42,17 +45,14 @@ export default function BookingPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    if (!token || !storedUser) {
-      navigate('/admin/login');
+    if (!token || !user) {
       return;
     }
-    setUser(JSON.parse(storedUser));
 
     // Fetch live tariffs for payment calculation
     const fetchTariffs = async () => {
       try {
-        const res = await axios.get(`${API_BASE_URL}/tariffs`, { headers: { Authorization: `Bearer ${token}` }});
+        const res = await axios.get(`${API_BASE_URL}/bookings/tariffs`, { headers: { Authorization: `Bearer ${token}` }});
         if (res.data.success) setTariffs(res.data.data);
       } catch (e) {
         console.error('Failed to fetch tariffs');
@@ -73,7 +73,22 @@ export default function BookingPage() {
     //   }
     // }
     */
-  }, [navigate]);
+  }, [user]);
+
+  useEffect(() => {
+    const fetchAuthorities = async () => {
+      if (!formData.category_id || !user) return;
+      try {
+        const res = await axios.get(`${API_BASE_URL}/bookings/authorities?category_id=${formData.category_id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }});
+        if (res.data.success) {
+          setAuthorities(res.data.data);
+        }
+      } catch (e) {
+        console.error('Failed to fetch authorities');
+      }
+    };
+    fetchAuthorities();
+  }, [formData.category_id, user]);
 
   // Dynamic Payment Calculation Logic
   useEffect(() => {
@@ -120,7 +135,7 @@ export default function BookingPage() {
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      <BookingForm formData={formData} setFormData={setFormData} user={user} />
+      <BookingForm formData={formData} setFormData={setFormData} user={user} authorities={authorities} />
     </div>
   );
 }

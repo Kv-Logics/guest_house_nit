@@ -128,12 +128,13 @@ CREATE TABLE booking_requests (
     extra_beds INTEGER DEFAULT 0,
     total_estimated_amount NUMERIC DEFAULT 0,
     undertaking_accepted BOOLEAN NOT NULL,
-    booking_state VARCHAR(50) DEFAULT 'SUBMITTED' CHECK (booking_state IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'COMPLETED')),
+    booking_state VARCHAR(50) DEFAULT 'PENDING_APPROVER' CHECK (booking_state IN ('DRAFT', 'PENDING_APPROVER', 'APPROVER_APPROVED', 'APPROVER_REJECTED', 'PENDING_ADMIN', 'ADMIN_APPROVED', 'ADMIN_REJECTED', 'READY_FOR_CHECKIN', 'CHECKED_IN', 'CHECKED_OUT', 'NO_SHOW', 'CANCELLED')),
     payment_state VARCHAR(50) DEFAULT 'PENDING' CHECK (payment_state IN ('NOT_APPLICABLE', 'PENDING', 'PAID', 'FAILED', 'REFUND_INITIATED', 'REFUNDED')),
     sponsor_status VARCHAR(50) DEFAULT 'NOT_REQUIRED' CHECK (sponsor_status IN ('NOT_REQUIRED', 'PENDING', 'ACCEPTED', 'REJECTED')),
     payment_deadline TIMESTAMP,
     invoice_id UUID,
     payment_responsible VARCHAR(50) CHECK (payment_responsible IN ('guest', 'coordinator', 'department', 'project', 'institute')),
+    assigned_approver_id UUID REFERENCES users(user_id),
     version INTEGER NOT NULL DEFAULT 1,
     checked_in_at TIMESTAMP,
     checked_out_at TIMESTAMP,
@@ -160,6 +161,8 @@ CREATE TABLE guests (
     address TEXT,
     identity_proof_type VARCHAR(50),
     identity_proof_number VARCHAR(100),
+    arrival_datetime TIMESTAMP,
+    departure_datetime TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE
 );
@@ -328,31 +331,3 @@ CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
 CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
 CREATE INDEX idx_workflow_instances_booking_id ON booking_workflow_instances(booking_id);
 CREATE INDEX idx_audit_logs_target ON audit_logs(target_entity, target_id);
-
--- 22. MOCK DATA SETUP (Temporary Credentials for Testing)
--- Insert Roles
-INSERT INTO roles (role_name, description) VALUES
-('student', 'Student of NITT'),
-('registrar', 'Registrar of NITT'),
-('admin', 'System Administrator'),
-('dean', 'Dean of NITT'),
-('receptionist', 'Guest House Receptionist'),
-('hod', 'Head of Department');
-
--- Insert Users
-INSERT INTO users (full_name, email, designation) VALUES
-('Toni', 'toni@nitt.edu', 'Student'),
-('Keerthi', 'keerthi@nitt.edu', 'Registrar'),
-('Hari', 'hari@nitt.edu', 'Admin'),
-('Shivam', 'shivam@nitt.edu', 'Dean'),
-('Tagore', 'tagore@nitt.edu', 'Receptionist'),
-('Shyam', 'shyam@nitt.edu', 'Hod');
-
--- Assign Roles to Users (Example Mapping)
-INSERT INTO user_roles (user_id, role_id) VALUES
-((SELECT user_id FROM users WHERE email = 'toni@nitt.edu'), (SELECT role_id FROM roles WHERE role_name = 'student')),
-((SELECT user_id FROM users WHERE email = 'keerthi@nitt.edu'), (SELECT role_id FROM roles WHERE role_name = 'registrar')),
-((SELECT user_id FROM users WHERE email = 'hari@nitt.edu'), (SELECT role_id FROM roles WHERE role_name = 'admin')),
-((SELECT user_id FROM users WHERE email = 'shivam@nitt.edu'), (SELECT role_id FROM roles WHERE role_name = 'dean')),
-((SELECT user_id FROM users WHERE email = 'tagore@nitt.edu'), (SELECT role_id FROM roles WHERE role_name = 'receptionist')),
-((SELECT user_id FROM users WHERE email = 'shyam@nitt.edu'), (SELECT role_id FROM roles WHERE role_name = 'hod'));
