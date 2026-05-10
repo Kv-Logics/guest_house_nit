@@ -1,21 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import BookingForm from '../components/BookingForm';
-import { useAuth } from '../context/AuthContext';
+import BookingForm from '../../components/forms/BookingForm';
+import { useAuth } from '../../context/AuthContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-
-const today = new Date();
-const tomorrow = new Date(today);
-tomorrow.setDate(tomorrow.getDate() + 1);
-
-const formatToYYYYMMDD = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
 
 export default function BookingPage() {
   const navigate = useNavigate();
@@ -25,22 +14,16 @@ export default function BookingPage() {
   const [authorities, setAuthorities] = useState([]);
 
   const [formData, setFormData] = useState(location.state?.formData || {
-    arrival_date: formatToYYYYMMDD(today), arrival_time: '12:00', departure_date: formatToYYYYMMDD(tomorrow), departure_time: '12:00',
-    rooms_required: 1, purpose_of_visit: 'Testing Auto Fill Flow',
+    rooms_required: 1, purpose_of_visit: '',
     room_type: 'Standard Room',
     extra_beds: 0,
     total_estimated_amount: 0,
-    category_id: '2', // Default to CAT-II as CAT-I is restricted
+    category_id: '1',
     visit_type: 'official',
-    project_code: 'DST-2026-TEST',
+    project_code: '',
     payment_responsibility: 'guest',
     assigned_approver_id: '',
-    undertaking_1: true, undertaking_2: true, undertaking_3: true, undertaking_4: true, undertaking_5: true,
-    guests: [{
-      guest_name: 'Test Guest', designation: 'Visiting Professor', relation_to_applicant: 'Colleague', phone: '9876543210', email: 'guest@example.com',
-      gender: 'Male', age: '45', address: '123 Test Ave, Test City', id_proof_type: '', id_proof_number: '',
-      food_preferences: [{ date: formatToYYYYMMDD(today), breakfast: 1, lunch: 1, dinner: 1, remarks: 'Veg' }]
-    }]
+    guests: []
   });
 
   useEffect(() => {
@@ -62,17 +45,6 @@ export default function BookingPage() {
 
     // Actively clear out any previously saved local storage drafts
     localStorage.removeItem('nitt_booking_draft');
-
-    /* --- DRAFT FEATURE TEMPORARILY DISABLED ---
-    // const draft = localStorage.getItem('nitt_booking_draft');
-    // if (draft) {
-    //   try {
-    //     setFormData(JSON.parse(draft));
-    //   } catch (e) {
-    //     console.error("Failed to load draft");
-    //   }
-    // }
-    */
   }, [user]);
 
   useEffect(() => {
@@ -94,10 +66,18 @@ export default function BookingPage() {
   useEffect(() => {
     if (!tariffs.length) return;
     
-    const arrival = new Date(formData.arrival_date);
-    const departure = new Date(formData.departure_date);
-    let days = Math.ceil((departure.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24));
-    days = isNaN(days) || days < 1 ? 1 : days; // Minimum 1 day charge
+    let days = 1;
+    const guests = formData.guests || [];
+    if (guests.length > 0 && guests[0].arrival_date && guests[0].departure_date) {
+        const arrivalDates = guests.map(g => new Date(`${g.arrival_date}T${g.arrival_time || '12:00'}`));
+        const departureDates = guests.map(g => new Date(`${g.departure_date}T${g.departure_time || '11:00'}`));
+        const earliestArrival = new Date(Math.min(...arrivalDates));
+        const latestDeparture = new Date(Math.max(...departureDates));
+        if (latestDeparture > earliestArrival) {
+          const diffTime = Math.abs(latestDeparture - earliestArrival);
+          days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+    }
 
     const activeTariff = tariffs.find(t => String(t.category_id) === String(formData.category_id) && t.room_type === formData.room_type) 
                       || tariffs.find(t => String(t.category_id) === String(formData.category_id));
@@ -123,13 +103,7 @@ export default function BookingPage() {
         return prev;
       });
     }
-  }, [formData.arrival_date, formData.departure_date, formData.rooms_required, formData.room_type, formData.extra_beds, formData.category_id, formData.guests, tariffs]);
-
-  /* --- DRAFT FEATURE TEMPORARILY DISABLED ---
-  // useEffect(() => {
-  //   localStorage.setItem('nitt_booking_draft', JSON.stringify(formData));
-  // }, [formData]);
-  */
+  }, [formData.rooms_required, formData.room_type, formData.extra_beds, formData.category_id, formData.guests, tariffs]);
 
   if (!user) return null;
 
