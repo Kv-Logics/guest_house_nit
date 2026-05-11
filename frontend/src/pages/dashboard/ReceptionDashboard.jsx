@@ -64,11 +64,20 @@ export default function ReceptionDashboard() {
                                 <tr key={b.booking_id} className="hover:bg-slate-50 transition-colors">
                                     <td className="p-4 font-mono text-xs text-slate-500">{b.booking_id.split('-')[0]}</td>
                                     <td className="p-4">
-                                        <p className="font-bold text-slate-800">{b.guest_names || 'No Guests Listed'}</p>
-                                        <p className="text-xs text-slate-500 mt-0.5">Booked by: {b.applicant_name}</p>
+                                        <div className="flex items-center gap-2"><p className="font-bold text-slate-800">{b.guest_names || 'No Guests Listed'}</p></div>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <p className="text-xs text-slate-500">Booked by: {b.applicant_name}</p>
+                                            {b.version > 1 && <span className="text-[10px] font-extrabold text-amber-700 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">v{b.version} Re-applied</span>}
+                                        </div>
                                     </td>
                                     <td className="p-4 text-sm font-medium text-slate-800">
-                                        {new Date(b.arrival_datetime).toLocaleDateString()} - {new Date(b.departure_datetime).toLocaleDateString()}
+                                        <p>{new Date(b.arrival_datetime).toLocaleDateString()} - {new Date(b.departure_datetime).toLocaleDateString()}</p>
+                                        <p className="text-xs text-slate-500 font-bold mt-0.5">{(() => {
+                                            const dMs = new Date(b.departure_datetime) - new Date(b.arrival_datetime);
+                                            const dDays = Math.floor(dMs / (1000 * 60 * 60 * 24));
+                                            const dHrs = Math.floor((dMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                                            return (dDays > 0 && dHrs > 0) ? `${dDays}d ${dHrs}h` : dDays > 0 ? `${dDays} Days` : `${dHrs} Hours`;
+                                        })()}</p>
                                     </td>
                                     <td className="p-4 text-sm font-medium text-slate-800">{b.rooms_required} x {b.room_type}</td>
                                     <td className="p-4"><StatusBadge status={b.booking_state} /></td>
