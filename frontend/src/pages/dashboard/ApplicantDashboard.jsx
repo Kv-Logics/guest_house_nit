@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
 import StatusBadge from '../../components/ui/StatusBadge';
-import { LayoutDashboard, FileText, PlusCircle, Eye, Trash2, Info } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { LayoutDashboard, FileText, PlusCircle, Eye, Trash2, Info, RefreshCw } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../utils/constants';
@@ -12,16 +12,58 @@ export default function ApplicantDashboard() {
     const [previewId, setPreviewId] = useState(null);
     const { user } = useAuth();
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
 
     const cancelMutation = useMutation({
         mutationFn: (id) => bookingService.cancelBooking(id),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['myBookings'] })
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['myBookings'] });
+        },
+        onError: (error) => {
+            alert(error.response?.data?.message || error.message || 'Failed to cancel the booking. It may have already been processed or approved.');
+        }
     });
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['myBookings'],
         queryFn: bookingService.getMyBookings
     });
+
+    const handleReapply = async (bookingId) => {
+        try {
+            const response = await bookingService.getBookingById(bookingId);
+            const b = response.data;
+            const formattedGuests = b.guests ? b.guests.map(g => {
+                const arrDate = new Date(g.arrival_datetime);
+                const depDate = new Date(g.departure_datetime);
+                return {
+                    ...g,
+                    arrival_date: `${arrDate.getFullYear()}-${String(arrDate.getMonth()+1).padStart(2,'0')}-${String(arrDate.getDate()).padStart(2,'0')}`,
+                    arrival_time: `${String(arrDate.getHours()).padStart(2, '0')}:${String(arrDate.getMinutes()).padStart(2, '0')}`,
+                    departure_date: `${depDate.getFullYear()}-${String(depDate.getMonth()+1).padStart(2,'0')}-${String(depDate.getDate()).padStart(2,'0')}`,
+                    departure_time: `${String(depDate.getHours()).padStart(2, '0')}:${String(depDate.getMinutes()).padStart(2, '0')}`,
+                    food_preferences: g.food_preferences ? g.food_preferences.map(f => {
+                        const mDate = new Date(f.meal_date || f.date);
+                        return {
+                            ...f,
+                            date: `${mDate.getFullYear()}-${String(mDate.getMonth()+1).padStart(2,'0')}-${String(mDate.getDate()).padStart(2,'0')}`
+                        };
+                    }) : []
+                };
+            }) : [];
+
+            const formattedData = {
+                ...b,
+                category_id: String(b.category_id),
+                guests: formattedGuests,
+                document_1: null,
+                document_2: null
+            };
+            navigate('/book', { state: { formData: formattedData, isReapply: true } });
+        } catch (e) {
+            alert('Failed to load booking details for reapplication.');
+        }
+    };
 
     if (isLoading) return <div className="p-8 text-center text-slate-500 font-bold">Loading your applications...</div>;
     if (error) return <div className="p-8 text-center text-red-500 font-bold">Failed to load applications.</div>;
@@ -79,7 +121,12 @@ export default function ApplicantDashboard() {
                         <tbody className="divide-y divide-slate-100">
                             {bookings.map(b => (
                                 <tr key={b.booking_id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-4 font-mono text-xs text-slate-500">{b.booking_id.split('-')[0]}</td>
+                                    <td className="p-4">
+                                        <p className="font-mono text-xs text-slate-500">{b.booking_id.split('-')[0]}</p>
+                                        {b.version > 1 && (
+                                            <span className="inline-block mt-1 text-[10px] font-extrabold text-amber-700 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">v{b.version} Re-applied</span>
+                                        )}
+                                    </td>
                                     <td className="p-4 text-sm font-medium text-slate-800">{new Date(b.arrival_datetime).toLocaleDateString()}</td>
                                     <td className="p-4 text-sm font-medium text-slate-800">{new Date(b.departure_datetime).toLocaleDateString()}</td>
                                     <td className="p-4 text-sm font-medium text-slate-800">{b.rooms_required}</td>
@@ -99,6 +146,13 @@ export default function ApplicantDashboard() {
                                             disabled={cancelMutation.isPending}
                                             className="inline-flex items-center px-3 py-1.5 bg-red-50 text-red-600 text-xs font-bold rounded-lg hover:bg-red-100 border border-red-200 transition-colors shadow-sm ml-2">
                                             <Trash2 className="w-4 h-4 mr-1.5" /> Cancel
+                                        </button>
+                                    )}
+                                    {b.booking_state.endsWith('REJECTED') && (
+                                        <button 
+                                            onClick={() => handleReapply(b.booking_id)}
+                                            className="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-bold rounded-lg hover:bg-amber-100 border border-amber-200 transition-colors shadow-sm ml-2">
+                                            <RefreshCw className="w-4 h-4 mr-1.5" /> Edit & Re-apply
                                         </button>
                                     )}
                                     </td>
