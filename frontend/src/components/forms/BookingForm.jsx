@@ -8,7 +8,7 @@ import ApproverSelection from './ApproverSelection';
 import { AlertCircle, Eye } from 'lucide-react';
 
 // MAIN COMPONENT EXPORT
-export default function BookingForm({ formData, setFormData, user, authorities = [] }) {
+export default function BookingForm({ formData, setFormData, user, authorities = [], tariffs = [] }) {
   const navigate = useNavigate();
   const [localError, setLocalError] = useState('');
   const [guidelinesAccepted, setGuidelinesAccepted] = useState(false);
@@ -45,6 +45,12 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       return;
     }
 
+    if (!formData.purpose_of_visit || formData.purpose_of_visit.trim().length < 5) {
+      setLocalError('Purpose of visit must be at least 5 characters long.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     for (let i = 0; i < formData.guests.length; i++) {
       const guest = formData.guests[i];
       const arrival = new Date(`${guest.arrival_date}T${guest.arrival_time}`);
@@ -58,7 +64,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
         return;
       }
     }
-    if (formData.category_id === '2' && !formData.project_code.trim()) {
+    if (formData.category_id === '2' && (!formData.project_code || !formData.project_code.trim())) {
       setLocalError('Project code is strictly required for CAT II bookings.');
       return;
     }
@@ -105,7 +111,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
     }
 
     // Proceed to preview page with form data
-    navigate('/preview', { state: { formData, user, authorities } });
+    navigate('/preview', { state: { formData, user, authorities, tariffs } });
   };
 
   return (
@@ -135,7 +141,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
           >
             <CategoryVisitSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
             <MultiGuestSection formData={formData} setFormData={setFormData} />
-            <StayDetailsSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
+            <StayDetailsSection formData={formData} handleChange={handleChange} setFormData={setFormData} tariffs={tariffs} />
 
             {!isAdmin && (
               <ApproverSelection approverSearch={approverSearch} setApproverSearch={setApproverSearch} isOpen={isApproverDropdownOpen} setIsOpen={setIsApproverDropdownOpen} authorities={authorities} setFormData={setFormData} />

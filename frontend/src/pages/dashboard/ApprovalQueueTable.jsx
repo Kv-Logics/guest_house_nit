@@ -70,8 +70,7 @@ export default function ApprovalQueueTable({
                   >
                     <Eye className="w-5 h-5" />
                   </button>
-                  {booking.booking_state.startsWith('PENDING_') && (
-                    <>
+                  {booking.booking_state === 'PENDING_ADMIN' && (
                       <button
                         onClick={() => handleUpdateStatus(booking.booking_id, 'APPROVED')}
                         className="inline-flex items-center p-2 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-700 rounded-lg transition-colors border border-green-200 shadow-sm"
@@ -79,6 +78,8 @@ export default function ApprovalQueueTable({
                       >
                         <CheckCircle className="w-5 h-5" />
                       </button>
+                  )}
+                  {booking.booking_state.startsWith('PENDING_') && (
                       <button
                         onClick={() => handleUpdateStatus(booking.booking_id, 'REJECTED')}
                         className="inline-flex items-center p-2 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-lg transition-colors border border-red-200 shadow-sm"
@@ -86,7 +87,6 @@ export default function ApprovalQueueTable({
                       >
                         <XCircle className="w-5 h-5" />
                       </button>
-                    </>
                   )}
                   {booking.booking_state === 'APPROVED' && (
                     <button
@@ -104,13 +104,15 @@ export default function ApprovalQueueTable({
                       Receipt
                     </button>
                   )}
-                  <button
-                    onClick={() => handleDelete(booking.booking_id)}
-                    className="inline-flex items-center p-2 bg-slate-100 text-slate-500 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors border border-slate-200 shadow-sm ml-2"
-                    title="Delete Request Completely"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
+                  {!['CANCELLED', 'CHECKED_IN', 'CHECKED_OUT', 'REJECTED', 'ADMIN_REJECTED', 'APPROVER_REJECTED'].includes(booking.booking_state) && (
+                    <button
+                      onClick={() => handleDelete(booking.booking_id)}
+                      className="inline-flex items-center p-2 bg-slate-100 text-slate-500 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors border border-slate-200 shadow-sm ml-2"
+                      title="Withdraw Request"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
                 </td>
               </tr>
             </React.Fragment>

@@ -140,7 +140,7 @@ export default function ApplicantDashboard() {
                                         <button onClick={() => setPreviewId(b.booking_id)} className="inline-flex items-center px-3 py-1.5 bg-slate-50 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors shadow-sm">
                                             <Eye className="w-4 h-4 mr-1.5" /> Preview
                                         </button>
-                                    {b.booking_state.startsWith('PENDING_') && (
+                                    {['PENDING_APPROVER', 'PENDING_ADMIN', 'ADMIN_APPROVED'].includes(b.booking_state) && (
                                         <button 
                                             onClick={() => { if(window.confirm('Are you sure you want to cancel this application?')) cancelMutation.mutate(b.booking_id); }}
                                             disabled={cancelMutation.isPending}

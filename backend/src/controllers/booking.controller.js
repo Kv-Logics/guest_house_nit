@@ -70,8 +70,8 @@ exports.getBookingById = async (req, res, next) => {
 
 exports.cancelBooking = async (req, res, next) => {
     try {
-        const data = await bookingService.cancelBooking(req.params.id, req.user.user_id);
-        return sendSuccess(res, 'Booking cancelled successfully', data);
+        const data = await bookingService.cancelBooking(req.params.id, req.user);
+        return sendSuccess(res, 'Booking withdrawn successfully', data);
     } catch (error) {
         next(error);
     }

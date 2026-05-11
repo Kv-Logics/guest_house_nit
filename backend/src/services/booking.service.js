@@ -242,6 +242,13 @@ exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
     const client = await db.getClient();
     try {
         await client.query('BEGIN');
+            
+            const checkRes = await client.query('SELECT booking_state FROM booking_requests WHERE booking_id = $1', [bookingId]);
+            if (checkRes.rows.length === 0) throw new Error('Booking not found');
+            if (action === 'APPROVED' && checkRes.rows[0].booking_state !== BOOKING_STATUS.PENDING_ADMIN) {
+                throw new Error('Admins can only approve bookings that have already been approved by the Authority.');
+            }
+
         const newState = action === 'APPROVED' ? BOOKING_STATUS.ADMIN_APPROVED : BOOKING_STATUS.ADMIN_REJECTED;
         const result = await client.query('UPDATE booking_requests SET booking_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *', [newState, bookingId]);
         if (result.rows.length === 0) throw new Error('Booking not found');
@@ -262,10 +269,44 @@ exports.getBookingById = async (bookingId) => {
     return booking;
 };
 
-exports.cancelBooking = async (bookingId, userId) => {
-    const booking = await bookingRepository.cancelBookingByUser(bookingId, userId, BOOKING_STATUS.CANCELLED);
-    if (!booking) throw new Error('Booking not found or unauthorized');
-    return booking;
+exports.cancelBooking = async (bookingId, user) => {
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+        
+        const bRes = await client.query('SELECT * FROM booking_requests WHERE booking_id = $1', [bookingId]);
+        if (bRes.rows.length === 0) throw new Error('Booking not found');
+        const booking = bRes.rows[0];
+
+        const userId = user.user_id || user.id;
+        const userRole = String(user.role).toLowerCase();
+        const isAdmin = ['super_admin', 'guest_house_admin'].includes(userRole);
+        const isApprover = booking.assigned_approver_id === userId;
+        const isApplicant = booking.user_id === userId;
+
+        if (!isAdmin && !isApprover && !isApplicant) {
+            throw new Error('Unauthorized to withdraw this booking.');
+        }
+
+        const updateRes = await client.query(
+            `UPDATE booking_requests SET booking_state = $1, cancelled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+            [BOOKING_STATUS.CANCELLED, bookingId]
+        );
+
+        let logMessage = 'Cancelled by Applicant';
+        if (isAdmin && !isApplicant) logMessage = 'Withdrawn by Admin';
+        else if (isApprover && !isApplicant) logMessage = 'Withdrawn by Authority';
+
+        await client.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, [bookingId, userId, 'CANCELLED', logMessage]);
+
+        await client.query('COMMIT');
+        return updateRes.rows[0];
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
 };
 
 exports.getAuthorities = async (categoryId) => {

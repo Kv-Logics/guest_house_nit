@@ -33,6 +33,7 @@ export default function CategoryVisitSection({ formData, handleChange, setFormDa
           <FileText className="absolute top-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
           <textarea
             required
+            minLength={5}
             name="purpose_of_visit"
             value={formData.purpose_of_visit}
             onChange={handleChange}

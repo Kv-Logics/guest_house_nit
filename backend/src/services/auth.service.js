@@ -62,9 +62,13 @@ exports.verifyOtp = async (email, otp) => {
         token,
         user: {
             id: user.user_id,
+            user_id: user.user_id,
             name: user.full_name,
+            full_name: user.full_name,
             email: user.email,
-            role: user.role
+            role: user.role,
+            department: user.department,
+            designation: user.designation
         }
     };
 };
@@ -74,5 +78,14 @@ exports.getProfile = async (userId) => {
     if (!user) {
         throw new Error('User not found.');
     }
-    return user;
+    return {
+        id: user.user_id,
+        user_id: user.user_id,
+        name: user.full_name,
+        full_name: user.full_name,
+        email: user.email,
+        role: user.role,
+        department: user.department,
+        designation: user.designation
+    };
 };

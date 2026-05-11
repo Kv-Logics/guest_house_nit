@@ -74,6 +74,7 @@ export default function AdminDashboard() {
       fetchApprovalBookings(); // Refresh list
     } catch (error) {
       console.error('Failed to update status:', error);
+      alert(error.message || 'Failed to update booking status.');
     }
   };
 
@@ -88,7 +89,7 @@ export default function AdminDashboard() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this pending request?')) return;
+    if (!window.confirm('Are you sure you want to withdraw/delete this request?')) return;
     try {
       await api.patch(`/bookings/${id}/cancel`, {});
       fetchMyBookings(); // Refresh list
