@@ -51,6 +51,13 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       return;
     }
 
+    const minRoomsRequired = Math.max(1, Math.ceil((formData.guests?.length || 1) / 2));
+    if (Number(formData.rooms_required) < minRoomsRequired) {
+      setLocalError(`For ${formData.guests.length} guest(s), you must book at least ${minRoomsRequired} room(s).`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     for (let i = 0; i < formData.guests.length; i++) {
       const guest = formData.guests[i];
       const arrival = new Date(`${guest.arrival_date}T${guest.arrival_time}`);

@@ -9,7 +9,7 @@ exports.apiLimiter = rateLimit({
 });
 
 exports.authLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: 10, // Limit each IP to 10 failed/auth requests per `window`
-    message: { success: false, message: 'Too many authentication attempts from this IP, please try again after 1 hour.' },
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 50, // Increased limit for easier development & testing
+    message: { success: false, message: 'Too many authentication attempts from this IP, please try again after 15 minutes.' },
 });
