@@ -49,7 +49,7 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
           <input
             required
             type="number"
-            min="1"
+            min={Math.max(1, Math.ceil((formData.guests?.length || 1) / 2))}
             name="rooms_required"
             value={formData.rooms_required}
             onChange={handleChange}

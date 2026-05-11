@@ -60,10 +60,15 @@ export default function PreviewPage() {
 
   const activeTariff = tariffs.find(t => String(t.category_id) === String(formData.category_id) && t.room_type === formData.room_type) || tariffs.find(t => String(t.category_id) === String(formData.category_id));
   const guestsCount = formData.guests ? formData.guests.length : 1;
-  const isDouble = guestsCount > Number(formData.rooms_required);
-  const baseRate = activeTariff ? (isDouble ? Number(activeTariff.double_occupancy) : Number(activeTariff.single_occupancy)) : 0;
+  const rooms = Number(formData.rooms_required) || 1;
+  const doubleRooms = Math.min(rooms, Math.max(0, guestsCount - rooms));
+  const singleRooms = Math.max(0, rooms - doubleRooms);
+
+  const singleRate = activeTariff ? Number(activeTariff.single_occupancy) : 0;
+  const doubleRate = activeTariff ? Number(activeTariff.double_occupancy) : 0;
   const extraBedRate = activeTariff ? (Number(activeTariff.extra_bed) || 400) : 400;
-  const roomCost = days * Number(formData.rooms_required) * baseRate;
+  
+  const roomCost = days * ((singleRooms * singleRate) + (doubleRooms * doubleRate));
   const extraBedCost = days * Number(formData.extra_beds) * extraBedRate;
   const subtotal = roomCost + extraBedCost;
   const gst = Math.round(subtotal * 0.12);
@@ -82,6 +87,7 @@ export default function PreviewPage() {
         if (!guest.email) guest.email = "";
         if (!guest.designation) guest.designation = "";
         if (!guest.address) guest.address = "";
+        if (!guest.gender) guest.gender = "";
 
         guest.arrival_datetime = new Date(
           `${guest.arrival_date}T${guest.arrival_time}`
@@ -440,17 +446,25 @@ export default function PreviewPage() {
 
             {activeTariff && (
               <div className="space-y-3 mb-4 border-b border-slate-100 pb-4 text-sm text-slate-600">
-                <div className="flex justify-between">
-                  <span>Room Charges ({days} Days × {formData.rooms_required} {formData.room_type})</span>
-                  <span className="font-medium">₹{roomCost}</span>
-                </div>
+                {singleRooms > 0 && (
+                  <div className="flex justify-between">
+                    <span>Single Room Charges ({days} Days × {singleRooms} {formData.room_type})</span>
+                    <span className="font-medium">₹{days * singleRooms * singleRate}</span>
+                  </div>
+                )}
+                {doubleRooms > 0 && (
+                  <div className="flex justify-between">
+                    <span>Double Room Charges ({days} Days × {doubleRooms} {formData.room_type})</span>
+                    <span className="font-medium">₹{days * doubleRooms * doubleRate}</span>
+                  </div>
+                )}
                 {Number(formData.extra_beds) > 0 && (
                   <div className="flex justify-between">
                     <span>Extra Beds ({days} Days × {formData.extra_beds})</span>
                     <span className="font-medium">₹{extraBedCost}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
+                <div className="flex justify-between pt-2 border-t border-slate-50">
                   <span>Subtotal</span>
                   <span className="font-medium">₹{subtotal}</span>
                 </div>

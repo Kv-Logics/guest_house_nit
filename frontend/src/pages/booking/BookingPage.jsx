@@ -91,15 +91,17 @@ export default function BookingPage() {
       ) || tariffs.find((t) => String(t.category_id) === String(formData.category_id));
 
     if (activeTariff) {
-      // Determine occupancy (Double if guests > rooms)
       const guestsCount = formData.guests ? formData.guests.length : 1;
-      const isDouble = guestsCount > Number(formData.rooms_required);
-      const baseRate = isDouble
-        ? Number(activeTariff.double_occupancy)
-        : Number(activeTariff.single_occupancy);
+      const rooms = Number(formData.rooms_required) || 1;
+      
+      const doubleRooms = Math.min(rooms, Math.max(0, guestsCount - rooms));
+      const singleRooms = Math.max(0, rooms - doubleRooms);
+
+      const singleRate = Number(activeTariff.single_occupancy);
+      const doubleRate = Number(activeTariff.double_occupancy);
       const extraBedRate = Number(activeTariff.extra_bed) || 400;
 
-      const roomCost = days * Number(formData.rooms_required) * baseRate;
+      const roomCost = days * ((singleRooms * singleRate) + (doubleRooms * doubleRate));
       const extraBedCost = days * Number(formData.extra_beds) * extraBedRate;
       const subtotal = roomCost + extraBedCost;
 

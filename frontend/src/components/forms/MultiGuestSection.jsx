@@ -1,4 +1,4 @@
-import { UserPlus, User, Trash2, Utensils, Plus, Calendar, Clock } from 'lucide-react';
+import { UserPlus, User, Users, Trash2, Utensils, Plus, Calendar, Clock } from 'lucide-react';
 import { useEffect } from 'react';
 
 // ---------------------------------------------------------------------------
@@ -177,18 +177,22 @@ export default function MultiGuestSection({ formData, setFormData }) {
     }
   }, [guests, setFormData, todayStr, tomorrowStr]);
 
-  const addGuest = () => {
-    setFormData((prev) => ({
-      ...prev,
-      guests: [
-        ...prev.guests,
-        {
-          guest_name: '', designation: '', relation_to_applicant: '', phone: '', email: '',
-          gender: 'Male', age: '', address: '', id_proof_type: '', id_proof_number: '',
-          arrival_date: todayStr, arrival_time: '12:00', departure_date: tomorrowStr, departure_time: '11:00', food_preferences: [],
-        },
-      ],
+  const addGuests = (count) => {
+    const newGuests = Array.from({ length: count }).map(() => ({
+      guest_name: '', designation: '', relation_to_applicant: '', phone: '', email: '',
+      gender: 'Male', age: '', address: '', id_proof_type: '', id_proof_number: '',
+      arrival_date: todayStr, arrival_time: '12:00', departure_date: tomorrowStr, departure_time: '11:00', food_preferences: [],
     }));
+
+    setFormData((prev) => {
+      const totalGuests = (prev.guests || []).length + count;
+      const minRooms = Math.ceil(totalGuests / 2);
+      return {
+        ...prev,
+        rooms_required: Math.max(Number(prev.rooms_required) || 1, minRooms),
+        guests: [...(prev.guests || []), ...newGuests],
+      };
+    });
   };
 
   const removeGuest = (index) => {
@@ -251,13 +255,31 @@ export default function MultiGuestSection({ formData, setFormData }) {
           >
             <Calendar className="w-4 h-4 mr-1.5" /> Copy Guest 1 Dates
           </button>
-          <button
-            type="button"
-            onClick={addGuest}
-            className="flex items-center text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors border border-blue-200 shadow-sm"
-          >
-            <Plus className="w-4 h-4 mr-1.5" /> Add Guest
-          </button>
+          
+          <div className="relative group inline-block">
+            <button
+              type="button"
+              className="flex items-center text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors border border-blue-200 shadow-sm"
+            >
+              <Plus className="w-4 h-4 mr-1.5" /> Add Room / Guests
+            </button>
+            <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => addGuests(1)}
+                className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 flex items-center border-b border-slate-100"
+              >
+                <User className="w-4 h-4 mr-2 text-slate-400" /> Single Occupancy
+              </button>
+              <button
+                type="button"
+                onClick={() => addGuests(2)}
+                className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 flex items-center"
+              >
+                <Users className="w-4 h-4 mr-2 text-slate-400" /> Double Occupancy
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
