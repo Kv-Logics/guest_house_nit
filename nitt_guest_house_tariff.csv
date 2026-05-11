@@ -1,0 +1,7 @@
+Category,Room Type,Single Occupancy Rent (Rs/day),Double Occupancy Rent (Rs/day)
+"I, II, III, IV",Suite Room,5500,5500
+"I, II, III, IV",Mini Suite Room,4000,4000
+I,Standard Room,1000,1600
+II,Standard Room,1100,1800
+III,Standard Room,1200,2000
+IV,Standard Room,2600,2600

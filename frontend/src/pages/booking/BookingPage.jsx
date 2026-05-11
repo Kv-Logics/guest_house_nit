@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../services/api';
 import BookingForm from '../../components/forms/BookingForm';
 import { useAuth } from '../../context/AuthContext';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 export default function BookingPage() {
   const navigate = useNavigate();
@@ -30,18 +28,15 @@ export default function BookingPage() {
   );
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token || !user) {
+    if (!user) {
       return;
     }
 
     // Fetch live tariffs for payment calculation
     const fetchTariffs = async () => {
       try {
-        const res = await axios.get(`${API_BASE_URL}/bookings/tariffs`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.data.success) setTariffs(res.data.data);
+        const res = await api.get('/bookings/tariffs');
+        if (res.success) setTariffs(res.data);
       } catch (e) {
         console.error('Failed to fetch tariffs');
       }
@@ -56,12 +51,9 @@ export default function BookingPage() {
     const fetchAuthorities = async () => {
       if (!formData.category_id || !user) return;
       try {
-        const res = await axios.get(
-          `${API_BASE_URL}/bookings/authorities?category_id=${formData.category_id}`,
-          { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-        );
-        if (res.data.success) {
-          setAuthorities(res.data.data);
+        const res = await api.get(`/bookings/authorities?category_id=${formData.category_id}`);
+        if (res.success) {
+          setAuthorities(res.data);
         }
       } catch (e) {
         console.error('Failed to fetch authorities');
@@ -139,6 +131,7 @@ export default function BookingPage() {
         setFormData={setFormData}
         user={user}
         authorities={authorities}
+        tariffs={tariffs}
       />
     </div>
   );

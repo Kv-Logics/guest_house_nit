@@ -1,7 +1,7 @@
-import { BedDouble, UploadCloud, CalendarClock } from 'lucide-react';
+import { BedDouble, UploadCloud, CalendarClock, DoorOpen, PlusCircle } from 'lucide-react';
 import FilePreview from './FilePreview';
 
-export default function StayDetailsSection({ formData, handleChange, setFormData }) {
+export default function StayDetailsSection({ formData, handleChange, setFormData, tariffs = [] }) {
   const handleFileChange = (e, field) => {
     const file = e.target.files[0];
     if (file) {
@@ -23,6 +23,9 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
     }
   };
 
+  const currentCategoryId = formData.category_id || '1';
+  const availableTariffs = tariffs.filter(t => String(t.category_id) === String(currentCategoryId));
+
   return (
     <div>
       <div className="flex items-center gap-4 mb-6">
@@ -39,7 +42,7 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="relative">
           <label className="block text-sm font-bold text-slate-700 mb-2">Rooms Required</label>
           <BedDouble className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
@@ -49,6 +52,50 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
             min="1"
             name="rooms_required"
             value={formData.rooms_required}
+            onChange={handleChange}
+            className="block w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+          />
+        </div>
+        <div className="relative">
+          <label className="block text-sm font-bold text-slate-700 mb-2">Room Type</label>
+          <DoorOpen className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
+          <select
+            name="room_type"
+            value={formData.room_type || 'Standard Room'}
+            onChange={handleChange}
+            className="block w-full pl-11 pr-10 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer"
+          >
+            {availableTariffs.length > 0 ? (
+              availableTariffs.map((t) => (
+                <option key={t.tariff_id} value={t.room_type}>
+                  {t.room_type} (₹{Number(t.single_occupancy)} Single / ₹{Number(t.double_occupancy)} Double)
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="Standard Room">Standard Room</option>
+                <option value="Mini Suite Room">Mini Suite Room</option>
+                <option value="Suite Room">Suite Room</option>
+              </>
+            )}
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 pt-7 text-slate-500">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </div>
+        </div>
+        <div className="relative">
+          <label className="block text-sm font-bold text-slate-700 mb-2">
+            Extra Beds {availableTariffs.length > 0 && <span className="text-slate-500 font-medium">(₹{Number(availableTariffs[0]?.extra_bed || 400)}/ea)</span>}
+          </label>
+          <PlusCircle className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
+          <input
+            type="number"
+            min="0"
+            max="3"
+            name="extra_beds"
+            value={formData.extra_beds}
             onChange={handleChange}
             className="block w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
           />

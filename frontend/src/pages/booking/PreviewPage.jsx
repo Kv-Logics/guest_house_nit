@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../services/api';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -18,12 +18,10 @@ import {
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import nitLogo from '../../assets/images/nitlogo.png';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-
 export default function PreviewPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { formData, user, authorities } = location.state || {};
+  const { formData, user, authorities, tariffs = [] } = location.state || {};
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [undertakingAccepted, setUndertakingAccepted] = useState(false);
@@ -47,15 +45,43 @@ export default function PreviewPage() {
     );
   }
 
+  // Calculate Stay Duration and Breakdown
+  const earliestArrival = new Date(
+    Math.min(...formData.guests.map((g) => new Date(`${g.arrival_date}T${g.arrival_time}`)))
+  );
+  const latestDeparture = new Date(
+    Math.max(...formData.guests.map((g) => new Date(`${g.departure_date}T${g.departure_time}`)))
+  );
+  
+  let days = 1;
+  if (latestDeparture > earliestArrival) {
+    days = Math.ceil(Math.abs(latestDeparture - earliestArrival) / (1000 * 60 * 60 * 24));
+  }
+
+  const activeTariff = tariffs.find(t => String(t.category_id) === String(formData.category_id) && t.room_type === formData.room_type) || tariffs.find(t => String(t.category_id) === String(formData.category_id));
+  const guestsCount = formData.guests ? formData.guests.length : 1;
+  const isDouble = guestsCount > Number(formData.rooms_required);
+  const baseRate = activeTariff ? (isDouble ? Number(activeTariff.double_occupancy) : Number(activeTariff.single_occupancy)) : 0;
+  const extraBedRate = activeTariff ? (Number(activeTariff.extra_bed) || 400) : 400;
+  const roomCost = days * Number(formData.rooms_required) * baseRate;
+  const extraBedCost = days * Number(formData.extra_beds) * extraBedRate;
+  const subtotal = roomCost + extraBedCost;
+  const gst = Math.round(subtotal * 0.12);
+
   const handleSubmit = async () => {
     setIsLoading(true);
     setError('');
     try {
       const sanitizedGuests = formData.guests.map((g) => {
         const guest = { ...g };
-        if (!guest.age)
-          delete guest.age; // Zod optional() expects undefined, not null
-        else guest.age = parseInt(guest.age);
+        
+        // Force age to be a number, or 0 if missing to satisfy Zod
+        guest.age = guest.age ? parseInt(guest.age, 10) : 0;
+
+        // Keep empty strings as empty strings to satisfy Zod's z.string()
+        if (!guest.email) guest.email = "";
+        if (!guest.designation) guest.designation = "";
+        if (!guest.address) guest.address = "";
 
         guest.arrival_datetime = new Date(
           `${guest.arrival_date}T${guest.arrival_time}`
@@ -64,33 +90,43 @@ export default function PreviewPage() {
           `${guest.departure_date}T${guest.departure_time}`
         ).toISOString();
 
+        if (guest.food_preferences && Array.isArray(guest.food_preferences)) {
+            guest.food_preferences = guest.food_preferences.map(f => ({
+                meal_date: f.date || f.meal_date,
+                date: f.date || f.meal_date, // Zod explicitly expects the 'date' key
+                breakfast: f.breakfast ? 1 : 0,
+                lunch: f.lunch ? 1 : 0,
+                dinner: f.dinner ? 1 : 0,
+                remarks: f.remarks?.trim() || ''
+            }));
+        }
+
         return guest;
       });
-
-      const earliestArrival = new Date(
-        Math.min(...sanitizedGuests.map((g) => new Date(g.arrival_datetime)))
-      );
-      const latestDeparture = new Date(
-        Math.max(...sanitizedGuests.map((g) => new Date(g.departure_datetime)))
-      );
 
       const bookingData = {
         ...formData,
         guests: sanitizedGuests,
-        user_id: user.user_id,
+        user_id: user.user_id || user.id,
         arrival_datetime: earliestArrival.toISOString(),
         departure_datetime: latestDeparture.toISOString(),
         category_id: parseInt(formData.category_id),
         rooms_required: parseInt(formData.rooms_required),
         extra_beds: parseInt(formData.extra_beds) || 0,
-        total_estimated_amount: formData.total_estimated_amount,
+        total_estimated_amount: Number(formData.total_estimated_amount) || 0,
+        estimated_amount: Number(formData.total_estimated_amount) || 0,
         payment_responsibility:
           formData.category_id === '1' || formData.category_id === 1
             ? 'institute'
             : formData.payment_responsibility,
-        assigned_approver_id: formData.assigned_approver_id || '',
         undertaking_accepted: true,
+        project_code: formData.project_code?.trim() || "",
+        assigned_approver_id: formData.assigned_approver_id || "",
       };
+
+      // CRITICAL: Remove File objects from the JSON payload to prevent Zod strict() schema crashes
+      delete bookingData.document_1;
+      delete bookingData.document_2;
 
       const formDataToSend = new FormData();
       formDataToSend.append('payload', JSON.stringify(bookingData));
@@ -98,22 +134,27 @@ export default function PreviewPage() {
       if (formData.document_1) formDataToSend.append('document_1', formData.document_1);
       if (formData.document_2) formDataToSend.append('document_2', formData.document_2);
 
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_BASE_URL}/bookings`, formDataToSend, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          // Note: Axios automatically sets the multipart boundary header for FormData
-        },
-      });
+      const response = await api.post('/bookings', formDataToSend);
 
       localStorage.removeItem('nitt_booking_draft');
-      navigate('/success', { state: { bookingId: response.data.data.booking_id } });
+      navigate('/success', { state: { bookingId: response.data.booking_id } });
     } catch (err) {
+      console.error('Backend Submission Error:', err);
       // Extract precise Zod validation messages if the payload gets rejected again
-      let errorMsg = err.response?.data?.message || err.message || 'Failed to submit booking';
-      if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
-        errorMsg = err.response.data.errors
-          .map((e) => `${e.path.replace('body.', '')}: ${e.message}`)
+      let errorMsg = err.message || 'Failed to submit booking';
+      
+      if (err.errors && err.errors.name === 'ZodError') {
+        try {
+          const zodErrors = JSON.parse(err.errors.message);
+          errorMsg = zodErrors
+            .map((e) => `${Array.isArray(e.path) ? e.path.join('.') : e.path || 'Field'}: ${e.message}`)
+            .join(' | ');
+        } catch (parseErr) {
+          errorMsg = err.errors.message;
+        }
+      } else if (err.errors && Array.isArray(err.errors)) {
+        errorMsg = err.errors
+          .map((e) => `${Array.isArray(e.path) ? e.path.join('.') : e.path || 'Field'}: ${e.message}`)
           .join(' | ');
       }
       setError(errorMsg);
@@ -395,6 +436,29 @@ export default function PreviewPage() {
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center border-b border-slate-100 pb-3">
               <Wallet className="w-5 h-5 mr-2 text-emerald-500" /> Financial Summary
             </h3>
+
+            {activeTariff && (
+              <div className="space-y-3 mb-4 border-b border-slate-100 pb-4 text-sm text-slate-600">
+                <div className="flex justify-between">
+                  <span>Room Charges ({days} Days × {formData.rooms_required} {formData.room_type})</span>
+                  <span className="font-medium">₹{roomCost}</span>
+                </div>
+                {Number(formData.extra_beds) > 0 && (
+                  <div className="flex justify-between">
+                    <span>Extra Beds ({days} Days × {formData.extra_beds})</span>
+                    <span className="font-medium">₹{extraBedCost}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span>Subtotal</span>
+                  <span className="font-medium">₹{subtotal}</span>
+                </div>
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>GST (12%)</span>
+                  <span>₹{gst}</span>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-4">
               <div className="flex justify-between items-center">
