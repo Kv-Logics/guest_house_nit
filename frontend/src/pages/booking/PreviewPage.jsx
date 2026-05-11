@@ -121,7 +121,8 @@ export default function PreviewPage() {
             : formData.payment_responsibility,
         undertaking_accepted: true,
         project_code: formData.project_code?.trim() || "",
-        assigned_approver_id: formData.assigned_approver_id || "",
+        // Fallback to own user ID for Admins (Auto-Approve) to satisfy strict UUID Zod validation
+        assigned_approver_id: formData.assigned_approver_id || user.user_id || user.id,
       };
 
       // CRITICAL: Remove File objects from the JSON payload to prevent Zod strict() schema crashes

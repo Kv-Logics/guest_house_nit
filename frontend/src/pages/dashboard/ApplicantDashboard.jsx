@@ -148,7 +148,7 @@ export default function ApplicantDashboard() {
                                             <Trash2 className="w-4 h-4 mr-1.5" /> Cancel
                                         </button>
                                     )}
-                                    {b.booking_state.endsWith('REJECTED') && (
+                                    {(b.booking_state.endsWith('REJECTED') || b.booking_state === 'CANCELLED') && (
                                         <button 
                                             onClick={() => handleReapply(b.booking_id)}
                                             className="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-bold rounded-lg hover:bg-amber-100 border border-amber-200 transition-colors shadow-sm ml-2">
