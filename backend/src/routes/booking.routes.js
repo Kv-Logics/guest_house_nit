@@ -8,6 +8,8 @@ const bookingController = require('../controllers/booking.controller');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { validate } = require('../middlewares/validate.middleware');
 const { createBookingSchema } = require('../validators/booking.validator');
+const { memoryCache } = require('../middlewares/cache.middleware');
+const { requireRole } = require('../middlewares/role.middleware');
 const db = require('../db/db');
 
 // Configure Multer for secure document uploads
@@ -25,9 +27,9 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 router.use(requireAuth); // Protect all booking routes at the router level
 
-router.get('/tariffs', bookingController.getTariffs);
-router.get('/authorities', bookingController.getAuthorities);
-router.get('/admin/all', bookingController.getAllBookingsForAdmin);
+router.get('/tariffs', memoryCache(3600), bookingController.getTariffs);
+router.get('/authorities', memoryCache(3600), bookingController.getAuthorities);
+router.get('/admin/all', requireRole(['super_admin', 'guest_house_admin']), bookingController.getAllBookingsForAdmin);
 
 // Handle multipart/form-data properly, parse JSON payload, then validate
 router.post('/', upload.fields([{ name: 'document_1', maxCount: 1 }, { name: 'document_2', maxCount: 1 }]), (req, res, next) => {
@@ -47,21 +49,9 @@ router.patch('/:id/admin-status', async (req, res) => {
     const { status, remarks } = req.body;
     const { id } = req.params;
     try {
-        const newState = status === 'APPROVED' ? 'ADMIN_APPROVED' : 'ADMIN_REJECTED';
-        const client = await db.getClient();
-        try {
-            await client.query('BEGIN');
-            const result = await client.query('UPDATE booking_requests SET booking_state = $1, updated_at = NOW() WHERE booking_id = $2 RETURNING *', [newState, id]);
-            if (result.rows.length === 0) throw new Error('Booking not found');
-            await client.query('INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)', [id, req.user.user_id, status, remarks || '']);
-            await client.query('COMMIT');
-            res.json({ success: true, data: result.rows[0] });
-        } catch (err) {
-            await client.query('ROLLBACK');
-            throw err;
-        } finally {
-            client.release();
-        }
+        const bookingService = require('../services/booking.service');
+        const result = await bookingService.updateAdminStatus(id, status, remarks, req.user.user_id);
+        res.json({ success: true, data: result });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -86,8 +76,9 @@ router.post('/:id/reapply', upload.fields([{ name: 'document_1', maxCount: 1 }, 
 
 router.get('/:id/history', async (req, res) => {
     try {
-        const result = await db.query('SELECT a.*, u.full_name as approver_name FROM approval_logs a LEFT JOIN users u ON a.approver_id = u.user_id WHERE a.booking_id = $1 ORDER BY a.created_at DESC', [req.params.id]);
-        res.json({ success: true, data: result.rows });
+        const bookingService = require('../services/booking.service');
+        const result = await bookingService.getBookingHistory(req.params.id);
+        res.json({ success: true, data: result });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
     }

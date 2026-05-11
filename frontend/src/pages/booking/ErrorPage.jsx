@@ -4,7 +4,8 @@ import { AlertCircle, ArrowLeft } from 'lucide-react';
 export default function ErrorPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const errorMessage = location.state?.message || 'The backend refused the connection or a fatal error occurred.';
+  const errorMessage =
+    location.state?.message || 'The backend refused the connection or a fatal error occurred.';
 
   return (
     <div className="max-w-lg mx-auto mt-16 p-10 bg-white rounded-3xl shadow-sm border border-slate-200">
@@ -17,8 +18,11 @@ export default function ErrorPage() {
           <p className="text-sm font-medium text-red-700/80 leading-relaxed">{errorMessage}</p>
         </div>
       </div>
-      
-      <button onClick={() => navigate(-1)} className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 px-6 rounded-xl transition-colors shadow-sm flex justify-center items-center">
+
+      <button
+        onClick={() => navigate(-1)}
+        className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 px-6 rounded-xl transition-colors shadow-sm flex justify-center items-center"
+      >
         <ArrowLeft className="w-5 h-5 mr-2" /> Go Back & Fix Form
       </button>
     </div>

@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext, useMemo } from 'react';
 import { authService } from '../services/auth.service';
 
 const AuthContext = createContext();
@@ -8,11 +8,6 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     const fetchUser = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            setLoading(false);
-            return;
-        }
         try {
             const res = await authService.getProfile();
             if (res.success) {
@@ -20,7 +15,6 @@ export const AuthProvider = ({ children }) => {
             }
         } catch (error) {
             console.error("Auth verification failed:", error);
-            localStorage.removeItem('token');
             setUser(null);
         } finally {
             setLoading(false);
@@ -38,7 +32,6 @@ export const AuthProvider = ({ children }) => {
     const verifyOtp = async (email, otp) => {
         const res = await authService.verifyOtp(email, otp);
         if (res.success) {
-            localStorage.setItem('token', res.data.token);
             setUser(res.data.user);
         }
         return res;
@@ -50,13 +43,17 @@ export const AuthProvider = ({ children }) => {
         } catch (err) {
             console.error(err);
         } finally {
-            localStorage.removeItem('token');
             setUser(null);
         }
     };
 
+    const contextValue = useMemo(
+        () => ({ user, loading, requestOtp, verifyOtp, logout, fetchUser }),
+        [user, loading]
+    );
+
     return (
-        <AuthContext.Provider value={{ user, loading, requestOtp, verifyOtp, logout, fetchUser }}>
+        <AuthContext.Provider value={contextValue}>
             {children}
         </AuthContext.Provider>
     );

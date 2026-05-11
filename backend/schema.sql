@@ -18,7 +18,7 @@ DROP TABLE IF EXISTS guest_food_preferences CASCADE;
 DROP TABLE IF EXISTS guests CASCADE;
 DROP TABLE IF EXISTS booking_requests CASCADE;
 DROP TABLE IF EXISTS rooms CASCADE;
-DROP TABLE IF EXISTS room_tariff CASCADE;
+DROP TABLE IF EXISTS room_tariffs CASCADE;
 DROP TABLE IF EXISTS category_rules CASCADE;
 DROP TABLE IF EXISTS applicants CASCADE;
 DROP TABLE IF EXISTS user_roles CASCADE;
@@ -35,21 +35,27 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 CREATE TABLE roles (
     role_id SERIAL PRIMARY KEY,
     role_name VARCHAR(50) NOT NULL UNIQUE,
-    description TEXT
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Permissions are granular actions a user can perform (e.g., 'approve_booking', 'edit_room').
 CREATE TABLE permissions (
     permission_id SERIAL PRIMARY KEY,
     permission_name VARCHAR(100) NOT NULL UNIQUE,
-    description TEXT
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Maps permissions to roles.
 CREATE TABLE role_permissions (
     role_id INTEGER NOT NULL REFERENCES roles(role_id) ON DELETE CASCADE,
     permission_id INTEGER NOT NULL REFERENCES permissions(permission_id) ON DELETE CASCADE,
-    PRIMARY KEY (role_id, permission_id)
+    PRIMARY KEY (role_id, permission_id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- User table with soft delete and versioning support.
@@ -71,7 +77,9 @@ CREATE TABLE users (
 CREATE TABLE user_roles (
     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     role_id INTEGER NOT NULL REFERENCES roles(role_id) ON DELETE CASCADE,
-    PRIMARY KEY (user_id, role_id)
+    PRIMARY KEY (user_id, role_id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 4. CATEGORY ENGINE
@@ -87,17 +95,21 @@ CREATE TABLE category_rules (
     max_guest_count INTEGER NOT NULL,
     visit_type VARCHAR(30) CHECK (visit_type IN ('official', 'personal', 'both')),
     approval_hierarchy VARCHAR(50) DEFAULT 'faculty',
-    payment_modes TEXT[]
+    payment_modes TEXT[],
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 5. ROOM TARIFFS
-CREATE TABLE room_tariff (
+CREATE TABLE room_tariffs (
     tariff_id SERIAL PRIMARY KEY,
     category_id INTEGER REFERENCES category_rules(category_id),
     room_type VARCHAR(50),
     single_occupancy NUMERIC,
     double_occupancy NUMERIC,
-    extra_bed NUMERIC DEFAULT 400
+    extra_bed NUMERIC DEFAULT 400,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 6. ROOMS
@@ -110,7 +122,9 @@ CREATE TABLE rooms (
     capacity INTEGER NOT NULL,
     category_id INTEGER REFERENCES category_rules(category_id),
     has_ac BOOLEAN DEFAULT true,
-    current_status VARCHAR(30) DEFAULT 'available' CHECK (current_status IN ('available', 'reserved', 'occupied', 'maintenance', 'cleaning'))
+    current_status VARCHAR(30) DEFAULT 'available' CHECK (current_status IN ('available', 'reserved', 'occupied', 'maintenance', 'cleaning')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 7. BOOKING REQUESTS (Updated with Payment Calculations)
@@ -164,6 +178,7 @@ CREATE TABLE guests (
     arrival_datetime TIMESTAMP,
     departure_datetime TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
@@ -175,7 +190,9 @@ CREATE TABLE guest_food_preferences (
     breakfast INTEGER DEFAULT 0 CHECK (breakfast >= 0),
     lunch INTEGER DEFAULT 0 CHECK (lunch >= 0),
     dinner INTEGER DEFAULT 0 CHECK (dinner >= 0),
-    remarks TEXT
+    remarks TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 10. ROOM ALLOCATION
@@ -187,6 +204,8 @@ CREATE TABLE booking_rooms (
     allocated_to TIMESTAMP NOT NULL,
     allocation_status VARCHAR(30) DEFAULT 'reserved',
     allocated_by VARCHAR(120),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT prevent_overlapping_rooms EXCLUDE USING gist (
         room_id WITH =,
@@ -200,7 +219,9 @@ CREATE TABLE invoices (
     booking_id UUID REFERENCES booking_requests(booking_id) ON DELETE CASCADE,
     amount NUMERIC NOT NULL,
     status VARCHAR(50) DEFAULT 'UNPAID',
-    issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    issued_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     due_date TIMESTAMP
 );
 
@@ -225,7 +246,8 @@ CREATE TABLE approval_logs (
     approver_id UUID REFERENCES users(user_id),
     action VARCHAR(50) NOT NULL,
     comments TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 15. SPONSORSHIP REQUESTS
@@ -234,7 +256,8 @@ CREATE TABLE sponsorship_requests (
     booking_id UUID REFERENCES booking_requests(booking_id) ON DELETE CASCADE,
     sponsor_user_id UUID REFERENCES users(user_id),
     status VARCHAR(50) DEFAULT 'PENDING',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     resolved_at TIMESTAMP
 );
 
@@ -245,7 +268,8 @@ CREATE TABLE notifications (
     title VARCHAR(200) NOT NULL,
     message TEXT NOT NULL,
     is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 17. REFUNDS
@@ -255,14 +279,17 @@ CREATE TABLE refunds (
     amount NUMERIC NOT NULL,
     status VARCHAR(50) DEFAULT 'PENDING',
     razorpay_refund_id VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 18. DYNAMIC WORKFLOW ENGINE
 CREATE TABLE workflow_definitions (
     workflow_id SERIAL PRIMARY KEY,
     workflow_name VARCHAR(100) NOT NULL UNIQUE,
-    description TEXT
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE workflow_steps (
@@ -272,6 +299,8 @@ CREATE TABLE workflow_steps (
     step_name VARCHAR(100) NOT NULL,
     approver_role_id INTEGER NOT NULL REFERENCES roles(role_id),
     is_mandatory BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (workflow_id, step_order)
 );
 
@@ -293,7 +322,8 @@ CREATE TABLE booking_approvals (
     approver_user_id UUID NOT NULL REFERENCES users(user_id),
     action VARCHAR(50) NOT NULL CHECK (action IN ('APPROVED', 'REJECTED', 'COMMENTED')),
     remarks TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 19. BOOKING DOCUMENTS
@@ -307,6 +337,7 @@ CREATE TABLE booking_documents (
     mime_type VARCHAR(100) NOT NULL,
     file_size_bytes BIGINT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
@@ -320,14 +351,37 @@ CREATE TABLE audit_logs (
     old_value JSONB,
     new_value JSONB,
     remarks TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 21. INDEXING STRATEGY
+CREATE INDEX idx_users_email ON users(email);
+
 CREATE INDEX idx_bookings_user_id ON booking_requests(user_id);
 CREATE INDEX idx_bookings_state ON booking_requests(booking_state);
+CREATE INDEX idx_bookings_category_id ON booking_requests(category_id);
+CREATE INDEX idx_bookings_assigned_approver ON booking_requests(assigned_approver_id);
+CREATE INDEX idx_bookings_arrival ON booking_requests(arrival_datetime);
+CREATE INDEX idx_bookings_departure ON booking_requests(departure_datetime);
+
 CREATE INDEX idx_guests_booking_id ON guests(booking_id);
+CREATE INDEX idx_guests_email ON guests(email);
+CREATE INDEX idx_guests_phone ON guests(phone);
+
+CREATE INDEX idx_guest_food_meal_date ON guest_food_preferences(meal_date);
+
 CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
 CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
+
+CREATE INDEX idx_booking_rooms_room_id ON booking_rooms(room_id);
+CREATE INDEX idx_booking_rooms_allocated_from ON booking_rooms(allocated_from);
+CREATE INDEX idx_booking_rooms_allocated_to ON booking_rooms(allocated_to);
+
+CREATE INDEX idx_invoices_booking_id ON invoices(booking_id);
+CREATE INDEX idx_payments_booking_id ON payments(booking_id);
+CREATE INDEX idx_approval_logs_booking_id ON approval_logs(booking_id);
+CREATE INDEX idx_approval_logs_approver_id ON approval_logs(approver_id);
+
 CREATE INDEX idx_workflow_instances_booking_id ON booking_workflow_instances(booking_id);
 CREATE INDEX idx_audit_logs_target ON audit_logs(target_entity, target_id);

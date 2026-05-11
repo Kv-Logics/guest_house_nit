@@ -5,11 +5,16 @@ const api = axios.create({
     withCredentials: true, // Crucial for HttpOnly cookies
 });
 
-// Inject JWT Access Token into every request
+// Add CSRF token from cookie to request headers
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+    const getCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+    };
+    const csrfToken = getCookie('csrf-token');
+    if (csrfToken && ['post', 'put', 'patch', 'delete'].includes(config.method)) {
+        config.headers['X-CSRF-Token'] = csrfToken;
     }
     return config;
 });
@@ -25,20 +30,14 @@ api.interceptors.response.use(
             originalRequest._retry = true;
             try {
                 // Attempt to refresh the token using HttpOnly cookie/backend endpoint
-                const res = await axios.post(
+                await axios.post(
                     `${api.defaults.baseURL}/auth/refresh`,
                     {},
                     { withCredentials: true }
                 );
                 
-                if (res.data?.success && res.data?.data?.token) {
-                    const newToken = res.data.data.token;
-                    localStorage.setItem('token', newToken);
-                    originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
-                    return api(originalRequest); // Retry original request
-                }
+                return api(originalRequest); // Retry original request
             } catch (refreshError) {
-                localStorage.removeItem('token');
                 window.location.href = '/login'; // Refresh completely failed, force re-auth
                 return Promise.reject(refreshError);
             }

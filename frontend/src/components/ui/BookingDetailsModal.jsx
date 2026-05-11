@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
-import { X, FileText, Users, Utensils, Paperclip, Loader2, ClipboardCheck, RefreshCw, History } from 'lucide-react';
+import api from '../../services/api';
+import { X, FileText, Users, Utensils, Paperclip, Loader2, RefreshCw, History } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import nitLogo from '../../assets/images/nitlogo.png';
 
@@ -17,10 +18,8 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
     const { data: historyRes } = useQuery({
         queryKey: ['bookingHistory', bookingId],
         queryFn: async () => {
-            const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/bookings/${bookingId}/history`, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-            });
-            return res.json();
+            const res = await api.get(`/bookings/${bookingId}/history`);
+            return res; // api.js already unwraps response.data
         },
         enabled: !!bookingId
     });
@@ -241,7 +240,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                                     {log.comments && (
                                                         <div className="bg-white p-3.5 rounded-xl border border-slate-100 text-slate-700 font-medium italic shadow-sm mt-2 relative">
                                                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-200 rounded-l-xl"></div>
-                                                            "{log.comments}"
+                                                            &quot;{log.comments}&quot;
                                                         </div>
                                                     )}
                                                 </div>

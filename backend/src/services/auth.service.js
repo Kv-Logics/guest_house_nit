@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const authRepository = require('../repositories/auth.repository');
+const logger = require('../utils/logger');
 
 // In-memory store for OTPs (For production, this could be moved to Redis or a DB table)
 const otpStore = new Map();
@@ -17,7 +18,7 @@ exports.requestOtp = async (email) => {
     otpStore.set(email, { otp, expiresAt });
 
     // Simulate sending an email (in production, integrate nodemailer/SendGrid here)
-    console.log(`\n[EMAIL SIMULATION] -> OTP for ${email} is: ${otp}\n`);
+    logger.info(`[DEV-ONLY] OTP for ${email} is: ${otp}`);
     
     return true;
 };
@@ -25,14 +26,23 @@ exports.requestOtp = async (email) => {
 exports.verifyOtp = async (email, otp) => {
     const stored = otpStore.get(email);
     
-    if (!stored) throw new Error('OTP not requested or expired.');
+    if (!stored) {
+        logger.warn(`Failed login attempt for ${email}: OTP not found or already used.`);
+        throw new Error('OTP not requested or expired.');
+    }
     if (Date.now() > stored.expiresAt) {
         otpStore.delete(email);
+        logger.warn(`Failed login attempt for ${email}: OTP expired.`);
         throw new Error('OTP has expired.');
     }
-    if (stored.otp !== otp) throw new Error('Invalid OTP.');
+    if (stored.otp !== otp) {
+        logger.warn(`Failed login attempt for ${email}: Invalid OTP provided.`);
+        throw new Error('Invalid OTP.');
+    }
 
     otpStore.delete(email); // Clear OTP after successful use
+
+    logger.info(`Successful login for email: ${email}`);
 
     const user = await authRepository.findUserByEmail(email);
     if (!user) throw new Error('User not found.');
@@ -44,7 +54,7 @@ exports.verifyOtp = async (email, otp) => {
             email: user.email, 
             role: user.role 
         }, 
-        process.env.JWT_SECRET || 'nitt_gh_secret_key',
+        process.env.JWT_SECRET,
         { expiresIn: '7d' }            // 7 Days expiration requirement
     );
 

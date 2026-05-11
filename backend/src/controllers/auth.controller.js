@@ -1,9 +1,11 @@
 const authService = require('../services/auth.service');
 const { sendSuccess, sendError } = require('../utils/response');
+const logger = require('../utils/logger');
 
 exports.requestOtp = async (req, res, next) => {
     try {
         const { email } = req.body;
+        logger.info(`OTP requested for email: ${email}`);
         await authService.requestOtp(email);
         
         return sendSuccess(res, 'OTP sent successfully to your email');
@@ -20,7 +22,16 @@ exports.verifyOtp = async (req, res, next) => {
         const { email, otp } = req.body;
         const data = await authService.verifyOtp(email, otp);
         
-        return sendSuccess(res, 'Login successful', data);
+        // Set JWT inside an HTTP-Only secure cookie
+        res.cookie('token', data.token, {
+            httpOnly: true,  // Prevents JavaScript/XSS access to the token
+            secure: process.env.NODE_ENV === 'production', // Requires HTTPS in production
+            sameSite: 'strict', // Protects against CSRF attacks
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 Days expiration
+        });
+
+        // Do not send the token in the JSON body anymore!
+        return sendSuccess(res, 'Login successful', { user: data.user });
     } catch (error) {
         const authErrors = ['Invalid OTP.', 'OTP has expired.', 'OTP not requested or expired.'];
         if (authErrors.includes(error.message)) {
@@ -32,7 +43,8 @@ exports.verifyOtp = async (req, res, next) => {
 
 exports.logout = async (req, res, next) => {
     try {
-        res.clearCookie('token');
+        // Clear the cookie securely
+        res.clearCookie('token', { httpOnly: true, sameSite: 'strict' });
         return sendSuccess(res, 'Logged out successfully');
     } catch (error) {
         next(error);

@@ -90,8 +90,12 @@ exports.getAuthoritiesByCategoryId = async (categoryId) => {
         FROM users u
         JOIN user_roles ur ON u.user_id = ur.user_id
         JOIN roles r ON ur.role_id = r.role_id
-        JOIN category_rules c ON c.category_id = $1
-        WHERE c.approval_hierarchy LIKE '%' || r.role_name || '%'
+        WHERE 
+            ($1 = 1 AND r.role_name IN ('director', 'registrar', 'dean', 'hod')) OR
+            ($1 = 2 AND r.role_name IN ('dean', 'hod')) OR
+            ($1 = 3 AND r.role_name IN ('faculty', 'staff')) OR
+            ($1 = 4 AND r.role_name IN ('registrar', 'hod', 'faculty'))
+        ORDER BY r.role_id ASC, u.full_name ASC
     `;
     const result = await db.query(query, [categoryId]);
     return result.rows;

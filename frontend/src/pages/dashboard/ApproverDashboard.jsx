@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { approvalService } from '../../services/approval.service';
-import StatusBadge from '../../components/ui/StatusBadge';
 import { ClipboardCheck, CheckCircle, XCircle, Eye } from 'lucide-react';
 import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
 
