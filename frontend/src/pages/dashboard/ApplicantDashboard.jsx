@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -91,7 +91,7 @@ export default function ApplicantDashboard() {
             {user && ![ROLES.STUDENT, ROLES.RECEPTIONIST].includes(user.role) && (
                 <div className="bg-blue-50/80 p-4 rounded-xl text-sm font-semibold text-indigo-800 leading-relaxed border border-blue-100 flex items-start mb-6 shadow-sm">
                     <Info className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-blue-500" />
-                    <span className="text-left">Cancellation Notice: If your plans have changed, you may cancel your pending application at any time using the "Cancel" action next to the booking preview.</span>
+                    <span className="text-left">Cancellation Notice: If your plans have changed, you may cancel your pending application at any time using the &quot;Cancel&quot; action next to the booking preview.</span>
                 </div>
             )}
 

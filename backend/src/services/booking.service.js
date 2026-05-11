@@ -46,7 +46,19 @@ exports.submitBookingRequest = async (data) => {
         const arrivalDatetime = data.arrival_datetime || `${data.arrival_date} ${data.arrival_time}:00`;
         const departureDatetime = data.departure_datetime || `${data.departure_date} ${data.departure_time}:00`;
 
-        // 6. Insert Booking Request (Sets state to PENDING_APPROVER)
+        // 6. Evaluate Bypass & Auto-Approval Logic
+        let initialState = BOOKING_STATUS.PENDING_APPROVER;
+        let autoApproveLog = null;
+
+        if (['super_admin', 'guest_house_admin'].includes(userRole)) {
+            initialState = BOOKING_STATUS.ADMIN_APPROVED;
+            autoApproveLog = 'Auto-approved as Admin booking.';
+        } else if (data.assigned_approver_id === data.user_id) {
+            initialState = BOOKING_STATUS.PENDING_ADMIN;
+            autoApproveLog = 'Auto-approved by applicant (Self-Approval).';
+        }
+
+        // 7. Insert Booking Request
         const insertBookingQuery = `
             INSERT INTO booking_requests (
                 user_id, category_id, purpose_of_visit, visit_type, project_code,
@@ -58,13 +70,13 @@ exports.submitBookingRequest = async (data) => {
         const bookingValues = [
             data.user_id, data.category_id, data.purpose_of_visit, data.visit_type, data.project_code || null,
             arrivalDatetime, departureDatetime, data.rooms_required, data.undertaking_accepted || true,
-            BOOKING_STATUS.PENDING_APPROVER, paymentResponsible, data.room_type || 'Standard Room', data.extra_beds || 0, data.total_estimated_amount || 0, data.assigned_approver_id || null
+            initialState, paymentResponsible, data.room_type || 'Standard Room', data.extra_beds || 0, data.total_estimated_amount || 0, data.assigned_approver_id || null
         ];
         
         const bookingRes = await client.query(insertBookingQuery, bookingValues);
         const bookingId = bookingRes.rows[0].booking_id;
 
-        // 7. Insert Associated Guest Details & Food Preferences
+        // 8. Insert Associated Guest Details & Food Preferences
         if (data.guests && data.guests.length > 0) {
             for (const guest of data.guests) {
                 const gRes = await client.query(`
@@ -87,7 +99,7 @@ exports.submitBookingRequest = async (data) => {
             }
         }
 
-        // 8. Handle Uploaded Documents
+        // 9. Handle Uploaded Documents
         if (data.files) {
             const filesToInsert = [];
             if (data.files.document_1 && data.files.document_1[0]) filesToInsert.push({ doc: data.files.document_1[0], type: 'Primary Document' });
@@ -102,11 +114,15 @@ exports.submitBookingRequest = async (data) => {
             }
         }
 
-        // 9. Log the initial submission
+        // 10. Log the initial submission and any auto-approvals
         await client.query('INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)', [bookingId, data.user_id, 'SUBMITTED', 'Application submitted by the applicant.']);
 
+        if (autoApproveLog) {
+            await client.query('INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)', [bookingId, data.user_id, 'APPROVED', autoApproveLog]);
+        }
+
         await client.query('COMMIT');
-        return { booking_id: bookingId, category: category.category_code, status: BOOKING_STATUS.PENDING_APPROVER };
+        return { booking_id: bookingId, category: category.category_code, status: initialState };
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;
@@ -127,8 +143,31 @@ exports.reapplyBookingRequest = async (data) => {
         }
         const catRes = await client.query('SELECT * FROM category_rules WHERE category_id = $1', [data.category_id]);
         const category = catRes.rows[0];
+
+        // Retrieve user role for evaluation
+        const userRes = await client.query(`
+            SELECT r.role_name as role 
+            FROM users u 
+            JOIN user_roles ur ON u.user_id = ur.user_id 
+            JOIN roles r ON ur.role_id = r.role_id 
+            WHERE u.user_id = $1
+        `, [data.user_id]);
+        const userRole = userRes.rows[0].role;
+
         const arrivalDatetime = data.arrival_datetime || `${data.arrival_date} ${data.arrival_time}:00`;
         const departureDatetime = data.departure_datetime || `${data.departure_date} ${data.departure_time}:00`;
+
+        let newState = BOOKING_STATUS.PENDING_APPROVER;
+        let autoApproveLog = null;
+
+        if (['super_admin', 'guest_house_admin'].includes(userRole)) {
+            newState = BOOKING_STATUS.ADMIN_APPROVED;
+            autoApproveLog = 'Auto-approved as Admin booking upon reapplication.';
+        } else if (data.assigned_approver_id === data.user_id) {
+            newState = BOOKING_STATUS.PENDING_ADMIN;
+            autoApproveLog = 'Auto-approved by applicant (Self-Approval) upon reapplication.';
+        }
+
         await client.query(`
             UPDATE booking_requests SET 
                 category_id = $1, purpose_of_visit = $2, visit_type = $3, project_code = $4,
@@ -138,8 +177,8 @@ exports.reapplyBookingRequest = async (data) => {
             WHERE booking_id = $13
         `, [
             data.category_id, data.purpose_of_visit, data.visit_type, data.project_code || null,
-            arrivalDatetime, departureDatetime, data.rooms_required, 
-            BOOKING_STATUS.PENDING_APPROVER, data.room_type || 'Standard Room', data.extra_beds || 0, 
+            arrivalDatetime, departureDatetime, data.rooms_required,
+            newState, data.room_type || 'Standard Room', data.extra_beds || 0,
             data.total_estimated_amount || 0, data.assigned_approver_id || null, data.booking_id
         ]);
         await client.query('DELETE FROM guests WHERE booking_id = $1', [data.booking_id]);
@@ -167,8 +206,12 @@ exports.reapplyBookingRequest = async (data) => {
             }
         }
         await client.query('INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)', [data.booking_id, data.user_id, 'REAPPLIED', 'Applicant modified and reapplied the booking.']);
+        
+        if (autoApproveLog) {
+            await client.query('INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)', [data.booking_id, data.user_id, 'APPROVED', autoApproveLog]);
+        }
         await client.query('COMMIT');
-        return { booking_id: data.booking_id, category: category.category_code, status: BOOKING_STATUS.PENDING_APPROVER };
+        return { booking_id: data.booking_id, category: category.category_code, status: newState };
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;
@@ -195,11 +238,22 @@ exports.mockPayment = async (bookingId) => {
     return booking;
 };
 
-exports.updateAdminStatus = async (bookingId, action) => {
-    const newState = action === 'APPROVED' ? BOOKING_STATUS.ADMIN_APPROVED : BOOKING_STATUS.ADMIN_REJECTED;
-    const booking = await bookingRepository.updateAdminState(bookingId, newState);
-    if (!booking) throw new Error('Booking not found');
-    return booking;
+exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+        const newState = action === 'APPROVED' ? BOOKING_STATUS.ADMIN_APPROVED : BOOKING_STATUS.ADMIN_REJECTED;
+        const result = await client.query('UPDATE booking_requests SET booking_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *', [newState, bookingId]);
+        if (result.rows.length === 0) throw new Error('Booking not found');
+        await client.query('INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)', [bookingId, approverId, action, remarks || '']);
+        await client.query('COMMIT');
+        return result.rows[0];
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
 };
 
 exports.getBookingById = async (bookingId) => {
@@ -216,4 +270,9 @@ exports.cancelBooking = async (bookingId, userId) => {
 
 exports.getAuthorities = async (categoryId) => {
     return await bookingRepository.getAuthoritiesByCategoryId(categoryId);
+};
+
+exports.getBookingHistory = async (bookingId) => {
+    const result = await db.query('SELECT a.*, u.full_name as approver_name FROM approval_logs a LEFT JOIN users u ON a.approver_id = u.user_id WHERE a.booking_id = $1 ORDER BY a.created_at DESC', [bookingId]);
+    return result.rows;
 };

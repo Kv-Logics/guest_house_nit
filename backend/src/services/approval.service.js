@@ -1,6 +1,7 @@
 const db = require('../db/db');
 const approvalRepository = require('../repositories/approval.repository');
 const { BOOKING_STATUS } = require('../utils/constants');
+const logger = require('../utils/logger');
 
 exports.getPendingApprovals = async (userRole, userId) => {
     return await approvalRepository.getPendingApprovalsByRole(BOOKING_STATUS.PENDING_APPROVER, userRole, userId);
@@ -30,6 +31,12 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
             [bookingId, approverId, action, remarks]
         );
 
+        logger.info(`Booking approval action taken`, {
+            bookingId,
+            approverId,
+            action,
+            newState,
+        });
         await client.query('COMMIT');
         return bookingRes.rows[0];
     } catch (error) {

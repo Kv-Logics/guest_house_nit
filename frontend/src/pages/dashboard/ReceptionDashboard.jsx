@@ -1,9 +1,7 @@
-import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { receptionService } from '../../services/reception.service';
 import StatusBadge from '../../components/ui/StatusBadge';
-import { Key, UserCheck, Eye } from 'lucide-react';
-import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
+import { Key, UserCheck } from 'lucide-react';
 
 export default function ReceptionDashboard() {
     const queryClient = useQueryClient();
@@ -12,7 +10,6 @@ export default function ReceptionDashboard() {
         queryKey: ['receptionArrivals'],
         queryFn: receptionService.getTodayArrivals
     });
-    const [previewId, setPreviewId] = useState(null);
 
     const checkInMutation = useMutation({
         mutationFn: (id) => receptionService.checkIn(id),
@@ -24,7 +21,7 @@ export default function ReceptionDashboard() {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receptionArrivals'] })
     });
 
-    if (isLoading) return <div className="p-8 text-center text-slate-500 font-bold">Loading today's arrivals...</div>;
+    if (isLoading) return <div className="p-8 text-center text-slate-500 font-bold">Loading today&apos;s arrivals...</div>;
 
     const arrivals = data?.data || [];
 

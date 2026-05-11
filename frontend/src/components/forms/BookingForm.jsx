@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import MultiGuestSection from './MultiGuestSection';
 import CategoryVisitSection from './CategoryVisitSection';
 import StayDetailsSection from './StayDetailsSection';
-import { AlertCircle, Eye, FileText, ShieldAlert } from 'lucide-react';
+import GuidelinesCard from './GuidelinesCard';
+import ApproverSelection from './ApproverSelection';
+import { AlertCircle, Eye } from 'lucide-react';
 
+// MAIN COMPONENT EXPORT
 export default function BookingForm({ formData, setFormData, user, authorities = [] }) {
   const navigate = useNavigate();
   const [localError, setLocalError] = useState('');
@@ -12,21 +15,23 @@ export default function BookingForm({ formData, setFormData, user, authorities =
   const [approverSearch, setApproverSearch] = useState('');
   const [isApproverDropdownOpen, setIsApproverDropdownOpen] = useState(false);
 
+  const isAdmin = ['super_admin', 'guest_house_admin'].includes(user?.role);
+
   // Pre-fill the search bar if coming back from the Preview Page
   useEffect(() => {
-      if (formData.assigned_approver_id && authorities.length > 0) {
-          const a = authorities.find(auth => auth.user_id === formData.assigned_approver_id);
-          if (a) {
-              setApproverSearch(`${a.full_name} (${a.department} - ${String(a.role).toUpperCase()})`);
-          }
+    if (formData.assigned_approver_id && authorities.length > 0) {
+      const a = authorities.find((auth) => auth.user_id === formData.assigned_approver_id);
+      if (a) {
+        setApproverSearch(`${a.full_name} (${a.department} - ${String(a.role).toUpperCase()})`);
       }
+    }
   }, [formData.assigned_approver_id, authorities]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? checked : value,
     }));
   };
 
@@ -44,7 +49,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       const guest = formData.guests[i];
       const arrival = new Date(`${guest.arrival_date}T${guest.arrival_time}`);
       const departure = new Date(`${guest.departure_date}T${guest.departure_time}`);
-      if (arrival < new Date(new Date().setHours(0,0,0,0))) {
+      if (arrival < new Date(new Date().setHours(0, 0, 0, 0))) {
         setLocalError(`Guest ${i + 1}: Arrival date cannot be in the past.`);
         return;
       }
@@ -59,12 +64,19 @@ export default function BookingForm({ formData, setFormData, user, authorities =
     }
 
     // Category & Visit Type Compatibility Rules
-    if ((formData.category_id === '1' || formData.category_id === '2') && formData.visit_type !== 'official') {
-      setLocalError(`CAT-${formData.category_id === '1' ? 'I' : 'II'} strictly requires the Visit Type to be "Official". Please update the dropdown.`);
+    if (
+      (formData.category_id === '1' || formData.category_id === '2') &&
+      formData.visit_type !== 'official'
+    ) {
+      setLocalError(
+        `CAT-${formData.category_id === '1' ? 'I' : 'II'} strictly requires the Visit Type to be "Official". Please update the dropdown.`
+      );
       return;
     }
     if (formData.category_id === '4' && formData.visit_type !== 'personal') {
-      setLocalError('CAT-IV strictly requires the Visit Type to be "Personal". Please update the dropdown.');
+      setLocalError(
+        'CAT-IV strictly requires the Visit Type to be "Personal". Please update the dropdown.'
+      );
       return;
     }
 
@@ -73,7 +85,9 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       const guest = formData.guests[i];
       for (const meal of guest.food_preferences) {
         if (!meal.date) {
-          setLocalError(`Please specify a valid calendar date for Guest ${i + 1}'s meal request, or remove the empty row.`);
+          setLocalError(
+            `Please specify a valid calendar date for Guest ${i + 1}'s meal request, or remove the empty row.`
+          );
           return;
         }
       }
@@ -84,7 +98,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       return;
     }
 
-    if (!formData.assigned_approver_id) {
+    if (!isAdmin && !formData.assigned_approver_id) {
       setLocalError('You must select an Approval Authority to route your application.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -97,84 +111,44 @@ export default function BookingForm({ formData, setFormData, user, authorities =
   return (
     <div>
       <div className="bg-white p-8 md:p-10 rounded-3xl shadow-sm border border-slate-200 relative">
-      
-      <div className="relative z-10 border-b border-slate-100 pb-6 mb-8">
-        <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">Application Details</h2>
-        <p className="text-slate-500 mt-2 font-medium">Please fill out the form below carefully to request accommodation.</p>
-      </div>
-
-      {localError && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-5 mb-8 rounded-r-xl shadow-sm text-red-800 text-sm animate-fade-in flex items-center">
-          <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0 text-red-500" />
-          <span className="font-medium">{localError}</span>
+        <div className="relative z-10 border-b border-slate-100 pb-6 mb-8">
+          <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">
+            Application Details
+          </h2>
+          <p className="text-slate-500 mt-2 font-medium">
+            Please fill out the form below carefully to request accommodation.
+          </p>
         </div>
-      )}
 
-      <form onSubmit={handleSubmit} className="relative z-10 flex flex-col space-y-10">
-        
-        {/* Official Guidelines Acknowledgment */}
-        <div className={`p-6 rounded-2xl border-2 transition-all duration-300 ${guidelinesAccepted ? 'bg-emerald-50 border-emerald-500/30' : 'bg-amber-50 border-amber-400 shadow-md shadow-amber-100/50'}`}>
-          <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center">
-            <FileText className={`w-5 h-5 mr-2 ${guidelinesAccepted ? 'text-emerald-500' : 'text-amber-500'}`} />
-            Official NITT Guest House Guidelines
-          </h3>
-          <div className="text-sm text-slate-700 space-y-3 mb-5 bg-white/60 p-4 rounded-xl">
-            <p><strong>Category I:</strong> Institute Guests, Ministry Officials, VIPs. <em className="text-slate-500">(Payment by Institute)</em></p>
-            <p><strong>Category II:</strong> Official project visitors, examiners, external experts. <em className="text-slate-500">(Project code strictly required)</em></p>
-            <p><strong>Category III:</strong> NITT Faculty/Staff/Students booking for parents or personal guests. <em className="text-slate-500">(Payment by Guest or Faculty)</em></p>
-            <p><strong>Category IV:</strong> Alumni and external individuals. <em className="text-slate-500">(Subject to extreme availability)</em></p>
+        {localError && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-5 mb-8 rounded-r-xl shadow-sm text-red-800 text-sm animate-fade-in flex items-center">
+            <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0 text-red-500" />
+            <span className="font-medium">{localError}</span>
           </div>
-          <label className="flex items-start sm:items-center cursor-pointer group">
-            <input type="checkbox" checked={guidelinesAccepted} onChange={(e) => setGuidelinesAccepted(e.target.checked)} className="w-5 h-5 mt-0.5 sm:mt-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 transition-colors cursor-pointer" />
-            <span className={`ml-3 font-bold transition-colors select-none ${guidelinesAccepted ? 'text-emerald-800' : 'text-amber-900 group-hover:text-amber-700'}`}>
-              I have reviewed and understood the official guidelines. Proceed to application.
-            </span>
-          </label>
-        </div>
+        )}
 
-        <div className={`transition-all duration-500 space-y-10 ${guidelinesAccepted ? 'opacity-100 translate-y-0' : 'opacity-40 grayscale-[30%] pointer-events-none translate-y-2'}`}>
-        <CategoryVisitSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
-          <MultiGuestSection formData={formData} setFormData={setFormData} user={user} />
-          <StayDetailsSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
-          
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center border-b border-slate-100 pb-3">
-              <ShieldAlert className="w-5 h-5 mr-2 text-rose-500" /> Approval Authority
-            </h3>
-            <div className="relative">
-               <label className="block text-sm font-bold text-slate-700 mb-2">Select Approver (Required) <span className="text-red-500">*</span></label>
-               <input 
-                 type="text" 
-                 placeholder="Search by name or department..." 
-                 value={approverSearch}
-                 onChange={(e) => {
-                     setApproverSearch(e.target.value);
-                     setFormData(prev => ({...prev, assigned_approver_id: ''}));
-                     setIsApproverDropdownOpen(true);
-                 }}
-                 onFocus={() => setIsApproverDropdownOpen(true)}
-                 onBlur={() => setTimeout(() => setIsApproverDropdownOpen(false), 200)}
-                 className="w-full p-3 border border-slate-300 rounded-xl focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-700 bg-slate-50"
-               />
-               {isApproverDropdownOpen && (
-                 <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
-                    {authorities.filter(a => a.full_name.toLowerCase().includes(approverSearch.toLowerCase()) || a.department.toLowerCase().includes(approverSearch.toLowerCase())).map(a => (
-                        <div key={a.user_id} onMouseDown={(e) => { e.preventDefault(); setFormData(prev => ({...prev, assigned_approver_id: a.user_id})); setApproverSearch(`${a.full_name} (${a.department} - ${String(a.role).toUpperCase()})`); setIsApproverDropdownOpen(false); }} className="p-3 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-0">
-                            <p className="font-bold text-slate-800">{a.full_name}</p>
-                            <p className="text-xs text-slate-500">{a.department} - {String(a.role).toUpperCase()}</p>
-                        </div>
-                    ))}
-                    {authorities.length === 0 && <div className="p-3 text-sm text-slate-500">No authorities available for this category.</div>}
-                 </div>
-               )}
-            </div>
+        <form onSubmit={handleSubmit} className="relative z-10 flex flex-col space-y-10">
+          <GuidelinesCard guidelinesAccepted={guidelinesAccepted} setGuidelinesAccepted={setGuidelinesAccepted} />
+
+          <div
+            className={`transition-all duration-500 space-y-10 ${guidelinesAccepted ? 'opacity-100 translate-y-0' : 'opacity-40 grayscale-[30%] pointer-events-none translate-y-2'}`}
+          >
+            <CategoryVisitSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
+            <MultiGuestSection formData={formData} setFormData={setFormData} />
+            <StayDetailsSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
+
+            {!isAdmin && (
+              <ApproverSelection approverSearch={approverSearch} setApproverSearch={setApproverSearch} isOpen={isApproverDropdownOpen} setIsOpen={setIsApproverDropdownOpen} authorities={authorities} setFormData={setFormData} />
+            )}
           </div>
-        </div>
 
           <div className="pt-8 border-t border-slate-100">
-          <button type="submit" className="w-full flex items-center justify-center py-4 px-6 rounded-xl shadow-sm text-lg font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors">
-            <Eye className="w-5 h-5 mr-2" /> Review Application Preview
-          </button>
+            <button
+              type="submit"
+              className="w-full flex items-center justify-center py-4 px-6 rounded-xl shadow-sm text-lg font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+            >
+              <Eye className="w-5 h-5 mr-2" /> Review Application Preview
+            </button>
           </div>
         </form>
       </div>
