@@ -8,19 +8,16 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchUser = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+    setLoading(true);
     try {
       const res = await authService.getProfile();
       if (res.success) {
         setUser(res.data);
+      } else {
+        setUser(null);
       }
-    } catch (error) {
-      console.error('Auth verification failed:', error);
-      localStorage.removeItem('token');
+    } catch {
+      // 401 just means no active session — not a real error
       setUser(null);
     } finally {
       setLoading(false);
@@ -36,12 +33,19 @@ export const AuthProvider = ({ children }) => {
   };
 
   const verifyOtp = async (email, otp) => {
-    const res = await authService.verifyOtp(email, otp);
-    if (res.success) {
-      localStorage.setItem('token', res.data.token);
-      setUser(res.data.user);
+    try {
+      const res = await authService.verifyOtp(email, otp);
+      if (res.success) {
+        await fetchUser(); // cookie is set by backend, just fetch the user
+      }
+      return res;
+    } catch (err) {
+      // interceptor rejects with { success: false, message } shaped object
+      return {
+        success: false,
+        message: err?.message || 'Incorrect OTP. Please try again.',
+      };
     }
-    return res;
   };
 
   const logout = async () => {
@@ -50,7 +54,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error(err);
     } finally {
-      localStorage.removeItem('token');
+      localStorage.removeItem('token'); // cleanup in case any legacy token exists
       setUser(null);
     }
   };
