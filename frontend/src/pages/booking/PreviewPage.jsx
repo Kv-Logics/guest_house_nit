@@ -13,7 +13,6 @@ import {
   Utensils,
   User,
   Paperclip,
-  ShieldCheck,
 } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import nitLogo from '../../assets/images/nitlogo.png';
@@ -24,7 +23,6 @@ export default function PreviewPage() {
   const { formData, user, authorities, tariffs = [] } = location.state || {};
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [undertakingAccepted, setUndertakingAccepted] = useState(false);
 
   // Ensure the page always starts at the very top when navigating from the form
   useEffect(() => {
@@ -47,10 +45,10 @@ export default function PreviewPage() {
 
   // Calculate Stay Duration and Breakdown
   const earliestArrival = new Date(
-    Math.min(...formData.guests.map((g) => new Date(`${g.arrival_date}T${g.arrival_time}`)))
+    Math.min(...(formData.rooms || []).flatMap(r => r.guests).map((g) => new Date(`${g.arrival_date}T${g.arrival_time}`)))
   );
   const latestDeparture = new Date(
-    Math.max(...formData.guests.map((g) => new Date(`${g.departure_date}T${g.departure_time}`)))
+    Math.max(...(formData.rooms || []).flatMap(r => r.guests).map((g) => new Date(`${g.departure_date}T${g.departure_time}`)))
   );
   
   let days = 1;
@@ -59,17 +57,19 @@ export default function PreviewPage() {
   }
 
   const activeTariff = tariffs.find(t => String(t.category_id) === String(formData.category_id) && t.room_type === formData.room_type) || tariffs.find(t => String(t.category_id) === String(formData.category_id));
-  const guestsCount = formData.guests ? formData.guests.length : 1;
-  const rooms = Number(formData.rooms_required) || 1;
-  const doubleRooms = Math.min(rooms, Math.max(0, guestsCount - rooms));
-  const singleRooms = Math.max(0, rooms - doubleRooms);
+  
+  const roomsList = formData.rooms || [];
+  const roomsCount = roomsList.length;
+  const doubleRooms = roomsList.filter(r => r.guests.length > 1).length;
+  const singleRooms = roomsList.filter(r => r.guests.length === 1).length;
+  const extraBeds = roomsList.filter(r => r.extra_bed).length;
 
   const singleRate = activeTariff ? Number(activeTariff.single_occupancy) : 0;
   const doubleRate = activeTariff ? Number(activeTariff.double_occupancy) : 0;
   const extraBedRate = activeTariff ? (Number(activeTariff.extra_bed) || 400) : 400;
   
   const roomCost = days * ((singleRooms * singleRate) + (doubleRooms * doubleRate));
-  const extraBedCost = days * Number(formData.extra_beds) * extraBedRate;
+  const extraBedCost = days * extraBeds * extraBedRate;
   const subtotal = roomCost + extraBedCost;
   const gst = Math.round(subtotal * 0.12);
 
@@ -77,7 +77,8 @@ export default function PreviewPage() {
     setIsLoading(true);
     setError('');
     try {
-      const sanitizedGuests = formData.guests.map((g) => {
+      const flatGuests = (formData.rooms || []).flatMap(r => r.guests);
+      const sanitizedGuests = flatGuests.map((g) => {
         const guest = { ...g };
         
         // Force age to be a number, or 0 if missing to satisfy Zod
@@ -117,8 +118,8 @@ export default function PreviewPage() {
         arrival_datetime: earliestArrival.toISOString(),
         departure_datetime: latestDeparture.toISOString(),
         category_id: parseInt(formData.category_id),
-        rooms_required: parseInt(formData.rooms_required),
-        extra_beds: parseInt(formData.extra_beds) || 0,
+        rooms_required: roomsCount,
+        extra_beds: extraBeds,
         total_estimated_amount: Number(formData.total_estimated_amount) || 0,
         estimated_amount: Number(formData.total_estimated_amount) || 0,
         payment_responsibility:
@@ -250,10 +251,10 @@ export default function PreviewPage() {
                   Booking For (Guests)
                 </p>
                 <p className="font-bold text-slate-800 truncate max-w-[200px]">
-                  {formData.guests.map((g) => g.guest_name || 'Unnamed Guest').join(', ')}
+                  {(formData.rooms || []).flatMap(r => r.guests).map((g) => g.guest_name || 'Unnamed Guest').join(', ')}
                 </p>
                 <p className="text-xs font-medium text-slate-500">
-                  {formData.guests.length} Guest(s) Included
+                  {(formData.rooms || []).flatMap(r => r.guests).length} Guest(s) Included
                 </p>
               </div>
             </div>
@@ -270,7 +271,7 @@ export default function PreviewPage() {
                 <p className="font-semibold text-slate-800">
                   {new Date(
                     Math.min(
-                      ...formData.guests.map((g) => new Date(`${g.arrival_date}T${g.arrival_time}`))
+                      ...(formData.rooms || []).flatMap(r => r.guests).map((g) => new Date(`${g.arrival_date}T${g.arrival_time}`))
                     )
                   ).toLocaleString()}
                 </p>
@@ -280,7 +281,7 @@ export default function PreviewPage() {
                 <p className="font-semibold text-slate-800">
                   {new Date(
                     Math.max(
-                      ...formData.guests.map(
+                      ...(formData.rooms || []).flatMap(r => r.guests).map(
                         (g) => new Date(`${g.departure_date}T${g.departure_time}`)
                       )
                     )
@@ -290,12 +291,12 @@ export default function PreviewPage() {
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase mb-1">Rooms Requested</p>
                 <p className="font-semibold text-slate-800">
-                  {formData.rooms_required} x {formData.room_type}
+                  {roomsCount} x {formData.room_type}
                 </p>
               </div>
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase mb-1">Extra Beds</p>
-                <p className="font-semibold text-slate-800">{formData.extra_beds}</p>
+                <p className="font-semibold text-slate-800">{extraBeds}</p>
               </div>
             </div>
           </div>
@@ -306,7 +307,7 @@ export default function PreviewPage() {
               <Users className="w-5 h-5 mr-2 text-blue-500" /> Guest Details
             </h3>
             <div className="space-y-4">
-              {formData.guests.map((guest, idx) => (
+              {(formData.rooms || []).flatMap(r => r.guests).map((guest, idx) => (
                 <div key={idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="font-bold text-slate-800">
@@ -458,9 +459,9 @@ export default function PreviewPage() {
                     <span className="font-medium">₹{days * doubleRooms * doubleRate}</span>
                   </div>
                 )}
-                {Number(formData.extra_beds) > 0 && (
+                {extraBeds > 0 && (
                   <div className="flex justify-between">
-                    <span>Extra Beds ({days} Days × {formData.extra_beds})</span>
+                    <span>Extra Beds ({days} Days × {extraBeds})</span>
                     <span className="font-medium">₹{extraBedCost}</span>
                   </div>
                 )}
@@ -495,30 +496,8 @@ export default function PreviewPage() {
         </div>
       </div>
 
-      {/* Undertaking & Submit - Full Width */}
+      {/* Submit - Full Width */}
       <div className="bg-white p-6 sm:p-10 rounded-3xl border border-slate-200 shadow-sm mt-8">
-        <h4 className="text-lg font-bold text-slate-800 mb-6 flex items-center border-b border-slate-100 pb-4">
-          <ShieldCheck className="w-6 h-6 mr-2 text-emerald-500" /> Undertaking by Applicant
-        </h4>
-
-        <div className="text-sm text-slate-600 space-y-4 leading-relaxed font-medium mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">
-          <p>
-            a. Certified that the visit of the guest(s) is related to the activities of
-            official/personal. I take responsibility for the payment of bills including food charges
-            (if any) of the Guest House.
-          </p>
-          <p>
-            b. The guest(s) is (are) personally known to me and I am responsible for his/her
-            conduct.
-          </p>
-          <p>
-            c. I hereby undertake to vacate the room in the Guest House, if allotted, on the expiry
-            of the sanctioned period. In case I fail to do so, I will be liable to be charged penal
-            rent (if any).
-          </p>
-          <p>d. I have read the NITT Guest house terms & conditions and these are acceptable.</p>
-        </div>
-
         <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-8 flex items-start sm:items-center gap-3">
           <CheckCircle2 className="w-6 h-6 text-blue-500 flex-shrink-0" />
           <p className="text-sm font-bold text-blue-900">
@@ -527,22 +506,10 @@ export default function PreviewPage() {
           </p>
         </div>
 
-        <label className="flex items-center cursor-pointer group bg-white hover:bg-slate-50 p-4 rounded-xl border border-slate-200 transition-colors mb-8 shadow-sm">
-          <input
-            type="checkbox"
-            checked={undertakingAccepted}
-            onChange={(e) => setUndertakingAccepted(e.target.checked)}
-            className="w-6 h-6 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 transition-colors cursor-pointer"
-          />
-          <span className="ml-4 text-base font-bold text-slate-700 group-hover:text-slate-900 transition-colors select-none">
-            I agree to the above undertaking conditions. <span className="text-red-500">*</span>
-          </span>
-        </label>
-
         <button
           onClick={handleSubmit}
-          disabled={isLoading || !undertakingAccepted}
-          className={`w-full flex items-center justify-center py-4 px-6 rounded-xl shadow-md text-lg font-bold transition-all ${isLoading || !undertakingAccepted ? 'opacity-70 cursor-not-allowed bg-slate-200 text-slate-500' : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-emerald-600/20 hover:-translate-y-0.5'}`}
+          disabled={isLoading}
+          className={`w-full flex items-center justify-center py-4 px-6 rounded-xl shadow-md text-lg font-bold transition-all ${isLoading ? 'opacity-70 cursor-not-allowed bg-slate-200 text-slate-500' : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-emerald-600/20 hover:-translate-y-0.5'}`}
         >
           {isLoading ? (
             <>

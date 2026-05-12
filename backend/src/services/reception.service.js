@@ -5,8 +5,8 @@ exports.getTodayArrivals = async () => {
     return await receptionRepository.getFrontDeskBookings();
 };
 
-exports.checkIn = async (bookingId) => {
-    const booking = await receptionRepository.checkInBooking(bookingId);
+exports.checkIn = async (bookingId, allocatedRooms) => {
+    const booking = await receptionRepository.checkInBooking(bookingId, allocatedRooms);
     if (!booking) {
         logger.error(`Check-in failed for booking ID: ${bookingId}. Booking not found or not in a check-in ready state.`);
         throw new Error('Booking not found or not ready for check-in.');

@@ -13,17 +13,24 @@ export default function BookingPage() {
 
   const [formData, setFormData] = useState(
     location.state?.formData || {
-      rooms_required: 1,
       purpose_of_visit: '',
       room_type: 'Standard Room',
-      extra_beds: 0,
       total_estimated_amount: 0,
       category_id: '1',
       visit_type: 'official',
       project_code: '',
       payment_responsibility: 'guest',
       assigned_approver_id: '',
-      guests: [],
+      rooms: [
+        {
+          guests: [{
+            guest_name: '', designation: '', relation_to_applicant: '', phone: '', email: '',
+            gender: 'Male', age: '', address: '', id_proof_type: '', id_proof_number: '',
+            arrival_date: '', arrival_time: '12:00', departure_date: '', departure_time: '11:00', food_preferences: [],
+          }],
+          extra_bed: false
+        }
+      ]
     }
   );
 
@@ -67,12 +74,12 @@ export default function BookingPage() {
     if (!tariffs.length) return;
 
     let days = 1;
-    const guests = formData.guests || [];
-    if (guests.length > 0 && guests[0].arrival_date && guests[0].departure_date) {
-      const arrivalDates = guests.map(
+    const flatGuests = (formData.rooms || []).flatMap(r => r.guests);
+    if (flatGuests.length > 0 && flatGuests[0].arrival_date && flatGuests[0].departure_date) {
+      const arrivalDates = flatGuests.map(
         (g) => new Date(`${g.arrival_date}T${g.arrival_time || '12:00'}`)
       );
-      const departureDates = guests.map(
+      const departureDates = flatGuests.map(
         (g) => new Date(`${g.departure_date}T${g.departure_time || '11:00'}`)
       );
       const earliestArrival = new Date(Math.min(...arrivalDates));
@@ -91,18 +98,17 @@ export default function BookingPage() {
       ) || tariffs.find((t) => String(t.category_id) === String(formData.category_id));
 
     if (activeTariff) {
-      const guestsCount = formData.guests ? formData.guests.length : 1;
-      const rooms = Number(formData.rooms_required) || 1;
-      
-      const doubleRooms = Math.min(rooms, Math.max(0, guestsCount - rooms));
-      const singleRooms = Math.max(0, rooms - doubleRooms);
+      const roomsList = formData.rooms || [];
+      const doubleRooms = roomsList.filter(r => r.guests.length > 1).length;
+      const singleRooms = roomsList.filter(r => r.guests.length === 1).length;
+      const extraBeds = roomsList.filter(r => r.extra_bed).length;
 
       const singleRate = Number(activeTariff.single_occupancy);
       const doubleRate = Number(activeTariff.double_occupancy);
       const extraBedRate = Number(activeTariff.extra_bed) || 400;
 
       const roomCost = days * ((singleRooms * singleRate) + (doubleRooms * doubleRate));
-      const extraBedCost = days * Number(formData.extra_beds) * extraBedRate;
+      const extraBedCost = days * extraBeds * extraBedRate;
       const subtotal = roomCost + extraBedCost;
 
       // Include 12% GST
@@ -116,11 +122,9 @@ export default function BookingPage() {
       });
     }
   }, [
-    formData.rooms_required,
+    formData.rooms,
     formData.room_type,
-    formData.extra_beds,
     formData.category_id,
-    formData.guests,
     tariffs,
   ]);
 

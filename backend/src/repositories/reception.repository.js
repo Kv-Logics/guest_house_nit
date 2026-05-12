@@ -8,7 +8,8 @@ const { BOOKING_STATUS } = require('../utils/constants');
 exports.getFrontDeskBookings = async () => {
     const query = `
         SELECT b.booking_id, b.booking_state, b.arrival_datetime, b.departure_datetime,
-               b.rooms_required, b.room_type, b.version, u.full_name AS applicant_name,
+               b.rooms_required, b.room_type, b.version, b.category_id, b.payment_state, b.allocated_room_numbers,
+               u.full_name AS applicant_name,
                (
                    SELECT string_agg(g.guest_name, ', ')
                    FROM guests g WHERE g.booking_id = b.booking_id
@@ -53,18 +54,20 @@ exports.getFrontDeskBookings = async () => {
     return result.rows;
 };
 
-exports.checkInBooking = async (bookingId) => {
+exports.checkInBooking = async (bookingId, allocatedRooms) => {
     const query = `
         UPDATE booking_requests
         SET booking_state = $1,
             checked_in_at = CURRENT_TIMESTAMP,
+            allocated_room_numbers = $2,
             updated_at = CURRENT_TIMESTAMP
         WHERE booking_id = $2
-          AND booking_state IN ($3, $4)
+          AND booking_state IN ($4, $5)
         RETURNING *
     `;
     const result = await db.query(query, [
         BOOKING_STATUS.CHECKED_IN,
+        allocatedRooms || null,
         bookingId,
         BOOKING_STATUS.ADMIN_APPROVED,
         BOOKING_STATUS.READY_FOR_CHECKIN,

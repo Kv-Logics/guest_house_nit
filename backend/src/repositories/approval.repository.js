@@ -2,7 +2,11 @@ const db = require('../db/db');
 
 exports.getPendingApprovalsByRole = async (pendingState, userRole, userId) => {
     const query = `
-        SELECT b.*, c.category_code, u.full_name as applicant_name
+        SELECT b.*, c.category_code, u.full_name as applicant_name,
+               (
+                   SELECT json_agg(g)
+                   FROM guests g WHERE g.booking_id = b.booking_id
+               ) as guests
         FROM booking_requests b
         JOIN category_rules c ON b.category_id = c.category_id
         JOIN users u ON b.user_id = u.user_id

@@ -151,6 +151,7 @@ CREATE TABLE booking_requests (
     assigned_approver_id UUID REFERENCES users(user_id),
     version INTEGER NOT NULL DEFAULT 1,
     pending_extension_datetime TIMESTAMP,
+    allocated_room_numbers VARCHAR(100),
     checked_in_at TIMESTAMP,
     checked_out_at TIMESTAMP,
     cancelled_at TIMESTAMP,
