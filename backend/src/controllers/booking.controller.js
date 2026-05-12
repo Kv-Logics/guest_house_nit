@@ -77,6 +77,16 @@ exports.cancelBooking = async (req, res, next) => {
     }
 };
 
+exports.requestStayExtension = async (req, res, next) => {
+    try {
+        const applicantId = req.user.user_id || req.user.id;
+        const data = await bookingService.requestStayExtension(req.params.id, applicantId, req.body.additional_days);
+        return sendSuccess(res, 'Stay extension request submitted', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
 exports.getAuthorities = async (req, res, next) => {
     try {
         const data = await bookingService.getAuthorities(req.query.category_id);

@@ -40,8 +40,8 @@ export default function ReceptionDashboard() {
             {arrivals.length === 0 ? (
                 <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
                     <UserCheck className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-                    <h3 className="text-xl font-bold text-slate-700 mb-2">No Arrivals Today</h3>
-                    <p className="text-slate-500">The schedule is clear.</p>
+                    <h3 className="text-xl font-bold text-slate-700 mb-2">Nothing on the board</h3>
+                    <p className="text-slate-500">No arrivals today, no active in-house stays, and no extension requests for the desk.</p>
                 </div>
             ) : (
                 <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-sm">
@@ -77,7 +77,14 @@ export default function ReceptionDashboard() {
                                         })()}</p>
                                     </td>
                                     <td className="p-4 text-sm font-medium text-slate-800">{b.rooms_required} x {b.room_type}</td>
-                                    <td className="p-4"><StatusBadge status={b.booking_state} /></td>
+                                    <td className="p-4">
+                                        <StatusBadge status={b.booking_state} />
+                                        {b.is_extension_pending && (
+                                            <p className="text-[10px] font-bold text-violet-700 bg-violet-50 border border-violet-100 rounded-lg px-2 py-1 mt-2 inline-block max-w-[14rem] leading-snug">
+                                                Guest in-house — stay extension pending approval
+                                            </p>
+                                        )}
+                                    </td>
                                     <td className="p-4 text-right space-x-2">
                                         {['ADMIN_APPROVED', 'READY_FOR_CHECKIN'].includes(b.booking_state) && (
                                             <button 

@@ -12,22 +12,58 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
     try {
         await client.query('BEGIN');
 
-        // Enforce state transitions
-        const newState = action === 'APPROVED' ? BOOKING_STATUS.PENDING_ADMIN : BOOKING_STATUS.APPROVER_REJECTED;
+        const sel = await client.query(
+            'SELECT pending_extension_days FROM booking_requests WHERE booking_id = $1 FOR UPDATE',
+            [bookingId]
+        );
+        if (!sel.rows.length) throw new Error('Booking not found');
 
-        // 1. Advance the State Machine
-        const updateQuery = `
+        const pendingExt = sel.rows[0].pending_extension_days;
+
+        let newState =
+            action === 'APPROVED' ? BOOKING_STATUS.PENDING_ADMIN : BOOKING_STATUS.APPROVER_REJECTED;
+        if (action === 'REJECTED' && pendingExt != null) {
+            newState = BOOKING_STATUS.CHECKED_IN;
+        }
+
+        let bookingRes;
+        if (action === 'REJECTED' && pendingExt != null) {
+            bookingRes = await client.query(
+                `
+            UPDATE booking_requests
+            SET booking_state = $1, pending_extension_days = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE booking_id = $2
+            RETURNING *
+        `,
+                [newState, bookingId]
+            );
+        } else if (action === 'APPROVED' && pendingExt != null) {
+            // Stay extension: keep pending_extension_days until admin applies dates in updateAdminStatus.
+            bookingRes = await client.query(
+                `
             UPDATE booking_requests
             SET booking_state = $1, updated_at = CURRENT_TIMESTAMP
             WHERE booking_id = $2
             RETURNING *
-        `;
-        const bookingRes = await client.query(updateQuery, [newState, bookingId]);
+        `,
+                [newState, bookingId]
+            );
+        } else {
+            // Normal queue: clear any stray pending_extension_days when advancing to admin.
+            bookingRes = await client.query(
+                `
+            UPDATE booking_requests
+            SET booking_state = $1, pending_extension_days = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE booking_id = $2
+            RETURNING *
+        `,
+                [newState, bookingId]
+            );
+        }
         if (bookingRes.rows.length === 0) throw new Error('Booking not found');
 
-        // 2. Audit Trail creation
         await client.query(
-            `INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, 
+            `INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`,
             [bookingId, approverId, action, remarks]
         );
 

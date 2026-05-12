@@ -7,7 +7,7 @@ const fs = require('fs');
 const bookingController = require('../controllers/booking.controller');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { validate } = require('../middlewares/validate.middleware');
-const { createBookingSchema } = require('../validators/booking.validator');
+const { createBookingSchema, stayExtensionSchema } = require('../validators/booking.validator');
 const { memoryCache } = require('../middlewares/cache.middleware');
 const { requireRole } = require('../middlewares/role.middleware');
 const db = require('../db/db');
@@ -44,6 +44,7 @@ router.get('/my', bookingController.getMyBookings);
 router.get('/:id', bookingController.getBookingById);
 router.post('/:id/pay', bookingController.mockPayment);
 router.patch('/:id/cancel', bookingController.cancelBooking);
+router.post('/:id/stay-extension', validate(stayExtensionSchema), bookingController.requestStayExtension);
 
 router.patch('/:id/admin-status', async (req, res) => {
     const { status, remarks } = req.body;

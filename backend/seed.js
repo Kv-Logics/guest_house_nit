@@ -167,6 +167,11 @@ async function seedDatabase() {
     },
   ];
 
+  // Short stay windows for local testing (check-in, checkout, extension banners).
+  // Adjust these strings (PostgreSQL interval syntax) as needed.
+  const seedArrivalOffset = '10 minutes';
+  const seedDepartureOffset = '35 minutes';
+
   const sampleBookings = [
     {
       applicant_email: 'moses@nitt.edu',
@@ -312,10 +317,19 @@ async function seedDatabase() {
       const reqRes = await db.query(
         `
                 INSERT INTO booking_requests (user_id, category_id, purpose_of_visit, visit_type, arrival_datetime, departure_datetime, rooms_required, undertaking_accepted, booking_state, payment_responsible)
-                VALUES ($1, $2, $3, $4, NOW() + INTERVAL '1 day', NOW() + INTERVAL '3 days', $5, true, $6, 'guest')
+                VALUES ($1, $2, $3, $4, NOW() + $7::interval, NOW() + $8::interval, $5, true, $6, 'guest')
                 RETURNING booking_id;
             `,
-        [userRes.rows[0].user_id, b.cat_id, b.purpose, b.visit_type, b.rooms, b.status]
+        [
+          userRes.rows[0].user_id,
+          b.cat_id,
+          b.purpose,
+          b.visit_type,
+          b.rooms,
+          b.status,
+          seedArrivalOffset,
+          seedDepartureOffset,
+        ]
       );
 
       await db.query(

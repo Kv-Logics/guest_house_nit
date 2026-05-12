@@ -2,6 +2,73 @@ const db = require('../db/db');
 const bookingRepository = require('../repositories/booking.repository');
 const { BOOKING_STATUS } = require('../utils/constants');
 
+const MAX_STAY_EXTENSION_DAYS = 60;
+
+function estimateBookingTotalFromTariffs(booking, tariffs, guestCount) {
+    const arrival = new Date(booking.arrival_datetime);
+    const departure = new Date(booking.departure_datetime);
+    const ms = departure - arrival;
+    const days = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+    const categoryId = String(booking.category_id);
+    const roomType = booking.room_type || 'Standard Room';
+    const activeTariff =
+        tariffs.find((t) => String(t.category_id) === categoryId && t.room_type === roomType) ||
+        tariffs.find((t) => String(t.category_id) === categoryId);
+    if (!activeTariff) return Number(booking.total_estimated_amount) || 0;
+    const rooms = Number(booking.rooms_required) || 1;
+    const guestsCount = Math.max(1, guestCount || 1);
+    const doubleRooms = Math.min(rooms, Math.max(0, guestsCount - rooms));
+    const singleRooms = Math.max(0, rooms - doubleRooms);
+    const singleRate = Number(activeTariff.single_occupancy);
+    const doubleRate = Number(activeTariff.double_occupancy);
+    const extraBedRate = Number(activeTariff.extra_bed) || 400;
+    const roomCost = days * (singleRooms * singleRate + doubleRooms * doubleRate);
+    const extraBeds = Number(booking.extra_beds) || 0;
+    const extraBedCost = days * extraBeds * extraBedRate;
+    const subtotal = roomCost + extraBedCost;
+    return Math.round(subtotal + subtotal * 0.12);
+}
+
+/** Apply pending_extension_days to departure fields and totals; clears pending_extension_days. */
+async function applyStayExtensionDays(client, bookingId) {
+    const bRes = await client.query(
+        `SELECT b.*, (SELECT COUNT(*)::int FROM guests g WHERE g.booking_id = b.booking_id) AS guest_count
+         FROM booking_requests b WHERE b.booking_id = $1`,
+        [bookingId]
+    );
+    if (!bRes.rows.length) throw new Error('Booking not found');
+    const booking = bRes.rows[0];
+    const days = booking.pending_extension_days;
+    if (!days || days < 1) throw new Error('No pending extension days to apply.');
+
+    await client.query(
+        `UPDATE booking_requests
+         SET departure_datetime = departure_datetime + ($1::text || ' days')::interval,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE booking_id = $2`,
+        [String(days), bookingId]
+    );
+    await client.query(
+        `UPDATE guests
+         SET departure_datetime = departure_datetime + ($1::text || ' days')::interval,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE booking_id = $2`,
+        [String(days), bookingId]
+    );
+
+    const refreshed = await client.query('SELECT * FROM booking_requests WHERE booking_id = $1', [bookingId]);
+    const row = refreshed.rows[0];
+    const tariffsRes = await client.query('SELECT * FROM room_tariffs');
+    const total = estimateBookingTotalFromTariffs(row, tariffsRes.rows, booking.guest_count);
+
+    await client.query(
+        `UPDATE booking_requests
+         SET total_estimated_amount = $1, pending_extension_days = NULL, updated_at = CURRENT_TIMESTAMP
+         WHERE booking_id = $2`,
+        [total, bookingId]
+    );
+}
+
 exports.submitBookingRequest = async (data) => {
     const client = await db.getClient();
     try {
@@ -242,19 +309,122 @@ exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
     const client = await db.getClient();
     try {
         await client.query('BEGIN');
-            
-            const checkRes = await client.query('SELECT booking_state FROM booking_requests WHERE booking_id = $1', [bookingId]);
-            if (checkRes.rows.length === 0) throw new Error('Booking not found');
-            if (action === 'APPROVED' && checkRes.rows[0].booking_state !== BOOKING_STATUS.PENDING_ADMIN) {
-                throw new Error('Admins can only approve bookings that have already been approved by the Authority.');
-            }
 
-        const newState = action === 'APPROVED' ? BOOKING_STATUS.ADMIN_APPROVED : BOOKING_STATUS.ADMIN_REJECTED;
-        const result = await client.query('UPDATE booking_requests SET booking_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *', [newState, bookingId]);
+        const checkRes = await client.query(
+            'SELECT booking_state, pending_extension_days FROM booking_requests WHERE booking_id = $1 FOR UPDATE',
+            [bookingId]
+        );
+        if (checkRes.rows.length === 0) throw new Error('Booking not found');
+        const row = checkRes.rows[0];
+
+        if (action === 'APPROVED' && row.booking_state !== BOOKING_STATUS.PENDING_ADMIN) {
+            throw new Error('Admins can only approve bookings that have already been approved by the Authority.');
+        }
+
+        let result;
+        if (action === 'APPROVED' && row.pending_extension_days != null && row.pending_extension_days > 0) {
+            await applyStayExtensionDays(client, bookingId);
+            result = await client.query(
+                `UPDATE booking_requests SET booking_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+                [BOOKING_STATUS.CHECKED_IN, bookingId]
+            );
+        } else if (action === 'REJECTED' && row.pending_extension_days != null && row.pending_extension_days > 0) {
+            result = await client.query(
+                `UPDATE booking_requests SET booking_state = $1, pending_extension_days = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+                [BOOKING_STATUS.CHECKED_IN, bookingId]
+            );
+        } else {
+            const newState = action === 'APPROVED' ? BOOKING_STATUS.ADMIN_APPROVED : BOOKING_STATUS.ADMIN_REJECTED;
+            result = await client.query(
+                `UPDATE booking_requests SET booking_state = $1, pending_extension_days = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+                [newState, bookingId]
+            );
+        }
+
         if (result.rows.length === 0) throw new Error('Booking not found');
         await client.query('INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)', [bookingId, approverId, action, remarks || '']);
         await client.query('COMMIT');
         return result.rows[0];
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+/**
+ * Checked-in applicant requests N extra days; dates apply after full approval (or immediately for guest house admins).
+ */
+exports.requestStayExtension = async (bookingId, userId, additionalDays) => {
+    if (!Number.isInteger(additionalDays) || additionalDays < 1 || additionalDays > MAX_STAY_EXTENSION_DAYS) {
+        throw new Error(`Additional days must be an integer between 1 and ${MAX_STAY_EXTENSION_DAYS}.`);
+    }
+
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+        const lock = await client.query(
+            'SELECT * FROM booking_requests WHERE booking_id = $1 AND user_id = $2 FOR UPDATE',
+            [bookingId, userId]
+        );
+        if (!lock.rows.length) throw new Error('Booking not found or unauthorized.');
+        const existing = lock.rows[0];
+        if (existing.booking_state !== BOOKING_STATUS.CHECKED_IN) {
+            throw new Error('Stay extension can only be requested while the guest is checked in.');
+        }
+        if (existing.pending_extension_days != null) {
+            throw new Error('An extension is already pending approval for this booking.');
+        }
+
+        const userRes = await client.query(
+            `SELECT r.role_name AS role FROM users u
+             JOIN user_roles ur ON u.user_id = ur.user_id
+             JOIN roles r ON ur.role_id = r.role_id
+             WHERE u.user_id = $1`,
+            [userId]
+        );
+        if (!userRes.rows.length) throw new Error('User not found.');
+        const userRole = userRes.rows[0].role;
+
+        let targetState = BOOKING_STATUS.PENDING_APPROVER;
+        let autoApproveLog = null;
+        const instantApply = ['super_admin', 'guest_house_admin'].includes(userRole);
+
+        if (instantApply) {
+            autoApproveLog = 'Stay extension auto-approved (guest house admin).';
+        } else if (existing.assigned_approver_id === userId) {
+            targetState = BOOKING_STATUS.PENDING_ADMIN;
+            autoApproveLog = 'Stay extension routed to admin (self-approved authority).';
+        }
+
+        if (instantApply) {
+            await client.query(
+                `UPDATE booking_requests SET pending_extension_days = $1, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2`,
+                [additionalDays, bookingId]
+            );
+            await applyStayExtensionDays(client, bookingId);
+        } else {
+            await client.query(
+                `UPDATE booking_requests SET pending_extension_days = $1, booking_state = $2, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $3`,
+                [additionalDays, targetState, bookingId]
+            );
+        }
+
+        await client.query(
+            `INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`,
+            [bookingId, userId, 'EXTENSION_REQUESTED', `Applicant requested a stay extension of ${additionalDays} day(s).`]
+        );
+
+        if (autoApproveLog) {
+            await client.query(
+                `INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`,
+                [bookingId, userId, 'APPROVED', autoApproveLog]
+            );
+        }
+
+        await client.query('COMMIT');
+        return await bookingRepository.getBookingDetailsById(bookingId);
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;
