@@ -39,7 +39,7 @@ exports.getAllBookingsWithDetails = async () => {
 };
 
 exports.getAllTariffs = async () => {
-    const result = await db.query('SELECT * FROM room_tariff');
+    const result = await db.query('SELECT * FROM room_tariffs');
     return result.rows;
 };
 

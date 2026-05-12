@@ -1,18 +1,12 @@
 const receptionRepository = require('../repositories/reception.repository');
-const { BOOKING_STATUS } = require('../utils/constants');
 const logger = require('../utils/logger');
 
 exports.getTodayArrivals = async () => {
-    return await receptionRepository.getArrivalsByStates([
-        BOOKING_STATUS.ADMIN_APPROVED,
-        BOOKING_STATUS.READY_FOR_CHECKIN,
-        BOOKING_STATUS.CHECKED_IN,
-        BOOKING_STATUS.CHECKED_OUT
-    ]);
+    return await receptionRepository.getFrontDeskBookings();
 };
 
 exports.checkIn = async (bookingId) => {
-    const booking = await receptionRepository.updateBookingState(bookingId, BOOKING_STATUS.CHECKED_IN, 'checked_in_at');
+    const booking = await receptionRepository.checkInBooking(bookingId);
     if (!booking) {
         logger.error(`Check-in failed for booking ID: ${bookingId}. Booking not found or not in a check-in ready state.`);
         throw new Error('Booking not found or not ready for check-in.');
@@ -22,7 +16,7 @@ exports.checkIn = async (bookingId) => {
 };
 
 exports.checkOut = async (bookingId) => {
-    const booking = await receptionRepository.updateBookingState(bookingId, BOOKING_STATUS.CHECKED_OUT, 'checked_out_at');
+    const booking = await receptionRepository.checkOutBooking(bookingId);
     if (!booking) {
         logger.error(`Check-out failed for booking ID: ${bookingId}. Booking not found or not in a checked-in state.`);
         throw new Error('Booking not found or not in a checked-in state.');
