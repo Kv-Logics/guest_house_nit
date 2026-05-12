@@ -17,8 +17,8 @@ exports.getFrontDeskBookings = async () => {
                    b.checked_in_at IS NOT NULL
                    AND b.checked_out_at IS NULL
                    AND b.booking_state IN ($5, $6)
-                   AND b.pending_extension_days IS NOT NULL
-               ) AS is_extension_pending
+                   AND b.pending_extension_datetime IS NOT NULL
+               ) AS is_extension_pending, b.checked_in_at, b.checked_out_at
         FROM booking_requests b
         JOIN users u ON b.user_id = u.user_id
         WHERE (
@@ -36,7 +36,7 @@ exports.getFrontDeskBookings = async () => {
                 b.booking_state IN ($5, $6)
                 AND b.checked_in_at IS NOT NULL
                 AND b.checked_out_at IS NULL
-                AND b.pending_extension_days IS NOT NULL
+                AND b.pending_extension_datetime IS NOT NULL
             )
         )
         ORDER BY b.arrival_datetime ASC
@@ -77,11 +77,15 @@ exports.checkOutBooking = async (bookingId) => {
         UPDATE booking_requests
         SET booking_state = $1,
             checked_out_at = CURRENT_TIMESTAMP,
+            pending_extension_datetime = NULL,
             updated_at = CURRENT_TIMESTAMP
         WHERE booking_id = $2
-          AND booking_state = $3
+          AND (
+              booking_state = $3 
+              OR (booking_state IN ($4, $5) AND checked_in_at IS NOT NULL AND pending_extension_datetime IS NOT NULL)
+          )
         RETURNING *
     `;
-    const result = await db.query(query, [BOOKING_STATUS.CHECKED_OUT, bookingId, BOOKING_STATUS.CHECKED_IN]);
+    const result = await db.query(query, [BOOKING_STATUS.CHECKED_OUT, bookingId, BOOKING_STATUS.CHECKED_IN, BOOKING_STATUS.PENDING_APPROVER, BOOKING_STATUS.PENDING_ADMIN]);
     return result.rows[0];
 };

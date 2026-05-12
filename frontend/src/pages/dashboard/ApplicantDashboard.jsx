@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
 import StatusBadge from '../../components/ui/StatusBadge';
-import { LayoutDashboard, FileText, PlusCircle, Eye, Trash2, Info, RefreshCw, AlertTriangle, CalendarClock } from 'lucide-react';
+import { LayoutDashboard, FileText, PlusCircle, Eye, Trash2, Info, RefreshCw, AlertTriangle, CalendarClock, Search } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
 import { useAuth } from '../../context/AuthContext';
@@ -29,8 +29,7 @@ function stayDepartureAlert(booking) {
 function extensionAwaitingApproval(booking) {
     return (
         Boolean(booking.checked_in_at) &&
-        booking.pending_extension_days != null &&
-        booking.pending_extension_days > 0 &&
+        booking.pending_extension_datetime != null &&
         ['PENDING_APPROVER', 'PENDING_ADMIN'].includes(booking.booking_state)
     );
 }
@@ -38,10 +37,12 @@ function extensionAwaitingApproval(booking) {
 export default function ApplicantDashboard() {
     const [previewId, setPreviewId] = useState(null);
     const [extendModalId, setExtendModalId] = useState(null);
-    const [extendDays, setExtendDays] = useState('1');
+    const [extendDatetime, setExtendDatetime] = useState('');
     const { user } = useAuth();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
+    const [activeTab, setActiveTab] = useState('active');
+    const [searchTerm, setSearchTerm] = useState('');
 
     const cancelMutation = useMutation({
         mutationFn: (id) => bookingService.cancelBooking(id),
@@ -54,11 +55,11 @@ export default function ApplicantDashboard() {
     });
 
     const extendMutation = useMutation({
-        mutationFn: ({ id, additional_days }) => bookingService.requestStayExtension(id, additional_days),
+        mutationFn: ({ id, new_departure_datetime }) => bookingService.requestStayExtension(id, new_departure_datetime),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['myBookings'] });
             setExtendModalId(null);
-            setExtendDays('1');
+            setExtendDatetime('');
         },
         onError: (error) => {
             alert(error?.message || 'Failed to submit stay extension request.');
@@ -110,17 +111,33 @@ export default function ApplicantDashboard() {
     if (error) return <div className="p-8 text-center text-red-500 font-bold">Failed to load applications.</div>;
 
     const bookings = data?.data || [];
-    const hasDepartureOverdue = bookings.some((b) => stayDepartureAlert(b) === 'overdue');
-    const hasDepartureWarning = bookings.some((b) => stayDepartureAlert(b) === 'warning');
+    
+    // Compute Active and Past bookings
+    const pastStates = ['CANCELLED', 'CHECKED_OUT', 'ADMIN_REJECTED', 'APPROVER_REJECTED'];
+    const activeBookings = bookings.filter(b => !pastStates.includes(b.booking_state));
+    const pastBookings = bookings.filter(b => pastStates.includes(b.booking_state));
+
+    const displayedBookings = (activeTab === 'active' ? activeBookings : pastBookings).filter(b => {
+        const term = searchTerm.toLowerCase();
+        return b.booking_id.toLowerCase().includes(term) || (b.guests && b.guests.some(g => g.guest_name && g.guest_name.toLowerCase().includes(term)));
+    });
+
+    const hasDepartureOverdue = activeBookings.some((b) => stayDepartureAlert(b) === 'overdue');
+    const hasDepartureWarning = activeBookings.some((b) => stayDepartureAlert(b) === 'warning');
     const extendTarget = extendModalId ? bookings.find((b) => b.booking_id === extendModalId) : null;
 
     const submitExtend = () => {
-        const n = parseInt(extendDays, 10);
-        if (!Number.isFinite(n) || n < 1 || n > 60) {
-            alert('Please enter a whole number of days between 1 and 60.');
+        if (!extendDatetime) {
+            alert('Please select a valid date and time for checkout.');
             return;
         }
-        extendMutation.mutate({ id: extendModalId, additional_days: n });
+        const selected = new Date(extendDatetime);
+        const currentDep = new Date(extendTarget.departure_datetime);
+        if (selected <= currentDep) {
+            alert('New departure time must be after your current checkout time.');
+            return;
+        }
+        extendMutation.mutate({ id: extendModalId, new_departure_datetime: selected.toISOString() });
     };
 
     return (
@@ -141,7 +158,22 @@ export default function ApplicantDashboard() {
                 </Link>
             </div>
 
-            {bookings.length > 0 && hasDepartureOverdue && (
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
+                    <button onClick={() => setActiveTab('active')} className={`flex-1 sm:flex-none px-6 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'active' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        Active Stays
+                    </button>
+                    <button onClick={() => setActiveTab('past')} className={`flex-1 sm:flex-none px-6 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'past' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        Past / Closed
+                    </button>
+                </div>
+                <div className="relative w-full sm:w-64">
+                    <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                    <input type="text" placeholder="Search by ID or Guest Name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+            </div>
+
+            {activeBookings.length > 0 && hasDepartureOverdue && (
                 <div className="bg-rose-50 p-4 rounded-xl text-sm font-semibold text-rose-900 leading-relaxed border border-rose-200 flex items-start mb-6 shadow-sm">
                     <AlertTriangle className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-rose-600" />
                     <span className="text-left">
@@ -149,7 +181,7 @@ export default function ApplicantDashboard() {
                     </span>
                 </div>
             )}
-            {bookings.length > 0 && !hasDepartureOverdue && hasDepartureWarning && (
+            {activeBookings.length > 0 && !hasDepartureOverdue && hasDepartureWarning && (
                 <div className="bg-amber-50 p-4 rounded-xl text-sm font-semibold text-amber-950 leading-relaxed border border-amber-200 flex items-start mb-6 shadow-sm">
                     <CalendarClock className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-amber-600" />
                     <span className="text-left">
@@ -165,10 +197,10 @@ export default function ApplicantDashboard() {
                 </div>
             )}
 
-            {bookings.length === 0 ? (
+            {displayedBookings.length === 0 ? (
                 <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
                     <FileText className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-                    <h3 className="text-xl font-bold text-slate-700 mb-2">No Bookings Found</h3>
+                    <h3 className="text-xl font-bold text-slate-700 mb-2">No {activeTab === 'active' ? 'Active' : 'Past'} Bookings Found</h3>
                     <p className="text-slate-500 mb-6">You have not submitted any accommodation requests yet.</p>
                     <Link to="/book" className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-sm">
                         <PlusCircle className="w-5 h-5" />
@@ -181,6 +213,7 @@ export default function ApplicantDashboard() {
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500">
                                 <th className="p-4 font-bold">Booking ID</th>
+                                <th className="p-4 font-bold">Guests</th>
                                 <th className="p-4 font-bold">Arrival</th>
                                 <th className="p-4 font-bold">Departure</th>
                                 <th className="p-4 font-bold">Rooms</th>
@@ -189,13 +222,17 @@ export default function ApplicantDashboard() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {bookings.map(b => (
+                            {displayedBookings.map(b => (
                                 <tr key={b.booking_id} className="hover:bg-slate-50 transition-colors">
                                     <td className="p-4">
                                         <p className="font-mono text-xs text-slate-500">{b.booking_id.split('-')[0]}</p>
                                         {b.version > 1 && (
                                             <span className="inline-block mt-1 text-[10px] font-extrabold text-amber-700 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">v{b.version} Re-applied</span>
                                         )}
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="text-sm font-bold text-slate-800 truncate max-w-[120px]">{b.guests && b.guests.length > 0 ? b.guests.map(g => g.guest_name).join(', ') : 'N/A'}</div>
+                                        <div className="text-xs text-slate-500">{b.guests?.length} Guest(s)</div>
                                     </td>
                                     <td className="p-4 text-sm font-medium text-slate-800">{new Date(b.arrival_datetime).toLocaleDateString()}</td>
                                     <td className="p-4 text-sm font-medium text-slate-800">{new Date(b.departure_datetime).toLocaleDateString()}</td>
@@ -204,11 +241,20 @@ export default function ApplicantDashboard() {
                                         <StatusBadge status={b.booking_state} />
                                         {extensionAwaitingApproval(b) && (
                                             <p className="text-xs text-violet-700 mt-1.5 font-bold bg-violet-50 px-2 py-1 rounded inline-block border border-violet-100">
-                                                Stay extension (+{b.pending_extension_days} day{b.pending_extension_days > 1 ? 's' : ''}) awaiting approval
+                                                Stay extension until {new Date(b.pending_extension_datetime).toLocaleString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})} awaiting approval
                                             </p>
                                         )}
-                                        {b.booking_state.startsWith('PENDING_') && b.assigned_approver_name && (
-                                            <p className="text-xs text-slate-500 mt-1.5 font-medium bg-slate-100 px-2 py-1 rounded inline-block">Pending With: <br/><span className="text-slate-700 font-bold">{b.assigned_approver_name}</span></p>
+                                        {b.booking_state === 'PENDING_APPROVER' && b.assigned_approver_name && (
+                                            <div className="mt-1.5 inline-block text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100 px-2.5 py-1.5 rounded-xl shadow-sm leading-tight">
+                                                Pending With: <br />
+                                                <span className="font-extrabold text-amber-900">{b.assigned_approver_name}</span>
+                                            </div>
+                                        )}
+                                        {b.booking_state === 'PENDING_ADMIN' && (
+                                            <div className="mt-1.5 inline-block text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-1.5 rounded-xl shadow-sm leading-tight">
+                                                Pending With: <br />
+                                                <span className="font-extrabold text-purple-900">Guest House Admin</span>
+                                            </div>
                                         )}
                                     </td>
                                     <td className="p-4 text-right">
@@ -226,7 +272,7 @@ export default function ApplicantDashboard() {
                                     {b.booking_state === 'CHECKED_IN' && (
                                         <button
                                             type="button"
-                                            onClick={() => { setExtendModalId(b.booking_id); setExtendDays('1'); }}
+                                            onClick={() => { setExtendModalId(b.booking_id); setExtendDatetime(new Date(b.departure_datetime).toISOString().slice(0, 16)); }}
                                             className="inline-flex items-center px-3 py-1.5 bg-teal-50 text-teal-800 text-xs font-bold rounded-lg hover:bg-teal-100 border border-teal-200 transition-colors shadow-sm ml-2"
                                         >
                                             <CalendarClock className="w-4 h-4 mr-1.5" /> Extend stay
@@ -255,20 +301,20 @@ export default function ApplicantDashboard() {
                         <h3 id="extend-stay-title" className="text-lg font-extrabold text-slate-800 tracking-tight mb-1">Extend stay</h3>
                         <p className="text-sm text-slate-500 font-medium mb-4">
                             Booking <span className="font-mono text-xs">{extendTarget.booking_id.split('-')[0]}</span> — add nights after the current scheduled departure. This will be sent for the same approver and admin review as a new application.
+                            <br/><br/>Current Departure: <strong className="text-slate-800">{new Date(extendTarget.departure_datetime).toLocaleString()}</strong>
                         </p>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Additional nights</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">New Exact Departure Date & Time</label>
                         <input
-                            type="number"
-                            min={1}
-                            max={60}
-                            value={extendDays}
-                            onChange={(e) => setExtendDays(e.target.value)}
+                            type="datetime-local"
+                            value={extendDatetime}
+                            min={new Date(extendTarget.departure_datetime).toISOString().slice(0, 16)}
+                            onChange={(e) => setExtendDatetime(e.target.value)}
                             className="w-full border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
                         />
                         <div className="flex justify-end gap-2 mt-6">
                             <button
                                 type="button"
-                                onClick={() => { setExtendModalId(null); setExtendDays('1'); }}
+                                onClick={() => { setExtendModalId(null); setExtendDatetime(''); }}
                                 className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl border border-slate-200"
                                 disabled={extendMutation.isPending}
                             >

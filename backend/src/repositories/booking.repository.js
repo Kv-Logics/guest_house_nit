@@ -7,7 +7,7 @@ exports.getBookingsByUserId = async (userId) => {
         JOIN category_rules c ON b.category_id = c.category_id
         LEFT JOIN users a ON b.assigned_approver_id = a.user_id
         WHERE b.user_id = $1 
-        ORDER BY c.category_id ASC, b.created_at DESC
+        ORDER BY b.arrival_datetime ASC, b.created_at DESC
     `;
     const result = await db.query(query, [userId]);
     return result.rows;
@@ -15,7 +15,7 @@ exports.getBookingsByUserId = async (userId) => {
 
 exports.getAllBookingsWithDetails = async () => {
     const query = `
-        SELECT b.booking_id, b.booking_state, b.payment_state, b.arrival_datetime, b.departure_datetime, b.rooms_required, b.created_at,
+        SELECT b.booking_id, b.booking_state, b.payment_state, b.arrival_datetime, b.departure_datetime, b.rooms_required, b.created_at, b.pending_extension_datetime, b.checked_in_at, b.checked_out_at,
                b.purpose_of_visit, b.visit_type, b.project_code, b.payment_responsible, b.category_id, b.room_type, b.extra_beds, b.total_estimated_amount,
                u.full_name as applicant_name, u.department, u.email as applicant_email,
                a.full_name as assigned_approver_name,
@@ -32,7 +32,7 @@ exports.getAllBookingsWithDetails = async () => {
         FROM booking_requests b
         JOIN users u ON b.user_id = u.user_id
         LEFT JOIN users a ON b.assigned_approver_id = a.user_id
-        ORDER BY b.created_at DESC
+        ORDER BY b.arrival_datetime ASC, b.created_at DESC
     `;
     const result = await db.query(query);
     return result.rows;
@@ -57,7 +57,7 @@ exports.updateAdminState = async (bookingId, bookingState) => {
 
 exports.getBookingDetailsById = async (bookingId) => {
     const query = `
-        SELECT b.booking_id, b.booking_state, b.payment_state, b.arrival_datetime, b.departure_datetime, b.rooms_required, b.created_at,
+        SELECT b.booking_id, b.booking_state, b.payment_state, b.arrival_datetime, b.departure_datetime, b.rooms_required, b.created_at, b.pending_extension_datetime, b.checked_in_at, b.checked_out_at,
                b.purpose_of_visit, b.visit_type, b.project_code, b.payment_responsible, b.category_id, b.room_type, b.extra_beds, b.total_estimated_amount,
                u.full_name as applicant_name, u.department, u.email as applicant_email,
                a.full_name as assigned_approver_name,

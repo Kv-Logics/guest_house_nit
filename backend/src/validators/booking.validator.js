@@ -41,7 +41,7 @@ exports.createBookingSchema = z.object({
 
 exports.stayExtensionSchema = z.object({
     body: z.object({
-        additional_days: z.coerce.number().int().min(1).max(60),
+        new_departure_datetime: z.string().datetime(),
     }),
     params: z.object({
         id: z.string().uuid('Invalid booking id'),

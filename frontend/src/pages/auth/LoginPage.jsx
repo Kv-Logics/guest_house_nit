@@ -25,6 +25,9 @@ export default function LoginPage() {
       const res = await requestOtp(email);
       if (res && res.success) {
         setStep(2);
+        if (res.data && res.data.otp) {
+          setOtp(res.data.otp);
+        }
       } else {
         setError(res?.message || 'Failed to send OTP.');
       }

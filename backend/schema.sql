@@ -150,6 +150,7 @@ CREATE TABLE booking_requests (
     payment_responsible VARCHAR(50) CHECK (payment_responsible IN ('guest', 'coordinator', 'department', 'project', 'institute')),
     assigned_approver_id UUID REFERENCES users(user_id),
     version INTEGER NOT NULL DEFAULT 1,
+    pending_extension_datetime TIMESTAMP,
     checked_in_at TIMESTAMP,
     checked_out_at TIMESTAMP,
     cancelled_at TIMESTAMP,
