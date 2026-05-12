@@ -44,12 +44,8 @@ export default function PreviewPage() {
   }
 
   // Calculate Stay Duration and Breakdown
-  const earliestArrival = new Date(
-    Math.min(...(formData.rooms || []).flatMap(r => r.guests).map((g) => new Date(`${g.arrival_date}T${g.arrival_time}`)))
-  );
-  const latestDeparture = new Date(
-    Math.max(...(formData.rooms || []).flatMap(r => r.guests).map((g) => new Date(`${g.departure_date}T${g.departure_time}`)))
-  );
+  const earliestArrival = new Date(`${formData.arrival_date}T${formData.arrival_time}`);
+  const latestDeparture = new Date(`${formData.departure_date}T${formData.departure_time}`);
   
   let days = 1;
   if (latestDeparture > earliestArrival) {
@@ -89,13 +85,6 @@ export default function PreviewPage() {
         if (!guest.designation) guest.designation = "";
         if (!guest.address) guest.address = "";
         if (!guest.gender) guest.gender = "";
-
-        guest.arrival_datetime = new Date(
-          `${guest.arrival_date}T${guest.arrival_time}`
-        ).toISOString();
-        guest.departure_datetime = new Date(
-          `${guest.departure_date}T${guest.departure_time}`
-        ).toISOString();
 
         if (guest.food_preferences && Array.isArray(guest.food_preferences)) {
             guest.food_preferences = guest.food_preferences.map(f => ({
@@ -180,13 +169,14 @@ export default function PreviewPage() {
   };
 
   const isAdmin = ['super_admin', 'guest_house_admin'].includes(user?.role);
+  const isAdminCat2 = isAdmin && String(formData.category_id) === '2';
   const isSelfApproval = formData.assigned_approver_id === user?.user_id || formData.assigned_approver_id === user?.id;
 
   const selectedApprover = authorities?.find((a) => a.user_id === formData.assigned_approver_id);
   let approverName = 'Unknown Authority';
-  if (isAdmin) {
+  if (isAdmin && !isAdminCat2) {
     approverName = 'Auto-Approved (Admin Bypass)';
-  } else if (isSelfApproval) {
+  } else if (isSelfApproval && !isAdminCat2) {
     approverName = 'Self-Approved (Authority Bypass)';
   } else if (selectedApprover) {
     approverName = `${selectedApprover.full_name} (${selectedApprover.department})`;
@@ -269,23 +259,13 @@ export default function PreviewPage() {
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase mb-1">Earliest Check-in</p>
                 <p className="font-semibold text-slate-800">
-                  {new Date(
-                    Math.min(
-                      ...(formData.rooms || []).flatMap(r => r.guests).map((g) => new Date(`${g.arrival_date}T${g.arrival_time}`))
-                    )
-                  ).toLocaleString()}
+                  {earliestArrival.toLocaleString()}
                 </p>
               </div>
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase mb-1">Latest Check-out</p>
                 <p className="font-semibold text-slate-800">
-                  {new Date(
-                    Math.max(
-                      ...(formData.rooms || []).flatMap(r => r.guests).map(
-                        (g) => new Date(`${g.departure_date}T${g.departure_time}`)
-                      )
-                    )
-                  ).toLocaleString()}
+                  {latestDeparture.toLocaleString()}
                 </p>
               </div>
               <div>
@@ -328,12 +308,6 @@ export default function PreviewPage() {
                       <span className="font-mono bg-white px-1 border border-slate-200 rounded">
                         {guest.id_proof_number}
                       </span>
-                    </p>
-                    <p className="mt-2 font-bold text-slate-700 bg-slate-200 px-2 py-1 rounded inline-block">
-                      📅 Stay:{' '}
-                      {new Date(`${guest.arrival_date}T${guest.arrival_time}`).toLocaleString()}
-                      {' to '}
-                      {new Date(`${guest.departure_date}T${guest.departure_time}`).toLocaleString()}
                     </p>
                   </div>
 

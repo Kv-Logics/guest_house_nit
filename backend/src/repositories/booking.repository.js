@@ -24,7 +24,6 @@ exports.getAllBookingsWithDetails = async () => {
                u.full_name as applicant_name, u.department, u.email as applicant_email,
                a.full_name as assigned_approver_name,
                (SELECT r.role_name FROM roles r JOIN user_roles ur ON ur.role_id = r.role_id WHERE ur.user_id = u.user_id LIMIT 1) as applicant_role,
-               (SELECT r.role_name FROM roles r JOIN user_roles ur ON ur.role_id = r.role_id WHERE ur.user_id = u.user_id LIMIT 1) as applicant_role,
                (SELECT category_code FROM category_rules c WHERE c.category_id = b.category_id) as category_code,
                (
                    SELECT json_agg(row_to_json(g)::jsonb || jsonb_build_object('food_preferences', (SELECT json_agg(row_to_json(fp)) FROM guest_food_preferences fp WHERE fp.guest_id = g.guest_id)))
@@ -65,6 +64,7 @@ exports.getBookingDetailsById = async (bookingId) => {
                b.purpose_of_visit, b.visit_type, b.project_code, b.payment_responsible, b.category_id, b.room_type, b.extra_beds, b.total_estimated_amount, b.allocated_room_numbers, b.invoice_id,
                u.full_name as applicant_name, u.department, u.email as applicant_email,
                a.full_name as assigned_approver_name,
+               (SELECT r.role_name FROM roles r JOIN user_roles ur ON ur.role_id = r.role_id WHERE ur.user_id = u.user_id LIMIT 1) as applicant_role,
                (SELECT category_code FROM category_rules c WHERE c.category_id = b.category_id) as category_code,
                (
                    SELECT json_agg(row_to_json(g)::jsonb || jsonb_build_object('food_preferences', (SELECT json_agg(row_to_json(fp)) FROM guest_food_preferences fp WHERE fp.guest_id = g.guest_id)))

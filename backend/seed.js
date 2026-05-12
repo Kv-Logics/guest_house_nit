@@ -366,8 +366,8 @@ async function seedDatabase() {
 
       for (const g of b.guests) {
           await db.query(
-              `INSERT INTO guests (booking_id, guest_name, relation_to_applicant, phone, gender, age, arrival_datetime, departure_datetime) VALUES ($1, $2, $3, $4, 'Male', 30, $5, $6)`,
-              [bookingId, g.name, g.relation, '9999999999', b.arrival.toISOString(), b.departure.toISOString()]
+              `INSERT INTO guests (booking_id, guest_name, relation_to_applicant, phone, gender, age) VALUES ($1, $2, $3, $4, 'Male', 30)`,
+              [bookingId, g.name, g.relation, '9999999999']
           );
       }
 

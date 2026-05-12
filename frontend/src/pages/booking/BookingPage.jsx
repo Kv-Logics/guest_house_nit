@@ -18,6 +18,10 @@ export default function BookingPage() {
       total_estimated_amount: 0,
       category_id: '1',
       visit_type: 'official',
+      arrival_date: '',
+      arrival_time: '12:00',
+      departure_date: '',
+      departure_time: '11:00',
       project_code: '',
       payment_responsibility: 'guest',
       assigned_approver_id: '',
@@ -26,7 +30,7 @@ export default function BookingPage() {
           guests: [{
             guest_name: '', designation: '', relation_to_applicant: '', phone: '', email: '',
             gender: 'Male', age: '', address: '', id_proof_type: '', id_proof_number: '',
-            arrival_date: '', arrival_time: '12:00', departure_date: '', departure_time: '11:00', food_preferences: [],
+            food_preferences: [],
           }],
           extra_bed: false
         }
@@ -74,16 +78,9 @@ export default function BookingPage() {
     if (!tariffs.length) return;
 
     let days = 1;
-    const flatGuests = (formData.rooms || []).flatMap(r => r.guests);
-    if (flatGuests.length > 0 && flatGuests[0].arrival_date && flatGuests[0].departure_date) {
-      const arrivalDates = flatGuests.map(
-        (g) => new Date(`${g.arrival_date}T${g.arrival_time || '12:00'}`)
-      );
-      const departureDates = flatGuests.map(
-        (g) => new Date(`${g.departure_date}T${g.departure_time || '11:00'}`)
-      );
-      const earliestArrival = new Date(Math.min(...arrivalDates));
-      const latestDeparture = new Date(Math.max(...departureDates));
+    if (formData.arrival_date && formData.departure_date) {
+      const earliestArrival = new Date(`${formData.arrival_date}T${formData.arrival_time || '12:00'}`);
+      const latestDeparture = new Date(`${formData.departure_date}T${formData.departure_time || '11:00'}`);
       if (latestDeparture > earliestArrival) {
         const diffTime = Math.abs(latestDeparture - earliestArrival);
         days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -125,6 +122,8 @@ export default function BookingPage() {
     formData.rooms,
     formData.room_type,
     formData.category_id,
+    formData.arrival_date,
+    formData.departure_date,
     tariffs,
   ]);
 
