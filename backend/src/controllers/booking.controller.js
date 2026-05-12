@@ -80,7 +80,7 @@ exports.cancelBooking = async (req, res, next) => {
 exports.requestStayExtension = async (req, res, next) => {
     try {
         const applicantId = req.user.user_id || req.user.id;
-        const data = await bookingService.requestStayExtension(req.params.id, applicantId, req.body.additional_days);
+        const data = await bookingService.requestStayExtension(req.params.id, applicantId, req.body.new_departure_datetime);
         return sendSuccess(res, 'Stay extension request submitted', data);
     } catch (error) {
         next(error);

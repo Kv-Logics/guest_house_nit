@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
 import api from '../../services/api';
-import { X, FileText, Users, Utensils, Paperclip, Loader2, RefreshCw, History } from 'lucide-react';
+import { X, FileText, Users, Utensils, Paperclip, Loader2, RefreshCw, History, AlertCircle } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import nitLogo from '../../assets/images/nitlogo.png';
 
@@ -53,7 +53,9 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
         let isRejected = false;
         const state = booking.booking_state;
 
-        if (state === 'PENDING_APPROVER') currentStep = 2;
+        // Freeze main stepper at the end if we are in the middle of a stay extension
+        if (booking.pending_extension_datetime != null) currentStep = 5; 
+        else if (state === 'PENDING_APPROVER') currentStep = 2;
         else if (state === 'APPROVER_REJECTED') { currentStep = 2; isRejected = true; }
         else if (state === 'PENDING_ADMIN') currentStep = 3;
         else if (state === 'ADMIN_REJECTED') { currentStep = 3; isRejected = true; }
@@ -77,6 +79,50 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                             <div key={step.id} className="relative z-10 flex flex-col items-center group">
                                 <div className={`w-8 h-8 rounded-full border-4 flex items-center justify-center text-white font-extrabold text-xs transition-colors shadow-sm ${bgColor} ${isCurrent ? borderColor + ' ring-4 ring-white' : 'border-white'}`}>
                                     {isComplete ? '✓' : (isError ? '✕' : step.id)}
+                                </div>
+                                <div className="absolute top-10 text-center w-28 -ml-10">
+                                    <p className={`text-xs font-bold ${isCurrent || isComplete ? 'text-slate-800' : 'text-slate-400'}`}>{step.title}</p>
+                                    <p className={`text-[10px] font-semibold mt-0.5 leading-tight ${isCurrent || isComplete ? textColor : 'text-slate-400'}`}>{step.description}</p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
+    const renderExtensionTimeline = (booking) => {
+        if (!booking.pending_extension_datetime) return null;
+
+        const steps = [
+            { id: 1, title: 'Requested', description: new Date(booking.pending_extension_datetime).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) },
+            { id: 2, title: 'Authority', description: booking.assigned_approver_name || 'Pending Routing' },
+            { id: 3, title: 'Admin', description: 'Verification & Payment' },
+            { id: 4, title: 'Applied', description: 'Dates Updated' }
+        ];
+
+        let currentStep = 2; // Extensions start directly at the Authority (Step 2)
+        if (booking.booking_state === 'PENDING_ADMIN') currentStep = 3;
+
+        return (
+            <div className="w-full pt-6 pb-10 px-6 border-b border-slate-100 bg-violet-50/50">
+                <div className="text-center mb-8">
+                    <span className="text-xs font-bold text-violet-700 bg-violet-100 px-3 py-1 rounded-full border border-violet-200 uppercase tracking-wider shadow-sm">Stay Extension Status</span>
+                </div>
+                <div className="flex items-center justify-between w-full max-w-2xl mx-auto relative">
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1.5 bg-violet-200/60 rounded-full z-0"></div>
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-violet-500 rounded-full z-0 transition-all duration-500" style={{ width: `${(Math.min(currentStep - 1, 3) / 3) * 100}%` }}></div>
+                    {steps.map((step) => {
+                        const isComplete = currentStep > step.id;
+                        const isCurrent = currentStep === step.id;
+                        let bgColor = 'bg-violet-200'; let textColor = 'text-violet-400'; let borderColor = 'border-violet-50';
+                        if (isComplete) { bgColor = 'bg-violet-500'; textColor = 'text-violet-700'; } 
+                        else if (isCurrent) { bgColor = 'bg-amber-400'; textColor = 'text-amber-600'; borderColor = 'border-amber-100'; }
+                        return (
+                            <div key={step.id} className="relative z-10 flex flex-col items-center group">
+                                <div className={`w-8 h-8 rounded-full border-4 flex items-center justify-center text-white font-extrabold text-xs transition-colors shadow-sm ${bgColor} ${isCurrent ? borderColor + ' ring-4 ring-violet-50' : 'border-violet-50'}`}>
+                                    {isComplete ? '✓' : step.id}
                                 </div>
                                 <div className="absolute top-10 text-center w-28 -ml-10">
                                     <p className={`text-xs font-bold ${isCurrent || isComplete ? 'text-slate-800' : 'text-slate-400'}`}>{step.title}</p>
@@ -124,8 +170,21 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                     ) : (
                         <>
                         {renderTimeline(booking)}
+                        {renderExtensionTimeline(booking)}
                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-8">
                             
+                            {/* Stay Extension Alert Banner */}
+                            {booking.pending_extension_datetime && (
+                                <div className="bg-violet-50 p-4 border border-violet-200 rounded-xl mb-2">
+                                    <p className="font-bold text-violet-800 flex items-center">
+                                        <AlertCircle className="w-5 h-5 mr-2" /> Stay Extension Request
+                                    </p>
+                                    <p className="text-sm text-violet-700 mt-1 ml-7">
+                                        Applicant is requesting an extension until <strong>{new Date(booking.pending_extension_datetime).toLocaleString()}</strong> beyond the original departure date.
+                                    </p>
+                                </div>
+                            )}
+
                             {/* Application Details */}
                             <div>
                                 <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4 flex items-center">
@@ -137,6 +196,8 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Purpose</p><p className="text-slate-800 font-semibold">{booking.purpose_of_visit}</p></div>
                                     {booking.assigned_approver_name && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Routed To</p><p className="text-slate-800 font-semibold">{booking.assigned_approver_name}</p></div>}
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Duration</p><p className="text-slate-800 font-semibold">{new Date(booking.arrival_datetime).toLocaleDateString()} to {new Date(booking.departure_datetime).toLocaleDateString()}</p><p className="text-xs text-blue-600 font-bold mt-0.5">{calculateDuration(booking.arrival_datetime, booking.departure_datetime)}</p></div>
+                                    {booking.checked_in_at && <div><p className="text-emerald-600 font-medium mb-1 text-xs uppercase tracking-wider">Checked In At</p><p className="text-slate-800 font-semibold">{new Date(booking.checked_in_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</p></div>}
+                                    {booking.checked_out_at && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Checked Out At</p><p className="text-slate-800 font-semibold">{new Date(booking.checked_out_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</p></div>}
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Payment</p><p className="text-slate-800 font-semibold capitalize">{booking.payment_responsible}</p></div>
                                     {booking.project_code && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Project Code</p><p className="text-slate-800 font-semibold">{booking.project_code}</p></div>}
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Rooms</p><p className="text-slate-800 font-semibold">{booking.rooms_required} x {booking.room_type || 'Standard Room'}</p>{booking.extra_beds > 0 && <p className="text-xs text-slate-500">+{booking.extra_beds} Extra Bed(s)</p>}</div>

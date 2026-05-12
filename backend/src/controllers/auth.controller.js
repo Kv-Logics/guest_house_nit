@@ -6,9 +6,9 @@ exports.requestOtp = async (req, res, next) => {
     try {
         const { email } = req.body;
         logger.info(`OTP requested for email: ${email}`);
-        await authService.requestOtp(email);
+        const devOtp = await authService.requestOtp(email);
         
-        return sendSuccess(res, 'OTP sent successfully to your email');
+        return sendSuccess(res, 'OTP sent successfully to your email', devOtp ? { otp: devOtp } : undefined);
     } catch (error) {
         if (error.message === 'User not found.') {
             return sendError(res, 'User not found. Please contact administration.', 404);

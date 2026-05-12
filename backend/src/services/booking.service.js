@@ -29,8 +29,8 @@ function estimateBookingTotalFromTariffs(booking, tariffs, guestCount) {
     return Math.round(subtotal + subtotal * 0.12);
 }
 
-/** Apply pending_extension_days to departure fields and totals; clears pending_extension_days. */
-async function applyStayExtensionDays(client, bookingId) {
+/** Apply pending_extension_datetime to departure fields and totals; clears pending_extension_datetime. */
+async function applyStayExtension(client, bookingId) {
     const bRes = await client.query(
         `SELECT b.*, (SELECT COUNT(*)::int FROM guests g WHERE g.booking_id = b.booking_id) AS guest_count
          FROM booking_requests b WHERE b.booking_id = $1`,
@@ -38,22 +38,22 @@ async function applyStayExtensionDays(client, bookingId) {
     );
     if (!bRes.rows.length) throw new Error('Booking not found');
     const booking = bRes.rows[0];
-    const days = booking.pending_extension_days;
-    if (!days || days < 1) throw new Error('No pending extension days to apply.');
+    const newDeparture = booking.pending_extension_datetime;
+    if (!newDeparture) throw new Error('No pending extension to apply.');
 
     await client.query(
         `UPDATE booking_requests
-         SET departure_datetime = departure_datetime + ($1::text || ' days')::interval,
+         SET departure_datetime = $1,
              updated_at = CURRENT_TIMESTAMP
          WHERE booking_id = $2`,
-        [String(days), bookingId]
+        [newDeparture, bookingId]
     );
     await client.query(
         `UPDATE guests
-         SET departure_datetime = departure_datetime + ($1::text || ' days')::interval,
+         SET departure_datetime = $1,
              updated_at = CURRENT_TIMESTAMP
          WHERE booking_id = $2`,
-        [String(days), bookingId]
+        [newDeparture, bookingId]
     );
 
     const refreshed = await client.query('SELECT * FROM booking_requests WHERE booking_id = $1', [bookingId]);
@@ -63,7 +63,7 @@ async function applyStayExtensionDays(client, bookingId) {
 
     await client.query(
         `UPDATE booking_requests
-         SET total_estimated_amount = $1, pending_extension_days = NULL, updated_at = CURRENT_TIMESTAMP
+         SET total_estimated_amount = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP
          WHERE booking_id = $2`,
         [total, bookingId]
     );
@@ -311,7 +311,7 @@ exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
         await client.query('BEGIN');
 
         const checkRes = await client.query(
-            'SELECT booking_state, pending_extension_days FROM booking_requests WHERE booking_id = $1 FOR UPDATE',
+                'SELECT booking_state, pending_extension_datetime FROM booking_requests WHERE booking_id = $1 FOR UPDATE',
             [bookingId]
         );
         if (checkRes.rows.length === 0) throw new Error('Booking not found');
@@ -322,21 +322,21 @@ exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
         }
 
         let result;
-        if (action === 'APPROVED' && row.pending_extension_days != null && row.pending_extension_days > 0) {
-            await applyStayExtensionDays(client, bookingId);
+            if (action === 'APPROVED' && row.pending_extension_datetime != null) {
+                await applyStayExtension(client, bookingId);
             result = await client.query(
                 `UPDATE booking_requests SET booking_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
                 [BOOKING_STATUS.CHECKED_IN, bookingId]
             );
-        } else if (action === 'REJECTED' && row.pending_extension_days != null && row.pending_extension_days > 0) {
+            } else if (action === 'REJECTED' && row.pending_extension_datetime != null) {
             result = await client.query(
-                `UPDATE booking_requests SET booking_state = $1, pending_extension_days = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+                    `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
                 [BOOKING_STATUS.CHECKED_IN, bookingId]
             );
         } else {
             const newState = action === 'APPROVED' ? BOOKING_STATUS.ADMIN_APPROVED : BOOKING_STATUS.ADMIN_REJECTED;
             result = await client.query(
-                `UPDATE booking_requests SET booking_state = $1, pending_extension_days = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+                    `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
                 [newState, bookingId]
             );
         }
@@ -354,13 +354,9 @@ exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
 };
 
 /**
- * Checked-in applicant requests N extra days; dates apply after full approval (or immediately for guest house admins).
+ * Checked-in applicant requests exact Date/Time for extension; dates apply after full approval (or immediately for guest house admins).
  */
-exports.requestStayExtension = async (bookingId, userId, additionalDays) => {
-    if (!Number.isInteger(additionalDays) || additionalDays < 1 || additionalDays > MAX_STAY_EXTENSION_DAYS) {
-        throw new Error(`Additional days must be an integer between 1 and ${MAX_STAY_EXTENSION_DAYS}.`);
-    }
-
+exports.requestStayExtension = async (bookingId, userId, newDepartureDatetime) => {
     const client = await db.getClient();
     try {
         await client.query('BEGIN');
@@ -373,8 +369,11 @@ exports.requestStayExtension = async (bookingId, userId, additionalDays) => {
         if (existing.booking_state !== BOOKING_STATUS.CHECKED_IN) {
             throw new Error('Stay extension can only be requested while the guest is checked in.');
         }
-        if (existing.pending_extension_days != null) {
+        if (existing.pending_extension_datetime != null) {
             throw new Error('An extension is already pending approval for this booking.');
+        }
+        if (new Date(newDepartureDatetime) <= new Date(existing.departure_datetime)) {
+             throw new Error('New departure time must be after the current departure time.');
         }
 
         const userRes = await client.query(
@@ -400,20 +399,20 @@ exports.requestStayExtension = async (bookingId, userId, additionalDays) => {
 
         if (instantApply) {
             await client.query(
-                `UPDATE booking_requests SET pending_extension_days = $1, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2`,
-                [additionalDays, bookingId]
+                `UPDATE booking_requests SET pending_extension_datetime = $1, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2`,
+                [newDepartureDatetime, bookingId]
             );
-            await applyStayExtensionDays(client, bookingId);
+            await applyStayExtension(client, bookingId);
         } else {
             await client.query(
-                `UPDATE booking_requests SET pending_extension_days = $1, booking_state = $2, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $3`,
-                [additionalDays, targetState, bookingId]
+                `UPDATE booking_requests SET pending_extension_datetime = $1, booking_state = $2, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $3`,
+                [newDepartureDatetime, targetState, bookingId]
             );
         }
 
         await client.query(
             `INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`,
-            [bookingId, userId, 'EXTENSION_REQUESTED', `Applicant requested a stay extension of ${additionalDays} day(s).`]
+            [bookingId, userId, 'EXTENSION_REQUESTED', `Applicant requested a stay extension until ${new Date(newDepartureDatetime).toLocaleString()}.`]
         );
 
         if (autoApproveLog) {

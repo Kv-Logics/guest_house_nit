@@ -54,6 +54,11 @@ export default function StatusBadge({ status }) {
       icon: AlertCircle,
       label: 'No Show',
     },
+    [BOOKING_STATUS.CANCELLED]: {
+      color: 'bg-slate-100 text-slate-600',
+      icon: XCircle,
+      label: 'Cancelled',
+    },
   };
 
   const active = config[status] || {
