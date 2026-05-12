@@ -177,8 +177,6 @@ CREATE TABLE guests (
     address TEXT,
     identity_proof_type VARCHAR(50),
     identity_proof_number VARCHAR(100),
-    arrival_datetime TIMESTAMP,
-    departure_datetime TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE

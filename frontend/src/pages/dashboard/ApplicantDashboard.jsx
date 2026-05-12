@@ -75,15 +75,11 @@ export default function ApplicantDashboard() {
         try {
             const response = await bookingService.getBookingById(bookingId);
             const b = response.data;
+            const arrDate = new Date(b.arrival_datetime);
+            const depDate = new Date(b.departure_datetime);
             const formattedGuests = b.guests ? b.guests.map(g => {
-                const arrDate = new Date(g.arrival_datetime);
-                const depDate = new Date(g.departure_datetime);
                 return {
                     ...g,
-                    arrival_date: `${arrDate.getFullYear()}-${String(arrDate.getMonth()+1).padStart(2,'0')}-${String(arrDate.getDate()).padStart(2,'0')}`,
-                    arrival_time: `${String(arrDate.getHours()).padStart(2, '0')}:${String(arrDate.getMinutes()).padStart(2, '0')}`,
-                    departure_date: `${depDate.getFullYear()}-${String(depDate.getMonth()+1).padStart(2,'0')}-${String(depDate.getDate()).padStart(2,'0')}`,
-                    departure_time: `${String(depDate.getHours()).padStart(2, '0')}:${String(depDate.getMinutes()).padStart(2, '0')}`,
                     food_preferences: g.food_preferences ? g.food_preferences.map(f => {
                         const mDate = new Date(f.meal_date || f.date);
                         return {
@@ -94,23 +90,38 @@ export default function ApplicantDashboard() {
                 };
             }) : [];
 
-            // Convert flat guests array back to rooms array (assuming max 2 guests per room)
-            const reconstructedRooms = [];
-            for (let i = 0; i < formattedGuests.length; i += 2) {
-                reconstructedRooms.push({
-                    guests: formattedGuests.slice(i, i + 2),
-                    extra_bed: false // backend doesn't map beds to specific rooms easily, assume false for reapply to be safe or check b.extra_beds
-                });
+            // Smart convert flat guests array back to structured rooms array
+            const roomsRequired = Math.max(1, b.rooms_required || 1);
+            const reconstructedRooms = Array.from({ length: roomsRequired }).map(() => ({
+                guests: [],
+                extra_bed: false
+            }));
+            
+            let guestIdx = 0;
+            // Distribute first 2 guests per room
+            for (let i = 0; i < roomsRequired; i++) {
+                if (guestIdx < formattedGuests.length) reconstructedRooms[i].guests.push(formattedGuests[guestIdx++]);
+                if (guestIdx < formattedGuests.length) reconstructedRooms[i].guests.push(formattedGuests[guestIdx++]);
             }
-            if (b.extra_beds > 0 && reconstructedRooms.length > 0) {
-                for (let i = 0; i < Math.min(b.extra_beds, reconstructedRooms.length); i++) {
-                    reconstructedRooms[i].extra_bed = true;
+            // Distribute remaining guests as extra beds (3rd guest)
+            for (let i = 0; i < roomsRequired && guestIdx < formattedGuests.length; i++) {
+                reconstructedRooms[i].guests.push(formattedGuests[guestIdx++]);
+                reconstructedRooms[i].extra_bed = true;
+            }
+            // Catch-all safety for any remaining guests
+            while (guestIdx < formattedGuests.length) {
+                if (reconstructedRooms.length > 0) {
+                    reconstructedRooms[reconstructedRooms.length - 1].guests.push(formattedGuests[guestIdx++]);
                 }
             }
 
             const formattedData = {
                 ...b,
                 category_id: String(b.category_id),
+                arrival_date: `${arrDate.getFullYear()}-${String(arrDate.getMonth()+1).padStart(2,'0')}-${String(arrDate.getDate()).padStart(2,'0')}`,
+                arrival_time: `${String(arrDate.getHours()).padStart(2, '0')}:${String(arrDate.getMinutes()).padStart(2, '0')}`,
+                departure_date: `${depDate.getFullYear()}-${String(depDate.getMonth()+1).padStart(2,'0')}-${String(depDate.getDate()).padStart(2,'0')}`,
+                departure_time: `${String(depDate.getHours()).padStart(2, '0')}:${String(depDate.getMinutes()).padStart(2, '0')}`,
                 rooms: reconstructedRooms,
                 document_1: null,
                 document_2: null

@@ -13,15 +13,26 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
         await client.query('BEGIN');
 
         const sel = await client.query(
-            'SELECT pending_extension_datetime FROM booking_requests WHERE booking_id = $1 FOR UPDATE',
+            `SELECT b.pending_extension_datetime, r.role_name as applicant_role 
+             FROM booking_requests b
+             JOIN users u ON b.user_id = u.user_id
+             JOIN user_roles ur ON u.user_id = ur.user_id
+             JOIN roles r ON ur.role_id = r.role_id
+             WHERE b.booking_id = $1 FOR UPDATE`,
             [bookingId]
         );
         if (!sel.rows.length) throw new Error('Booking not found');
 
         const pendingExt = sel.rows[0].pending_extension_datetime;
+        const applicantRole = sel.rows[0].applicant_role;
 
         let newState =
             action === 'APPROVED' ? BOOKING_STATUS.PENDING_ADMIN : BOOKING_STATUS.APPROVER_REJECTED;
+            
+        if (action === 'APPROVED' && ['super_admin', 'guest_house_admin'].includes(applicantRole)) {
+            newState = BOOKING_STATUS.ADMIN_APPROVED;
+        }
+
         if (action === 'REJECTED' && pendingExt != null) {
             newState = BOOKING_STATUS.CHECKED_IN;
         }

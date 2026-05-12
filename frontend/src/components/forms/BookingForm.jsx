@@ -58,18 +58,15 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       return;
     }
 
-    for (let i = 0; i < flatGuests.length; i++) {
-      const guest = flatGuests[i];
-      const arrival = new Date(`${guest.arrival_date}T${guest.arrival_time}`);
-      const departure = new Date(`${guest.departure_date}T${guest.departure_time}`);
-      if (arrival < new Date(new Date().setHours(0, 0, 0, 0))) {
-        setLocalError(`Guest ${i + 1}: Arrival date cannot be in the past.`);
-        return;
-      }
-      if (departure <= arrival) {
-        setLocalError(`Guest ${i + 1}: Departure date & time must be strictly after arrival.`);
-        return;
-      }
+    const arrival = new Date(`${formData.arrival_date}T${formData.arrival_time}`);
+    const departure = new Date(`${formData.departure_date}T${formData.departure_time}`);
+    if (arrival < new Date(new Date().setHours(0, 0, 0, 0))) {
+      setLocalError(`Arrival date cannot be in the past.`);
+      return;
+    }
+    if (departure <= arrival) {
+      setLocalError(`Departure date & time must be strictly after arrival.`);
+      return;
     }
     if (formData.category_id === '2' && (!formData.project_code || !formData.project_code.trim())) {
       setLocalError('Project code is strictly required for CAT II bookings.');
@@ -111,7 +108,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       return;
     }
 
-    if (!isAdmin && !formData.assigned_approver_id) {
+    if ((!isAdmin || formData.category_id === '2') && !formData.assigned_approver_id) {
       setLocalError('You must select an Approval Authority to route your application.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -184,7 +181,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
             <MultiGuestSection formData={formData} setFormData={setFormData} />
             <StayDetailsSection formData={formData} handleChange={handleChange} setFormData={setFormData} tariffs={tariffs} />
 
-            {!isAdmin && (
+            {(!isAdmin || formData.category_id === '2') && (
               <ApproverSelection approverSearch={approverSearch} setApproverSearch={setApproverSearch} isOpen={isApproverDropdownOpen} setIsOpen={setIsApproverDropdownOpen} authorities={authorities} setFormData={setFormData} />
             )}
           </div>

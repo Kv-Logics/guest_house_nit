@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
 import api from '../../services/api';
-import { X, FileText, Users, Utensils, Paperclip, Loader2, RefreshCw, History, AlertCircle, Receipt } from 'lucide-react';
+import { X, FileText, Users, Utensils, Paperclip, Loader2, RefreshCw, History, AlertCircle, Receipt, ShieldCheck } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import nitLogo from '../../assets/images/nitlogo.png';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
@@ -138,6 +138,59 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
         );
     };
 
+    const renderAdminCat2Timeline = (booking) => {
+        const steps = [
+            { id: 1, title: 'Submitted', description: 'Admin Application' },
+            { id: 2, title: 'Authority', description: booking.assigned_approver_name || 'Pending Routing' },
+            { id: 3, title: 'Front Desk', description: 'Check-in & Stay' }
+        ];
+
+        let currentStep = 1;
+        let isRejected = false;
+        const state = booking.booking_state;
+
+        if (booking.pending_extension_datetime != null) currentStep = 4;
+        else if (state === 'PENDING_APPROVER') currentStep = 2;
+        else if (state === 'APPROVER_REJECTED') { currentStep = 2; isRejected = true; }
+        else if (['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CONFIRMED'].includes(state)) currentStep = 3;
+        else if (['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(state)) currentStep = 4;
+        else if (state === 'CANCELLED') { currentStep = 1; isRejected = true; }
+
+        return (
+            <div className="w-full pt-8 pb-12 px-6 border-b border-slate-100 bg-sky-50/80">
+                <div className="text-center mb-6">
+                    <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-3 py-1 rounded-full border border-sky-200 uppercase tracking-wider shadow-sm">Admin CAT-II Workflow</span>
+                </div>
+                <div className="flex items-center justify-between w-full max-w-xl mx-auto relative">
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1.5 bg-slate-200 rounded-full z-0"></div>
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-sky-500 rounded-full z-0 transition-all duration-500" style={{ width: `${(Math.min(currentStep - 1, 2) / 2) * 100}%` }}></div>
+                    {steps.map((step) => {
+                        const isComplete = currentStep > step.id;
+                        const isCurrent = currentStep === step.id;
+                        const isError = isCurrent && isRejected;
+                        let bgColor = 'bg-slate-200'; let textColor = 'text-slate-400'; let borderColor = 'border-white';
+                        if (isComplete) { bgColor = 'bg-sky-500'; textColor = 'text-sky-700'; } 
+                        else if (isCurrent) { bgColor = isError ? 'bg-red-500' : 'bg-amber-400'; textColor = isError ? 'text-red-600' : 'text-amber-600'; borderColor = isError ? 'border-red-100' : 'border-amber-100'; }
+                        return (
+                            <div key={step.id} className="relative z-10 flex flex-col items-center group">
+                                <div className={`w-8 h-8 rounded-full border-4 flex items-center justify-center text-white font-extrabold text-xs transition-colors shadow-sm ${bgColor} ${isCurrent ? borderColor + ' ring-4 ring-white' : 'border-white'}`}>
+                                    {isComplete ? '✓' : (isError ? '✕' : step.id)}
+                                </div>
+                                <div className="absolute top-10 text-center w-28 -ml-10">
+                                    <p className={`text-xs font-bold ${isCurrent || isComplete ? 'text-slate-800' : 'text-slate-400'}`}>{step.title}</p>
+                                    <p className={`text-[10px] font-semibold mt-0.5 leading-tight ${isCurrent || isComplete ? textColor : 'text-slate-400'}`}>{step.description}</p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
+    const isAdminApplicant = ['super_admin', 'guest_house_admin'].includes(booking?.applicant_role);
+    const isAdminCat2 = isAdminApplicant && String(booking?.category_id) === '2';
+
     return (
         <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 animate-fade-in p-4 overflow-y-auto">
             <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col border border-slate-200">
@@ -178,10 +231,20 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                         <div className="text-center py-10 text-slate-500 font-bold">Booking details not found.</div>
                     ) : (
                         <>
-                        {renderTimeline(booking)}
+                        {isAdminCat2 ? renderAdminCat2Timeline(booking) : renderTimeline(booking)}
                         {renderExtensionTimeline(booking)}
                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-8">
                             
+                            {/* Admin Source Indicator */}
+                            {isAdminApplicant && (
+                                <div className="bg-sky-50 p-4 border border-sky-200 rounded-xl mb-[-1rem] flex items-center shadow-sm">
+                                    <ShieldCheck className="w-5 h-5 mr-3 text-sky-600 flex-shrink-0" />
+                                    <p className="text-sm font-bold text-sky-800">
+                                        This application was submitted directly by a Guest House Admin.
+                                    </p>
+                                </div>
+                            )}
+
                             {/* Stay Extension Alert Banner */}
                             {booking.pending_extension_datetime && (
                                 <div className="bg-violet-50 p-4 border border-violet-200 rounded-xl mb-2">
@@ -233,7 +296,6 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                                 <div className="mt-2 space-y-1 text-slate-600">
                                                     {guest.phone && <p>📞 {guest.phone}</p>}
                                                     {guest.email && <p>✉️ {guest.email}</p>}
-                                                    {(guest.arrival_datetime && guest.departure_datetime) && <p className="text-xs font-bold text-slate-700 bg-slate-200 px-2 py-1 rounded inline-block mt-1">📅 {new Date(guest.arrival_datetime).toLocaleDateString()} to {new Date(guest.departure_datetime).toLocaleDateString()} • {calculateDuration(guest.arrival_datetime, guest.departure_datetime)}</p>}
                                                 </div>
                                                 {showFood && (
                                                     <div className="mt-3 pt-3 border-t border-slate-200 animate-fade-in">
@@ -324,7 +386,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                     )}
                 </div>
             </div>
-            {showInvoice && <GSTInvoiceModal bookingId={bookingId} onClose={() => setShowInvoice(false)} />}
+            {showInvoice && <GSTInvoiceModal bookingId={bookingId} bookingData={booking} onClose={() => setShowInvoice(false)} />}
         </div>
     );
 }

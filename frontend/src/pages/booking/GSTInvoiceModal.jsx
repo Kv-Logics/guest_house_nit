@@ -1,15 +1,15 @@
 import React from 'react';
-import { X, Printer, Download } from 'lucide-react';
-import nitLogo from '../../assets/images/nitlogo.png';
+import { X, Printer } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 
-export default function GSTInvoiceModal({ bookingId, onClose }) {
+export default function GSTInvoiceModal({ bookingId, bookingData, onClose }) {
   const { data, isLoading } = useQuery({
     queryKey: ['booking', bookingId],
     queryFn: () => bookingService.getBookingById(bookingId),
-    enabled: !!bookingId
+    enabled: !!bookingId && !bookingData, // Only fetch if we didn't pass the data
+    initialData: bookingData ? { data: bookingData } : undefined // Eliminates the loading lag!
   });
 
   if (isLoading) return <div className="fixed inset-0 z-[200] bg-slate-900/70 flex items-center justify-center"><LoadingSpinner /></div>;
@@ -30,21 +30,16 @@ export default function GSTInvoiceModal({ bookingId, onClose }) {
   const cgst = Math.round(subtotal * 0.06);
   const sgst = totalEstimated - subtotal - cgst; // Catch any rounding remainders
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   return (
     <div className="fixed inset-0 z-[200] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto print:p-0 print:bg-white print:block">
-      
-      {/* Modal Container */}
-      <div className="bg-white w-full max-w-4xl mx-auto rounded-2xl shadow-2xl relative my-auto print:shadow-none print:rounded-none print:my-0">
-        
-        {/* Non-Printable Action Bar */}
-        <div className="flex justify-between items-center p-4 border-b border-slate-200 bg-slate-50 rounded-t-2xl print:hidden sticky top-0 z-10">
+      <div className="bg-white w-full max-w-4xl mx-auto shadow-2xl relative my-auto print:shadow-none print:my-0">
+        {/* Header / Action bar */}
+        <div className="flex justify-between items-center p-4 bg-slate-50 border-b border-slate-200 print:hidden sticky top-0">
           <h3 className="font-bold text-slate-700">Invoice Preview</h3>
           <div className="flex gap-2">
-            <button onClick={handlePrint} className="flex items-center px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-sm transition-colors">
+            <button onClick={handlePrint} className="flex items-center px-4 py-2 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 shadow-sm transition-colors">
               <Printer className="w-4 h-4 mr-2" /> Print / Save PDF
             </button>
             <button onClick={onClose} className="p-2 text-slate-500 hover:text-slate-800 bg-slate-200 hover:bg-slate-300 rounded-lg transition-colors">
@@ -53,126 +48,133 @@ export default function GSTInvoiceModal({ bookingId, onClose }) {
           </div>
         </div>
 
-        {/* --- PRINTABLE INVOICE CONTENT --- */}
-        <div className="p-10 print:p-6 bg-white text-slate-800 font-sans" id="invoice-content">
+        {/* Printable Content */}
+        <div className="p-10 print:p-8 bg-white text-slate-800 font-sans">
           
-          {/* 1. Header Section */}
-          <div className="flex justify-between items-start border-b-2 border-slate-800 pb-6 mb-6">
-            <div className="flex items-center gap-4">
-              <img src={nitLogo} alt="NIT Logo" className="w-20 h-20 object-contain" />
-              <div>
-                <h1 className="text-2xl font-black text-slate-900 uppercase tracking-wide">National Institute of Technology</h1>
-                <h2 className="text-sm font-bold text-slate-600 uppercase tracking-widest mt-1">Guest House Management</h2>
-                <p className="text-xs text-slate-500 mt-1">Tiruchirappalli, Tamil Nadu 620015, India</p>
-                <p className="text-xs font-semibold text-slate-600 mt-1">GSTIN: <span className="font-mono text-slate-800">33AAAAA0000A1Z5</span> (Demo)</p>
-              </div>
+          {/* Header */}
+          <div className="flex justify-between items-start mb-10">
+            <div>
+              <h1 className="text-2xl font-black text-slate-900 uppercase">National Institute of Technology</h1>
+              <p className="text-sm text-slate-600 font-bold mt-1">Guest House Management</p>
+              <p className="text-sm text-slate-600 mt-1">Tiruchirappalli, Tamil Nadu 620015, India</p>
+              <p className="text-sm text-slate-600">Phone: +91 431 2503000</p>
+              <p className="text-sm text-slate-600">Website: www.nitt.edu</p>
             </div>
             <div className="text-right">
-              <h2 className="text-2xl font-black text-blue-800 uppercase tracking-widest mb-2">GST Invoice</h2>
-              <p className="text-sm font-bold text-slate-600">Invoice No: <span className="font-mono text-slate-900">{booking.invoice_id?.split('-')[0].toUpperCase() || `INV-${booking.booking_id.split('-')[0].toUpperCase()}`}</span></p>
-              <p className="text-sm font-bold text-slate-600">Date: <span className="text-slate-900">{new Date().toLocaleDateString('en-IN')}</span></p>
+              <h2 className="text-4xl font-light text-slate-300 uppercase tracking-widest mb-4">INVOICE</h2>
+              <table className="w-full text-right text-sm border-none">
+                <tbody>
+                  <tr><td className="font-bold text-slate-500 pr-4 pb-1 uppercase text-xs">Date</td><td className="text-slate-800 pb-1 font-medium">{new Date().toLocaleDateString('en-IN')}</td></tr>
+                  <tr><td className="font-bold text-slate-500 pr-4 pb-1 uppercase text-xs">Invoice #</td><td className="text-slate-800 pb-1 font-mono font-medium">{booking.invoice_id?.split('-')[0].toUpperCase() || `INV-${booking.booking_id.split('-')[0].toUpperCase()}`}</td></tr>
+                  <tr><td className="font-bold text-slate-500 pr-4 uppercase text-xs">Booking ID</td><td className="text-slate-800 font-mono font-medium">{booking.booking_id.split('-')[0].toUpperCase()}</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
-          {/* 2 & 3. Guest & Stay Details Grid */}
-          <div className="grid grid-cols-2 gap-8 mb-8">
-            {/* Billed To */}
-            <div>
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-200 pb-1">Billed To (Applicant Details)</h3>
-              <p className="text-base font-extrabold text-slate-800">{booking.applicant_name || 'N/A'}</p>
-              <p className="text-sm text-slate-600 mt-1 font-medium">{booking.applicant_email}</p>
-              {booking.department && <p className="text-sm font-bold text-slate-700 mt-2">Department: <span className="font-medium text-slate-600">{booking.department}</span></p>}
-              <p className="text-sm font-bold text-slate-700 mt-2">Purpose: <span className="font-medium text-slate-600">{booking.purpose_of_visit}</span></p>
-              <p className="text-sm font-bold text-slate-700 mt-2">Guest(s): <span className="font-medium text-slate-600">{booking.guests ? booking.guests.map(g => g.guest_name).join(', ') : 'N/A'}</span></p>
+          {/* Bill To */}
+          <div className="mb-10">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">BILL TO</h3>
+            <div className="text-sm text-slate-700 space-y-1">
+              <p className="text-lg font-bold text-slate-900">{booking.applicant_name || 'N/A'}</p>
+              {booking.department && <p>{booking.department}</p>}
+              <p>{booking.applicant_email}</p>
+              <p className="mt-2"><span className="font-bold">Category:</span> {booking.category_code || `CAT-${booking.category_id}`}</p>
+              <p><span className="font-bold">Purpose:</span> {booking.purpose_of_visit}</p>
             </div>
-            
-            {/* Stay Info */}
-            <div>
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-200 pb-1">Stay Details</h3>
-              <div className="grid grid-cols-2 gap-y-2 text-sm">
-                <span className="font-bold text-slate-600">Booking ID:</span>
-                <span className="font-mono font-medium text-slate-800">{booking.booking_id.split('-')[0].toUpperCase()}</span>
-                
-                <span className="font-bold text-slate-600">Category:</span>
-                <span className="font-bold text-slate-800">{booking.category_code || `CAT-${booking.category_id}`}</span>
-                
-                <span className="font-bold text-slate-600">Rooms & Beds:</span>
-                <span className="font-bold text-slate-800">{booking.rooms_required} Room(s){booking.extra_beds > 0 ? `, ${booking.extra_beds} Extra Bed(s)` : ''}</span>
-                
-                <span className="font-bold text-slate-600">Room No(s):</span>
-                <span className="font-bold text-slate-800">{booking.allocated_room_numbers || 'Not Recorded'}</span>
-                
-                <span className="font-bold text-slate-600">Room Type:</span>
-                <span className="font-medium text-slate-800">{booking.room_type || 'Standard Room'}</span>
-                
-                <span className="font-bold text-slate-600">Check-In:</span>
-                <span className="font-medium text-slate-800">{arrival.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
-                
-                <span className="font-bold text-slate-600">Check-Out:</span>
-                <span className="font-medium text-slate-800">{departure.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
-                
-                <span className="font-bold text-slate-600">Duration:</span>
-                <span className="font-medium text-slate-800">{nights} Night(s)</span>
+          </div>
+
+          {/* Table */}
+          <table className="w-full border-collapse mb-10 text-sm">
+            <thead>
+              <tr className="bg-slate-800 text-white">
+                <th className="p-3 text-left font-bold w-12 border-slate-800 border">No.</th>
+                <th className="p-3 text-left font-bold border-slate-800 border">PRODUCT / SERVICE</th>
+                <th className="p-3 text-left font-bold border-slate-800 border">DESCRIPTION</th>
+                <th className="p-3 text-center font-bold w-24 border-slate-800 border">QTY</th>
+                <th className="p-3 text-right font-bold w-32 border-slate-800 border">RATE</th>
+                <th className="p-3 text-right font-bold w-32 border-slate-800 border">AMOUNT</th>
+              </tr>
+            </thead>
+            <tbody className="text-slate-700">
+              <tr className="border-b border-slate-200">
+                <td className="p-3 border-l border-slate-200">1</td>
+                <td className="p-3 font-bold text-slate-800">Accommodation Charges</td>
+                <td className="p-3">
+                  {booking.rooms_required} Room(s) - {booking.room_type}
+                  {booking.extra_beds > 0 ? `, ${booking.extra_beds} Extra Bed(s)` : ''}
+                  <br/>
+                  <span className="text-xs text-slate-500">
+                    {arrival.toLocaleDateString('en-IN')} to {departure.toLocaleDateString('en-IN')}
+                  </span>
+                </td>
+                <td className="p-3 text-center">{nights} Night(s)</td>
+                <td className="p-3 text-right">-</td>
+                <td className="p-3 text-right border-r border-slate-200">₹ {subtotal.toFixed(2)}</td>
+              </tr>
+              <tr className="border-b border-slate-200">
+                <td className="p-3 border-l border-slate-200">&nbsp;</td>
+                <td className="p-3"></td>
+                <td className="p-3"></td>
+                <td className="p-3 text-center"></td>
+                <td className="p-3 text-right"></td>
+                <td className="p-3 text-right border-r border-slate-200"></td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Summary and Terms */}
+          <div className="flex justify-between items-start mt-4">
+            <div className="w-1/2 pr-8">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-widest mb-3">Terms & Conditions</h4>
+              <ul className="text-xs text-slate-600 space-y-2 list-none">
+                <li>1. All payments must be cleared before or during checkout.</li>
+                <li>2. Please include the invoice number on your transfer reference.</li>
+                <li>3. Make all checks / online payments payable to: <strong>Director, NIT Tiruchirappalli</strong>.</li>
+              </ul>
+              
+              <div className="mt-8">
+                <p className="text-sm font-bold text-slate-800 italic">Thank You For Your Stay!</p>
+              </div>
+            </div>
+
+            <div className="w-1/2 max-w-sm">
+              <table className="w-full text-right text-sm">
+                <tbody>
+                  <tr>
+                    <td className="py-2 text-slate-600 font-bold uppercase text-xs">Subtotal</td>
+                    <td className="py-2 text-slate-800 font-medium">₹ {subtotal.toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-slate-600 font-bold uppercase text-xs">CGST (6%)</td>
+                    <td className="py-2 text-slate-800 font-medium">₹ {cgst.toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 text-slate-600 font-bold uppercase text-xs border-b border-slate-300">SGST (6%)</td>
+                    <td className="py-2 text-slate-800 font-medium border-b border-slate-300">₹ {sgst.toFixed(2)}</td>
+                  </tr>
+                  <tr className="text-xl">
+                    <td className="py-4 text-slate-900 font-black">TOTAL</td>
+                    <td className="py-4 text-slate-900 font-black">₹ {totalEstimated.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+              
+              {/* Payment Status Stamp */}
+              <div className="mt-6 border-t-2 border-slate-800 pt-4 flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Payment Status</span>
+                  <span className={`text-lg font-black uppercase tracking-widest border-2 px-3 py-1 rounded ${booking.payment_state === 'PAID' ? 'text-green-600 border-green-600' : 'text-amber-500 border-amber-500'}`}>
+                      {booking.payment_state || 'PENDING'}
+                  </span>
               </div>
             </div>
           </div>
-
-          {/* 4. Bill Summary Table */}
-          <div className="mb-8">
-            <table className="w-full border-collapse border border-slate-300">
-              <thead>
-                <tr className="bg-slate-100 text-slate-800 text-sm">
-                  <th className="border border-slate-300 p-3 text-left font-bold">Description</th>
-                  <th className="border border-slate-300 p-3 text-center font-bold">Qty / Nights</th>
-                  <th className="border border-slate-300 p-3 text-right font-bold">Rate (₹)</th>
-                  <th className="border border-slate-300 p-3 text-right font-bold">Amount (₹)</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm text-slate-700">
-                <tr>
-                  <td className="border border-slate-300 p-3 font-medium">Accommodation Charges ({booking.rooms_required} Room{booking.rooms_required > 1 ? 's' : ''}{booking.extra_beds > 0 ? `, ${booking.extra_beds} Extra Bed(s)` : ''})</td>
-                  <td className="border border-slate-300 p-3 text-center">{nights}</td>
-                  <td className="border border-slate-300 p-3 text-right">-</td>
-                  <td className="border border-slate-300 p-3 text-right">{subtotal}</td>
-                </tr>
-              </tbody>
-            </table>
-            
-            {/* Totals Section */}
-            <div className="flex justify-end mt-4">
-              <div className="w-72">
-                <div className="flex justify-between py-1.5 text-sm font-bold text-slate-600">
-                  <span>Subtotal:</span>
-                  <span>₹ {subtotal}</span>
-                </div>
-                <div className="flex justify-between py-1.5 text-sm font-bold text-slate-600">
-                  <span>CGST (6%):</span>
-                  <span>₹ {cgst}</span>
-                </div>
-                <div className="flex justify-between py-1.5 text-sm font-bold text-slate-600 border-b-2 border-slate-800 pb-2">
-                  <span>SGST (6%):</span>
-                  <span>₹ {sgst}</span>
-                </div>
-                <div className="flex justify-between py-3 text-lg font-black text-slate-900">
-                  <span>Grand Total:</span>
-                  <span>₹ {totalEstimated}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 5 & 6. Payment Info & Footer */}
-          <div className="flex justify-between items-end pt-8 border-t border-slate-200">
-            <div className="text-sm space-y-1">
-              <p className="font-bold text-slate-700">Payment Status: <span className={booking.payment_state === 'PAID' ? 'text-green-700' : 'text-amber-600 uppercase'}>{booking.payment_state || 'PENDING'}</span></p>
-              <p className="font-bold text-slate-700">Payment Mode: <span className="font-medium text-slate-600">{booking.payment_state === 'PAID' ? 'Online / Desk Setup' : 'N/A'}</span></p>
-              <p className="text-xs text-slate-400 mt-4 italic max-w-sm">This is a computer-generated invoice. The GST number used is for demonstration/sample purposes only.</p>
-            </div>
-            
+          
+          <div className="mt-16 pt-6 border-t border-slate-200 text-center flex justify-between items-end">
+            <p className="text-xs text-slate-400 italic">This is a computer-generated invoice. No signature is required.</p>
             <div className="text-center">
-              <div className="h-16 w-48 border-b border-slate-400 mb-2"></div>
-              <p className="text-sm font-bold text-slate-800">Authorized Signatory</p>
-              <p className="text-xs text-slate-500">NITT Guest House Admin</p>
+              <div className="h-10 w-48 border-b border-slate-400 mb-2"></div>
+              <p className="text-xs font-bold text-slate-800 uppercase tracking-wider">Authorized Signatory</p>
             </div>
           </div>
 

@@ -48,13 +48,6 @@ async function applyStayExtension(client, bookingId) {
          WHERE booking_id = $2`,
         [newDeparture, bookingId]
     );
-    await client.query(
-        `UPDATE guests
-         SET departure_datetime = $1,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE booking_id = $2`,
-        [newDeparture, bookingId]
-    );
 
     const refreshed = await client.query('SELECT * FROM booking_requests WHERE booking_id = $1', [bookingId]);
     const row = refreshed.rows[0];
@@ -118,8 +111,13 @@ exports.submitBookingRequest = async (data) => {
         let autoApproveLog = null;
 
         if (['super_admin', 'guest_house_admin'].includes(userRole)) {
-            initialState = BOOKING_STATUS.ADMIN_APPROVED;
-            autoApproveLog = 'Auto-approved as Admin booking.';
+            if (String(data.category_id) === '2') {
+                initialState = BOOKING_STATUS.PENDING_APPROVER;
+                autoApproveLog = null;
+            } else {
+                initialState = BOOKING_STATUS.ADMIN_APPROVED;
+                autoApproveLog = 'Auto-approved as Admin booking.';
+            }
         } else if (data.assigned_approver_id === data.user_id) {
             initialState = BOOKING_STATUS.PENDING_ADMIN;
             autoApproveLog = 'Auto-approved by applicant (Self-Approval).';
@@ -147,11 +145,10 @@ exports.submitBookingRequest = async (data) => {
         if (data.guests && data.guests.length > 0) {
             for (const guest of data.guests) {
                 const gRes = await client.query(`
-                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number, arrival_datetime, departure_datetime)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING guest_id
+                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING guest_id
                 `, [
-                    bookingId, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type, guest.id_proof_number,
-                    guest.arrival_datetime || arrivalDatetime, guest.departure_datetime || departureDatetime
+                    bookingId, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type, guest.id_proof_number
                 ]);
                 
                 const newGuestId = gRes.rows[0].guest_id;
@@ -228,8 +225,12 @@ exports.reapplyBookingRequest = async (data) => {
         let autoApproveLog = null;
 
         if (['super_admin', 'guest_house_admin'].includes(userRole)) {
-            newState = BOOKING_STATUS.ADMIN_APPROVED;
-            autoApproveLog = 'Auto-approved as Admin booking upon reapplication.';
+            if (String(data.category_id) === '2') {
+                newState = BOOKING_STATUS.PENDING_APPROVER;
+            } else {
+                newState = BOOKING_STATUS.ADMIN_APPROVED;
+                autoApproveLog = 'Auto-approved as Admin booking upon reapplication.';
+            }
         } else if (data.assigned_approver_id === data.user_id) {
             newState = BOOKING_STATUS.PENDING_ADMIN;
             autoApproveLog = 'Auto-approved by applicant (Self-Approval) upon reapplication.';
@@ -252,9 +253,9 @@ exports.reapplyBookingRequest = async (data) => {
         if (data.guests && data.guests.length > 0) {
             for (const guest of data.guests) {
                 const gRes = await client.query(`
-                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number, arrival_datetime, departure_datetime)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING guest_id
-                `, [data.booking_id, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type, guest.id_proof_number, guest.arrival_datetime || arrivalDatetime, guest.departure_datetime || departureDatetime]);
+                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING guest_id
+                `, [data.booking_id, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type, guest.id_proof_number]);
                 const newGuestId = gRes.rows[0].guest_id;
                 if (guest.food_preferences && guest.food_preferences.length > 0) {
                     for (const meal of guest.food_preferences) {

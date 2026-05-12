@@ -1,4 +1,4 @@
-import { UploadCloud, CalendarClock, DoorOpen } from 'lucide-react';
+import { UploadCloud, CalendarClock, DoorOpen, CalendarDays, Clock } from 'lucide-react';
 import FilePreview from './FilePreview';
 
 export default function StayDetailsSection({ formData, handleChange, setFormData, tariffs = [] }) {
@@ -26,6 +26,11 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
   const currentCategoryId = formData.category_id || '1';
   const availableTariffs = tariffs.filter(t => String(t.category_id) === String(currentCategoryId));
 
+  const getTodayString = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
   return (
     <div>
       <div className="flex items-center gap-4 mb-6">
@@ -39,6 +44,36 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
           <p className="text-sm text-slate-500 font-medium">
             Select rooms and attach supporting files
           </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 mb-6">
+        <div className="relative col-span-1 sm:col-span-2">
+          <label className="block text-sm font-bold text-slate-700 mb-2">Arrival Date & Time</label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <CalendarDays className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
+              <input type="date" name="arrival_date" required value={formData.arrival_date || ''} onChange={handleChange} min={getTodayString()} className="block w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 transition-all" />
+            </div>
+            <div className="relative w-32">
+              <Clock className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
+              <input type="time" name="arrival_time" required value={formData.arrival_time || '12:00'} onChange={handleChange} className="block w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 transition-all" />
+            </div>
+          </div>
+        </div>
+        
+        <div className="relative col-span-1 sm:col-span-2">
+          <label className="block text-sm font-bold text-slate-700 mb-2">Departure Date & Time</label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <CalendarDays className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
+              <input type="date" name="departure_date" required value={formData.departure_date || ''} onChange={handleChange} min={formData.arrival_date || getTodayString()} className="block w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 transition-all" />
+            </div>
+            <div className="relative w-32">
+              <Clock className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
+              <input type="time" name="departure_time" required value={formData.departure_time || '11:00'} onChange={handleChange} className="block w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 transition-all" />
+            </div>
+          </div>
         </div>
       </div>
 
