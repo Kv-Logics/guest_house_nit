@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
 import api from '../../services/api';
-import { X, FileText, Users, Utensils, Paperclip, Loader2, RefreshCw, History, AlertCircle } from 'lucide-react';
+import { X, FileText, Users, Utensils, Paperclip, Loader2, RefreshCw, History, AlertCircle, Receipt } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import nitLogo from '../../assets/images/nitlogo.png';
+import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
 
 export default function BookingDetailsModal({ bookingId, onClose }) {
     const [showFood, setShowFood] = useState(false); // Default to hiding food
+    const [showInvoice, setShowInvoice] = useState(false);
 
     const { data, isLoading } = useQuery({
         queryKey: ['booking', bookingId],
@@ -155,9 +157,16 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                             <p className="text-xs text-slate-500 font-bold tracking-wider mt-0.5 uppercase">National Institute of Technology, Tiruchirappalli</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition-colors">
-                        <X className="w-6 h-6" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {booking && (booking.payment_state === 'PAID' || booking.booking_state === 'CHECKED_OUT') && (
+                            <button onClick={() => setShowInvoice(true)} className="flex items-center px-4 py-2 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm mr-2">
+                                <Receipt className="w-4 h-4 mr-2" /> Receipt
+                            </button>
+                        )}
+                        <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition-colors">
+                            <X className="w-6 h-6" />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="p-6 overflow-y-auto bg-slate-50/50 flex-1">
@@ -315,6 +324,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                     )}
                 </div>
             </div>
+            {showInvoice && <GSTInvoiceModal bookingId={bookingId} onClose={() => setShowInvoice(false)} />}
         </div>
     );
 }

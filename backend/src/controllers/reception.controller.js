@@ -12,7 +12,7 @@ exports.getTodayArrivals = async (req, res, next) => {
 
 exports.checkIn = async (req, res, next) => {
     try {
-        const data = await receptionService.checkIn(req.params.id);
+        const data = await receptionService.checkIn(req.params.id, req.body.allocated_room_numbers);
         return sendSuccess(res, 'Guest checked in successfully', data);
     } catch (error) {
         next(error);

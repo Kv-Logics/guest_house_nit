@@ -1,4 +1,4 @@
-import { BedDouble, UploadCloud, CalendarClock, DoorOpen, PlusCircle } from 'lucide-react';
+import { UploadCloud, CalendarClock, DoorOpen } from 'lucide-react';
 import FilePreview from './FilePreview';
 
 export default function StayDetailsSection({ formData, handleChange, setFormData, tariffs = [] }) {
@@ -42,20 +42,7 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="relative">
-          <label className="block text-sm font-bold text-slate-700 mb-2">Rooms Required</label>
-          <BedDouble className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
-          <input
-            required
-            type="number"
-            min={Math.max(1, Math.ceil((formData.guests?.length || 1) / 2))}
-            name="rooms_required"
-            value={formData.rooms_required}
-            onChange={handleChange}
-            className="block w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-          />
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <div className="relative">
           <label className="block text-sm font-bold text-slate-700 mb-2">Room Type</label>
           <DoorOpen className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
@@ -84,21 +71,6 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
             </svg>
           </div>
-        </div>
-        <div className="relative">
-          <label className="block text-sm font-bold text-slate-700 mb-2">
-            Extra Beds {availableTariffs.length > 0 && <span className="text-slate-500 font-medium">(₹{Number(availableTariffs[0]?.extra_bed || 400)}/ea)</span>}
-          </label>
-          <PlusCircle className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
-          <input
-            type="number"
-            min="0"
-            max="3"
-            name="extra_beds"
-            value={formData.extra_beds}
-            onChange={handleChange}
-            className="block w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-          />
         </div>
       </div>
 

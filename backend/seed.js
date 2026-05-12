@@ -167,45 +167,72 @@ async function seedDatabase() {
     },
   ];
 
-  // Short stay windows for local testing (check-in, checkout, extension banners).
-  // Adjust these strings (PostgreSQL interval syntax) as needed.
-  const seedArrivalOffset = '10 minutes';
-  const seedDepartureOffset = '35 minutes';
+  const now = new Date();
+  const addTime = (days, hours=0) => new Date(now.getTime() + days * 86400000 + hours * 3600000);
 
   const sampleBookings = [
-    {
-      applicant_email: 'moses@nitt.edu',
-      cat_id: 2,
-      visit_type: 'official',
-      purpose: 'Conference Visit',
-      rooms: 1,
-      status: 'PENDING_APPROVER',
-      stage: 'PENDING_DEAN',
-      guest_name: 'Prof. Alan Turing',
-      guest_phone: '9876543210',
-    },
-    {
-      applicant_email: 'keerthana241001@nitt.edu',
-      cat_id: 3,
-      visit_type: 'personal',
-      purpose: 'Parent Visit',
-      rooms: 1,
-      status: 'PENDING_APPROVER',
-      stage: 'PENDING_HOD',
-      guest_name: 'Mr. John Doe (Parent)',
-      guest_phone: '1234567890',
-    },
-    {
-      applicant_email: 'hodcse@nitt.edu',
-      cat_id: 1,
-      visit_type: 'official',
-      purpose: 'Institute Guest Lecturer',
-      rooms: 2,
-      status: 'PENDING_APPROVER',
-      stage: 'PENDING_REGISTRAR',
-      guest_name: 'Dr. Albert Einstein',
-      guest_phone: '5555555555',
-    },
+      { // 1. Pending Approver (Normal)
+          applicant: 'moses@nitt.edu', approver: 'hodeee@nitt.edu', cat_id: 1, visit_type: 'official', purpose: 'Guest Lecturer for EEE',
+          rooms: 1, room_type: 'Standard Room', status: 'PENDING_APPROVER',
+          arrival: addTime(5), departure: addTime(7),
+          guests: [{ name: 'Dr. Richard Feynman', relation: 'Guest' }]
+      },
+      { // 2. Pending Admin (Normal)
+          applicant: 'keerthana241001@nitt.edu', approver: 'hodcse@nitt.edu', cat_id: 3, visit_type: 'personal', purpose: 'Parents Visit',
+          rooms: 1, room_type: 'Standard Room', status: 'PENDING_ADMIN',
+          arrival: addTime(10), departure: addTime(12),
+          guests: [{ name: 'Mr. Subramanian', relation: 'Father' }, { name: 'Mrs. Lakshmi', relation: 'Mother' }]
+      },
+      { // 3. Admin Approved (Arriving Today)
+          applicant: 'gs@nitt.edu', approver: 'deanap@nitt.edu', cat_id: 2, visit_type: 'official', project_code: 'DST-SERB-2026', purpose: 'Project Review',
+          rooms: 2, room_type: 'Mini Suite Room', status: 'ADMIN_APPROVED',
+          arrival: addTime(0, -1), departure: addTime(3), // Arrived 1 hr ago, not checked in yet
+          guests: [{ name: 'Prof. HC Verma', relation: 'Reviewer' }, { name: 'Dr. RS Aggarwal', relation: 'Reviewer' }]
+      },
+      { // 4. Checked In (Active Stay)
+          applicant: 'moses@nitt.edu', approver: 'director@nitt.edu', cat_id: 1, visit_type: 'official', purpose: 'Keynote Speaker',
+          rooms: 1, room_type: 'Suite Room', status: 'CHECKED_IN',
+          arrival: addTime(-1), departure: addTime(2), checked_in: addTime(-1, 2),
+          guests: [{ name: 'Dr. Marie Curie', relation: 'Keynote Speaker' }]
+      },
+      { // 5. Checked In -> Extension Pending Approver
+          applicant: 'kbaskar@nitt.edu', approver: 'hodmech@nitt.edu', cat_id: 2, visit_type: 'official', project_code: 'ISRO-2025', purpose: 'Research',
+          rooms: 1, room_type: 'Standard Room', status: 'PENDING_APPROVER',
+          arrival: addTime(-3), departure: addTime(0, 2), // Leaving in 2 hrs
+          checked_in: addTime(-3, 1), is_extension: true, pending_ext: addTime(2, 2), // Extend by 2 days
+          guests: [{ name: 'Dr. APJ Abdul Kalam', relation: 'Scientist' }]
+      },
+      { // 6. Checked In -> Extension Pending Admin
+          applicant: 'nivetha240221@nitt.edu', approver: 'hodece@nitt.edu', cat_id: 3, visit_type: 'personal', purpose: 'Family Emergency',
+          rooms: 1, room_type: 'Standard Room', status: 'PENDING_ADMIN',
+          arrival: addTime(-2), departure: addTime(0, -1), // Overdue by 1 hr!
+          checked_in: addTime(-2, 1), is_extension: true, pending_ext: addTime(1),
+          guests: [{ name: 'Mrs. Saraswathi', relation: 'Mother' }]
+      },
+      { // 7. Checked Out (Past)
+          applicant: 'nisha@nitt.edu', approver: 'registrar@nitt.edu', cat_id: 4, visit_type: 'personal', purpose: 'Vacation',
+          rooms: 2, room_type: 'Standard Room', status: 'CHECKED_OUT',
+          arrival: addTime(-10), departure: addTime(-5), checked_in: addTime(-10, 1), checked_out: addTime(-5, -2),
+          guests: [{ name: 'Mr. Ramesh', relation: 'Brother' }, { name: 'Mrs. Suresh', relation: 'Sister-in-law' }]
+      },
+      { // 8. Approver Rejected
+          applicant: 'rahul241114@nitt.edu', approver: 'hodece@nitt.edu', cat_id: 3, visit_type: 'personal', purpose: 'Sibling visiting',
+          rooms: 1, room_type: 'Standard Room', status: 'APPROVER_REJECTED',
+          arrival: addTime(14), departure: addTime(16),
+          guests: [{ name: 'Ms. Priya', relation: 'Sister' }]
+      },
+      { // 9. Admin Rejected
+          applicant: 'sanjay241332@nitt.edu', approver: 'hodcse@nitt.edu', cat_id: 3, visit_type: 'personal', purpose: 'Friend visiting',
+          rooms: 1, room_type: 'Standard Room', status: 'ADMIN_REJECTED',
+          arrival: addTime(20), departure: addTime(22),
+          guests: [{ name: 'Mr. Vignesh', relation: 'Friend' }]
+      },
+      { // 10. Cancelled
+          applicant: 'sams@nitt.edu', approver: 'hodmba@nitt.edu', cat_id: 2, visit_type: 'official', project_code: 'UGC-99', purpose: 'Audit',
+          rooms: 1, room_type: 'Standard Room', status: 'CANCELLED',
+          arrival: addTime(25), departure: addTime(27), cancelled: addTime(-1),
+          guests: [{ name: 'Mr. Auditor', relation: 'Official' }]
+      }
   ];
   // =========================================================================
 
@@ -308,42 +335,67 @@ async function seedDatabase() {
 
     // 4. Insert Sample Bookings for Admin Dashboard Testing
     for (const b of sampleBookings) {
-      // Get user id
-      const userRes = await db.query(`SELECT user_id FROM users WHERE email = $1`, [
-        b.applicant_email,
-      ]);
-      if (userRes.rows.length === 0) continue;
+      const adminRes = await db.query(`SELECT user_id FROM users WHERE email = 'admin@nitt.edu'`);
+      const adminId = adminRes.rows[0].user_id;
+
+      const userRes = await db.query(`SELECT user_id FROM users WHERE email = $1`, [b.applicant]);
+      const approverRes = await db.query(`SELECT user_id FROM users WHERE email = $1`, [b.approver]);
+      if (userRes.rows.length === 0 || approverRes.rows.length === 0) continue;
+      
+      const userId = userRes.rows[0].user_id;
+      const approverId = approverRes.rows[0].user_id;
 
       const reqRes = await db.query(
-        `
-                INSERT INTO booking_requests (user_id, category_id, purpose_of_visit, visit_type, arrival_datetime, departure_datetime, rooms_required, undertaking_accepted, booking_state, payment_responsible)
-                VALUES ($1, $2, $3, $4, NOW() + $7::interval, NOW() + $8::interval, $5, true, $6, 'guest')
-                RETURNING booking_id;
-            `,
-        [
-          userRes.rows[0].user_id,
-          b.cat_id,
-          b.purpose,
-          b.visit_type,
-          b.rooms,
-          b.status,
-          seedArrivalOffset,
-          seedDepartureOffset,
-        ]
+          `INSERT INTO booking_requests (
+              user_id, category_id, purpose_of_visit, visit_type, project_code,
+              arrival_datetime, departure_datetime, rooms_required, room_type, total_estimated_amount,
+              undertaking_accepted, booking_state, payment_responsible, assigned_approver_id,
+              checked_in_at, checked_out_at, pending_extension_datetime, cancelled_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11, $12, $13, $14, $15, $16, $17) RETURNING booking_id;`,
+          [
+              userId, b.cat_id, b.purpose, b.visit_type, b.project_code || null,
+              b.arrival.toISOString(), b.departure.toISOString(), b.rooms, b.room_type, 1500,
+              b.status, 'guest', approverId,
+              b.checked_in ? b.checked_in.toISOString() : null,
+              b.checked_out ? b.checked_out.toISOString() : null,
+              b.pending_ext ? b.pending_ext.toISOString() : null,
+              b.cancelled ? b.cancelled.toISOString() : null
+          ]
       );
+      const bookingId = reqRes.rows[0].booking_id;
 
-      await db.query(
-        `
-                INSERT INTO guests (booking_id, guest_name, phone, relation_to_applicant)
-                VALUES ($1, $2, $3, 'Guest')
-            `,
-        [reqRes.rows[0].booking_id, b.guest_name, b.guest_phone]
-      );
+      for (const g of b.guests) {
+          await db.query(
+              `INSERT INTO guests (booking_id, guest_name, relation_to_applicant, phone, gender, age, arrival_datetime, departure_datetime) VALUES ($1, $2, $3, $4, 'Male', 30, $5, $6)`,
+              [bookingId, g.name, g.relation, '9999999999', b.arrival.toISOString(), b.departure.toISOString()]
+          );
+      }
+
+      // Generate accurate Audit Logs
+      await db.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, [bookingId, userId, 'SUBMITTED', 'Application submitted by the applicant.']);
+      
+      if (['PENDING_ADMIN', 'ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN', 'CHECKED_OUT', 'ADMIN_REJECTED'].includes(b.status) || b.is_extension) {
+          await db.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, [bookingId, approverId, 'APPROVED', 'Approved by Authority.']);
+      }
+      if (['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN', 'CHECKED_OUT'].includes(b.status) || b.is_extension) {
+          await db.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, [bookingId, adminId, 'APPROVED', 'Verified and Approved by Admin.']);
+      }
+      if (b.status === 'APPROVER_REJECTED') {
+          await db.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, [bookingId, approverId, 'REJECTED', 'Cannot accommodate at this time.']);
+      }
+      if (b.status === 'ADMIN_REJECTED') {
+          await db.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, [bookingId, adminId, 'REJECTED', 'Payment missing or details invalid.']);
+      }
+      if (b.status === 'CANCELLED') {
+          await db.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, [bookingId, userId, 'CANCELLED', 'Cancelled by applicant.']);
+      }
+      if (b.pending_ext) {
+          await db.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, [bookingId, userId, 'EXTENSION_REQUESTED', `Requested stay extension until ${b.pending_ext.toLocaleString()}.`]);
+      }
     }
-
-    console.log('✅ Seeding Complete! Sample Bookings and Users injected.\n');
-  } catch (error) {
-    console.error('❌ Error seeding database:', error.message);
+    console.log('Database seeded successfully.');
+  } catch (err) {
+    console.error('Error seeding database:', err);
   } finally {
     process.exit();
   }

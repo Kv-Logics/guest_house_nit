@@ -3,15 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import MultiGuestSection from './MultiGuestSection';
 import CategoryVisitSection from './CategoryVisitSection';
 import StayDetailsSection from './StayDetailsSection';
-import GuidelinesCard from './GuidelinesCard';
 import ApproverSelection from './ApproverSelection';
-import { AlertCircle, Eye } from 'lucide-react';
+import { AlertCircle, Eye, ShieldCheck } from 'lucide-react';
 
 // MAIN COMPONENT EXPORT
 export default function BookingForm({ formData, setFormData, user, authorities = [], tariffs = [] }) {
   const navigate = useNavigate();
   const [localError, setLocalError] = useState('');
-  const [guidelinesAccepted, setGuidelinesAccepted] = useState(false);
+  const [undertakingAccepted, setUndertakingAccepted] = useState(false);
   const [approverSearch, setApproverSearch] = useState('');
   const [isApproverDropdownOpen, setIsApproverDropdownOpen] = useState(false);
 
@@ -39,8 +38,8 @@ export default function BookingForm({ formData, setFormData, user, authorities =
     e.preventDefault();
     setLocalError('');
 
-    if (!guidelinesAccepted) {
-      setLocalError('You must review and acknowledge the official guidelines before proceeding.');
+    if (!undertakingAccepted) {
+      setLocalError('You must review and acknowledge the undertaking before proceeding.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -51,15 +50,16 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       return;
     }
 
-    const minRoomsRequired = Math.max(1, Math.ceil((formData.guests?.length || 1) / 2));
-    if (Number(formData.rooms_required) < minRoomsRequired) {
-      setLocalError(`For ${formData.guests.length} guest(s), you must book at least ${minRoomsRequired} room(s).`);
+    const flatGuests = (formData.rooms || []).flatMap(r => r.guests);
+    
+    if (flatGuests.length === 0) {
+      setLocalError('You must add at least one guest.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
-    for (let i = 0; i < formData.guests.length; i++) {
-      const guest = formData.guests[i];
+    for (let i = 0; i < flatGuests.length; i++) {
+      const guest = flatGuests[i];
       const arrival = new Date(`${guest.arrival_date}T${guest.arrival_time}`);
       const departure = new Date(`${guest.departure_date}T${guest.departure_time}`);
       if (arrival < new Date(new Date().setHours(0, 0, 0, 0))) {
@@ -94,8 +94,8 @@ export default function BookingForm({ formData, setFormData, user, authorities =
     }
 
     // Food Requisition Date Validation
-    for (let i = 0; i < formData.guests.length; i++) {
-      const guest = formData.guests[i];
+    for (let i = 0; i < flatGuests.length; i++) {
+      const guest = flatGuests[i];
       for (const meal of guest.food_preferences) {
         if (!meal.date) {
           setLocalError(
@@ -141,10 +141,44 @@ export default function BookingForm({ formData, setFormData, user, authorities =
         )}
 
         <form onSubmit={handleSubmit} className="relative z-10 flex flex-col space-y-10">
-          <GuidelinesCard guidelinesAccepted={guidelinesAccepted} setGuidelinesAccepted={setGuidelinesAccepted} />
+          <div className="bg-white p-6 sm:p-10 rounded-3xl border border-slate-200 shadow-sm">
+            <h4 className="text-lg font-bold text-slate-800 mb-6 flex items-center border-b border-slate-100 pb-4">
+              <ShieldCheck className="w-6 h-6 mr-2 text-emerald-500" /> Undertaking by Applicant
+            </h4>
+
+            <div className="text-sm text-slate-600 space-y-4 leading-relaxed font-medium mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+              <p>
+                a. Certified that the visit of the guest(s) is related to the activities of
+                official/personal. I take responsibility for the payment of bills including food charges
+                (if any) of the Guest House.
+              </p>
+              <p>
+                b. The guest(s) is (are) personally known to me and I am responsible for his/her
+                conduct.
+              </p>
+              <p>
+                c. I hereby undertake to vacate the room in the Guest House, if allotted, on the expiry
+                of the sanctioned period. In case I fail to do so, I will be liable to be charged penal
+                rent (if any).
+              </p>
+              <p>d. I have read the NITT Guest house terms & conditions and these are acceptable.</p>
+            </div>
+
+            <label className="flex items-center cursor-pointer group bg-white hover:bg-slate-50 p-4 rounded-xl border border-slate-200 transition-colors shadow-sm">
+              <input
+                type="checkbox"
+                checked={undertakingAccepted}
+                onChange={(e) => setUndertakingAccepted(e.target.checked)}
+                className="w-6 h-6 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 transition-colors cursor-pointer"
+              />
+              <span className="ml-4 text-base font-bold text-slate-700 group-hover:text-slate-900 transition-colors select-none">
+                I agree to the above undertaking conditions. <span className="text-red-500">*</span>
+              </span>
+            </label>
+          </div>
 
           <div
-            className={`transition-all duration-500 space-y-10 ${guidelinesAccepted ? 'opacity-100 translate-y-0' : 'opacity-40 grayscale-[30%] pointer-events-none translate-y-2'}`}
+            className={`transition-all duration-500 space-y-10 ${undertakingAccepted ? 'opacity-100 translate-y-0' : 'opacity-40 grayscale-[30%] pointer-events-none translate-y-2'}`}
           >
             <CategoryVisitSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
             <MultiGuestSection formData={formData} setFormData={setFormData} />

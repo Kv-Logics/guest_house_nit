@@ -2,13 +2,17 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { receptionService } from '../../services/reception.service';
 import StatusBadge from '../../components/ui/StatusBadge';
-import { Key, UserCheck, Clock, Search, Eye } from 'lucide-react';
+import { Key, UserCheck, Clock, Search, Eye, FileText } from 'lucide-react';
 import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
+import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
 
 export default function ReceptionDashboard() {
     const queryClient = useQueryClient();
     const [searchTerm, setSearchTerm] = useState('');
     const [previewId, setPreviewId] = useState(null);
+    const [checkInModal, setCheckInModal] = useState({ isOpen: false, id: null });
+    const [roomNumbers, setRoomNumbers] = useState('');
+    const [invoiceBookingId, setInvoiceBookingId] = useState(null);
 
     // Live clock state to keep the countdown ticking without reloading the page
     const [now, setNow] = useState(new Date());
@@ -23,14 +27,31 @@ export default function ReceptionDashboard() {
     });
 
     const checkInMutation = useMutation({
-        mutationFn: (id) => receptionService.checkIn(id),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receptionArrivals'] })
+        mutationFn: ({ id, rooms }) => receptionService.checkIn(id, rooms),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['receptionArrivals'] });
+            setCheckInModal({ isOpen: false, id: null });
+            setRoomNumbers('');
+        }
     });
 
     const checkOutMutation = useMutation({
         mutationFn: (id) => receptionService.checkOut(id),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receptionArrivals'] })
+        onSuccess: (data, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['receptionArrivals'] });
+            setInvoiceBookingId(variables); // Auto-open GST Invoice
+        }
     });
+
+    const handleCheckOut = (b) => {
+        if (String(b.category_id) === '3' && b.payment_state !== 'PAID') {
+            alert('CAT-III bookings must be marked as PAID before Check-Out. Please collect payment and update the status in the Admin dashboard.');
+            return;
+        }
+        if (window.confirm('Are you sure you want to Check Out this guest?')) {
+            checkOutMutation.mutate(b.booking_id);
+        }
+    };
 
     if (isLoading) return <div className="p-8 text-center text-slate-500 font-bold">Loading today&apos;s arrivals...</div>;
 
@@ -104,6 +125,11 @@ export default function ReceptionDashboard() {
                                             Out: {new Date(b.checked_out_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}
                                         </div>
                                     )}
+                                    {b.allocated_room_numbers && (
+                                        <div className="mt-1 font-bold text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-0.5 inline-block">
+                                            Room: {b.allocated_room_numbers}
+                                        </div>
+                                    )}
                                     {(b.booking_state === 'CHECKED_IN' || b.is_extension_pending) && (
                                         <div className={`mt-2 inline-flex items-center px-2 py-1 rounded-md border shadow-sm text-[10px] font-bold ${
                                             new Date(b.departure_datetime) < now
@@ -145,20 +171,28 @@ export default function ReceptionDashboard() {
                                         </button>
                                         {['ADMIN_APPROVED', 'READY_FOR_CHECKIN'].includes(b.booking_state) && (
                                             <button 
-                                                onClick={() => checkInMutation.mutate(b.booking_id)} 
-                                                disabled={checkInMutation.isPending}
+                                                onClick={() => setCheckInModal({ isOpen: true, id: b.booking_id })} 
                                                 className="px-4 py-2 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50 shadow-sm"
                                             >
-                                                {checkInMutation.isPending ? 'Processing...' : 'Check In'}
+                                                Check In
                                             </button>
                                         )}
                                         {(b.booking_state === 'CHECKED_IN' || b.is_extension_pending) && (
                                             <button 
-                                                onClick={() => checkOutMutation.mutate(b.booking_id)} 
+                                                onClick={() => handleCheckOut(b)} 
                                                 disabled={checkOutMutation.isPending}
                                                 className="px-4 py-2 bg-slate-600 text-white font-bold rounded-xl hover:bg-slate-700 transition-colors disabled:opacity-50 shadow-sm"
                                             >
                                                 {checkOutMutation.isPending ? 'Processing...' : 'Check Out'}
+                                            </button>
+                                        )}
+                                        {b.booking_state === 'CHECKED_OUT' && (
+                                            <button 
+                                                onClick={() => setInvoiceBookingId(b.booking_id)} 
+                                                className="px-3 py-2 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors shadow-sm border border-blue-200"
+                                                title="Download Bill"
+                                            >
+                                                <FileText className="w-4 h-4" />
                                             </button>
                                         )}
                                     </td>
@@ -170,6 +204,37 @@ export default function ReceptionDashboard() {
             )}
             
             {previewId && <BookingDetailsModal bookingId={previewId} onClose={() => setPreviewId(null)} />}
+            
+            {checkInModal.isOpen && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
+                    <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200">
+                        <h3 className="text-xl font-extrabold text-slate-800 mb-2">Check-In Guest</h3>
+                        <p className="text-sm text-slate-500 mb-6">Assign physical room numbers for this booking.</p>
+                        <div className="mb-6">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Allocated Room No(s) *</label>
+                            <input 
+                                type="text" 
+                                placeholder="e.g. 101, 102" 
+                                value={roomNumbers} 
+                                onChange={e => setRoomNumbers(e.target.value)} 
+                                className="w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-teal-500 outline-none"
+                            />
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button onClick={() => { setCheckInModal({ isOpen: false, id: null }); setRoomNumbers(''); }} className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-100 rounded-xl transition-colors">Cancel</button>
+                            <button 
+                                onClick={() => checkInMutation.mutate({ id: checkInModal.id, rooms: roomNumbers })} 
+                                disabled={!roomNumbers.trim() || checkInMutation.isPending}
+                                className="px-5 py-2.5 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50 shadow-sm"
+                            >
+                                {checkInMutation.isPending ? 'Processing...' : 'Confirm Check-In'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {invoiceBookingId && <GSTInvoiceModal bookingId={invoiceBookingId} onClose={() => setInvoiceBookingId(null)} />}
         </div>
     );
 }

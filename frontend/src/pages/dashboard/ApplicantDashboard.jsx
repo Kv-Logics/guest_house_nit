@@ -94,10 +94,24 @@ export default function ApplicantDashboard() {
                 };
             }) : [];
 
+            // Convert flat guests array back to rooms array (assuming max 2 guests per room)
+            const reconstructedRooms = [];
+            for (let i = 0; i < formattedGuests.length; i += 2) {
+                reconstructedRooms.push({
+                    guests: formattedGuests.slice(i, i + 2),
+                    extra_bed: false // backend doesn't map beds to specific rooms easily, assume false for reapply to be safe or check b.extra_beds
+                });
+            }
+            if (b.extra_beds > 0 && reconstructedRooms.length > 0) {
+                for (let i = 0; i < Math.min(b.extra_beds, reconstructedRooms.length); i++) {
+                    reconstructedRooms[i].extra_bed = true;
+                }
+            }
+
             const formattedData = {
                 ...b,
                 category_id: String(b.category_id),
-                guests: formattedGuests,
+                rooms: reconstructedRooms,
                 document_1: null,
                 document_2: null
             };
@@ -231,8 +245,10 @@ export default function ApplicantDashboard() {
                                         )}
                                     </td>
                                     <td className="p-4">
-                                        <div className="text-sm font-bold text-slate-800 truncate max-w-[120px]">{b.guests && b.guests.length > 0 ? b.guests.map(g => g.guest_name).join(', ') : 'N/A'}</div>
-                                        <div className="text-xs text-slate-500">{b.guests?.length} Guest(s)</div>
+                                        <div className="text-sm font-bold text-slate-800 truncate max-w-[150px]" title={b.guests && b.guests.length > 0 ? b.guests.map(g => g.guest_name).join(', ') : 'N/A'}>
+                                            {b.guests && b.guests.length > 0 ? b.guests[0].guest_name : 'N/A'}
+                                        </div>
+                                        <div className="text-xs text-slate-500">{b.guests?.length || 0} Guest(s)</div>
                                     </td>
                                     <td className="p-4 text-sm font-medium text-slate-800">{new Date(b.arrival_datetime).toLocaleDateString()}</td>
                                     <td className="p-4 text-sm font-medium text-slate-800">{new Date(b.departure_datetime).toLocaleDateString()}</td>
@@ -261,7 +277,7 @@ export default function ApplicantDashboard() {
                                         <button onClick={() => setPreviewId(b.booking_id)} className="inline-flex items-center px-3 py-1.5 bg-slate-50 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors shadow-sm">
                                             <Eye className="w-4 h-4 mr-1.5" /> Preview
                                         </button>
-                                    {['PENDING_APPROVER', 'PENDING_ADMIN', 'ADMIN_APPROVED'].includes(b.booking_state) && !(b.checked_in_at && b.pending_extension_days) && (
+                                    {['PENDING_APPROVER', 'PENDING_ADMIN', 'ADMIN_APPROVED'].includes(b.booking_state) && !(b.checked_in_at && b.pending_extension_datetime) && (
                                         <button 
                                             onClick={() => { if(window.confirm('Are you sure you want to cancel this application?')) cancelMutation.mutate(b.booking_id); }}
                                             disabled={cancelMutation.isPending}
