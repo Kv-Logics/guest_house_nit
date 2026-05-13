@@ -188,6 +188,60 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
         );
     };
 
+    const renderPaymentTimeline = (booking) => {
+        if (booking.payment_responsible === 'institute' || Number(booking.total_estimated_amount) === 0) return null;
+
+        const steps = [
+            { id: 1, title: 'Pending', description: 'Awaiting Payment' },
+            { id: 2, title: 'Processing', description: 'Proof / POS' },
+            { id: 3, title: 'Paid', description: 'Verified & Complete' }
+        ];
+
+        let currentStep = 1;
+        let isRejected = false;
+        let isWarning = false;
+        const state = booking.payment_state;
+
+        if (state === 'PAID') currentStep = 4;
+        else if (['PAYMENT_PROOF_SUBMITTED', 'PAYMENT_PROOF_RESUBMITTED', 'UNDER_REVIEW'].includes(state)) currentStep = 2;
+        else if (state === 'REJECTED') { currentStep = 2; isRejected = true; }
+        else if (state.includes('WARNING')) { currentStep = 1; isWarning = true; }
+
+        return (
+            <div className="w-full pt-6 pb-10 px-6 border-b border-slate-100 bg-emerald-50/40">
+                <div className="text-center mb-8">
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200 uppercase tracking-wider shadow-sm">Payment Workflow</span>
+                </div>
+                <div className="flex items-center justify-between w-full max-w-xl mx-auto relative">
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1.5 bg-emerald-200/60 rounded-full z-0"></div>
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-emerald-500 rounded-full z-0 transition-all duration-500" style={{ width: `${(Math.min(currentStep - 1, 2) / 2) * 100}%` }}></div>
+                    {steps.map((step) => {
+                        const isComplete = currentStep > step.id;
+                        const isCurrent = currentStep === step.id;
+                        const isError = isCurrent && isRejected;
+                        const isWarn = isCurrent && isWarning;
+                        let bgColor = 'bg-emerald-200'; let textColor = 'text-emerald-400'; let borderColor = 'border-emerald-50';
+                        if (isComplete) { bgColor = 'bg-emerald-500'; textColor = 'text-emerald-700'; } 
+                        else if (isError) { bgColor = 'bg-red-500'; textColor = 'text-red-600'; borderColor = 'border-red-100'; }
+                        else if (isWarn) { bgColor = 'bg-amber-500'; textColor = 'text-amber-600'; borderColor = 'border-amber-100'; }
+                        else if (isCurrent) { bgColor = 'bg-blue-400'; textColor = 'text-blue-600'; borderColor = 'border-blue-100'; }
+                        return (
+                            <div key={step.id} className="relative z-10 flex flex-col items-center group">
+                                <div className={`w-8 h-8 rounded-full border-4 flex items-center justify-center text-white font-extrabold text-xs transition-colors shadow-sm ${bgColor} ${isCurrent || isComplete ? borderColor + ' ring-4 ring-emerald-50' : 'border-emerald-50'}`}>
+                                    {isComplete ? '✓' : (isError ? '✕' : isWarn ? '!' : step.id)}
+                                </div>
+                                <div className="absolute top-10 text-center w-28 -ml-10">
+                                    <p className={`text-xs font-bold ${isCurrent || isComplete ? 'text-slate-800' : 'text-slate-400'}`}>{step.title}</p>
+                                    <p className={`text-[10px] font-semibold mt-0.5 leading-tight ${isCurrent || isComplete ? textColor : 'text-slate-400'}`}>{step.description}</p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
     const isAdminApplicant = ['super_admin', 'guest_house_admin'].includes(booking?.applicant_role);
     const isAdminCat2 = isAdminApplicant && String(booking?.category_id) === '2';
 
@@ -204,6 +258,18 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                 {booking && booking.version > 1 && (
                                     <span className="bg-amber-100 text-amber-800 text-xs font-extrabold px-2.5 py-1 rounded-lg border border-amber-200 shadow-sm flex items-center">
                                         <RefreshCw className="w-3 h-3 mr-1.5" /> Re-applied (v{booking.version})
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex gap-2 mt-1.5">
+                                {booking && booking.payment_state && (
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-sm uppercase tracking-wider ${
+                                        booking.payment_state === 'PAID' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 
+                                        booking.payment_state.includes('PROOF') || booking.payment_state === 'UNDER_REVIEW' ? 'bg-blue-100 text-blue-800 border-blue-200' : 
+                                        booking.payment_state.includes('WARNING') || booking.payment_state === 'REJECTED' ? 'bg-red-100 text-red-800 border-red-200' : 
+                                        'bg-amber-100 text-amber-800 border-amber-200'
+                                    }`}>
+                                        Payment: {booking.payment_state.replace(/_/g, ' ')}
                                     </span>
                                 )}
                             </div>
@@ -233,6 +299,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                         <>
                         {isAdminCat2 ? renderAdminCat2Timeline(booking) : renderTimeline(booking)}
                         {renderExtensionTimeline(booking)}
+                        {renderPaymentTimeline(booking)}
                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-8">
                             
                             {/* Admin Source Indicator */}
@@ -273,6 +340,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Payment</p><p className="text-slate-800 font-semibold capitalize">{booking.payment_responsible}</p></div>
                                     {booking.project_code && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Project Code</p><p className="text-slate-800 font-semibold">{booking.project_code}</p></div>}
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Rooms</p><p className="text-slate-800 font-semibold">{booking.rooms_required} x {booking.room_type || 'Standard Room'}</p>{booking.extra_beds > 0 && <p className="text-xs text-slate-500">+{booking.extra_beds} Extra Bed(s)</p>}</div>
+                                    {booking.allocated_room_numbers && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Allocated Room(s)</p><p className="text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-100 inline-block">{booking.allocated_room_numbers}</p></div>}
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Est. Amount</p><p className="text-emerald-700 font-bold">₹{booking.total_estimated_amount || booking.estimated_amount || 0}</p></div>
                                 </div>
                             </div>

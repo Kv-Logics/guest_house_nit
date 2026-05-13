@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import nitLogo from '../../assets/images/nitlogo.png';
+import nitBg from '../../assets/images/NitImgBg.jpeg';
 
 export default function LoginPage() {
   const { requestOtp, verifyOtp } = useAuth();
@@ -57,16 +59,22 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900 tracking-tight">
+    <div 
+      className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-cover bg-center bg-no-repeat relative"
+      style={{ backgroundImage: `url(${nitBg})` }}
+    >
+      <div className="absolute inset-0 bg-slate-900/75 backdrop-blur-[2px]"></div>
+
+      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
+        <img src={nitLogo} alt="NIT Logo" className="w-24 h-24 mx-auto object-contain drop-shadow-lg" />
+        <h2 className="mt-4 text-center text-3xl font-extrabold text-white tracking-tight drop-shadow-md">
           NITT Guest House
         </h2>
-        <p className="mt-2 text-center text-sm text-slate-600">Sign in to your account</p>
+        <p className="mt-2 text-center text-sm text-slate-200 drop-shadow-sm">Sign in to your account</p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 sm:rounded-2xl sm:px-10 border border-slate-100">
+      <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white/95 backdrop-blur-md py-8 px-4 shadow-2xl sm:rounded-2xl sm:px-10 border border-white/20">
           <form className="space-y-6" onSubmit={step === 1 ? handleRequestOtp : handleVerifyOtp}>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-medium">
