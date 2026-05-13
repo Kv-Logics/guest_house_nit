@@ -12,6 +12,8 @@ DROP TABLE IF EXISTS sponsorship_requests CASCADE;
 DROP TABLE IF EXISTS approval_logs CASCADE;
 DROP TABLE IF EXISTS payment_transactions CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
+DROP TABLE IF EXISTS payment_proofs CASCADE;
+DROP TABLE IF EXISTS payment_warnings CASCADE;
 DROP TABLE IF EXISTS invoices CASCADE;
 DROP TABLE IF EXISTS booking_rooms CASCADE;
 DROP TABLE IF EXISTS guest_food_preferences CASCADE;
@@ -143,7 +145,7 @@ CREATE TABLE booking_requests (
     total_estimated_amount NUMERIC DEFAULT 0,
     undertaking_accepted BOOLEAN NOT NULL,
     booking_state VARCHAR(50) DEFAULT 'PENDING_APPROVER' CHECK (booking_state IN ('DRAFT', 'PENDING_APPROVER', 'APPROVER_APPROVED', 'APPROVER_REJECTED', 'PENDING_ADMIN', 'ADMIN_APPROVED', 'ADMIN_REJECTED', 'READY_FOR_CHECKIN', 'CHECKED_IN', 'CHECKED_OUT', 'NO_SHOW', 'CANCELLED')),
-    payment_state VARCHAR(50) DEFAULT 'PENDING' CHECK (payment_state IN ('NOT_APPLICABLE', 'PENDING', 'PAID', 'FAILED', 'REFUND_INITIATED', 'REFUNDED')),
+    payment_state VARCHAR(50) DEFAULT 'PENDING' CHECK (payment_state IN ('NOT_APPLICABLE', 'PENDING', 'PAYMENT_PROOF_SUBMITTED', 'PAYMENT_PROOF_RESUBMITTED', 'UNDER_REVIEW', 'PAID', 'FAILED', 'REJECTED', 'WARNING_1_SENT', 'WARNING_2_SENT', 'WARNING_3_SENT', 'REFUND_INITIATED', 'REFUNDED')),
     sponsor_status VARCHAR(50) DEFAULT 'NOT_REQUIRED' CHECK (sponsor_status IN ('NOT_REQUIRED', 'PENDING', 'ACCEPTED', 'REJECTED')),
     payment_deadline TIMESTAMP,
     invoice_id UUID,
@@ -237,6 +239,33 @@ CREATE TABLE payments (
     razorpay_payment_id VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 12.5 PAYMENT PROOFS
+CREATE TABLE payment_proofs (
+    proof_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id UUID NOT NULL REFERENCES booking_requests(booking_id) ON DELETE CASCADE,
+    uploaded_by_user_id UUID NOT NULL REFERENCES users(user_id),
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(512) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    file_size_bytes BIGINT NOT NULL,
+    remarks TEXT,
+    status VARCHAR(50) DEFAULT 'SUBMITTED' CHECK (status IN ('SUBMITTED', 'APPROVED', 'REJECTED')),
+    rejection_reason TEXT,
+    reviewed_by_user_id UUID REFERENCES users(user_id),
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 12.6 PAYMENT WARNINGS
+CREATE TABLE payment_warnings (
+    warning_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id UUID NOT NULL REFERENCES booking_requests(booking_id) ON DELETE CASCADE,
+    issued_by_user_id UUID NOT NULL REFERENCES users(user_id),
+    warning_level INTEGER NOT NULL CHECK (warning_level IN (1, 2, 3)),
+    message TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 14. APPROVAL LOGS

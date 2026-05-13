@@ -5,6 +5,7 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import { LayoutDashboard, FileText, PlusCircle, Eye, Trash2, Info, RefreshCw, AlertTriangle, CalendarClock, Search } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
+import PaymentProofModal from '../../components/ui/PaymentProofModal';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../utils/constants';
 
@@ -38,6 +39,7 @@ export default function ApplicantDashboard() {
     const [previewId, setPreviewId] = useState(null);
     const [extendModalId, setExtendModalId] = useState(null);
     const [extendDatetime, setExtendDatetime] = useState('');
+    const [paymentModalBooking, setPaymentModalBooking] = useState(null);
     const { user } = useAuth();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
@@ -284,7 +286,20 @@ export default function ApplicantDashboard() {
                                             </div>
                                         )}
                                     </td>
-                                    <td className="p-4 text-right">
+                                    <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                                        {(() => {
+                                            const showPaymentBtn = Number(b.total_estimated_amount) > 0 &&
+                                                                   b.payment_responsible !== 'institute' &&
+                                                                   !['DRAFT', 'CANCELLED', 'ADMIN_REJECTED', 'APPROVER_REJECTED'].includes(b.booking_state);
+                                            return showPaymentBtn && (
+                                                <button
+                                                    onClick={() => setPaymentModalBooking(b)}
+                                                    className={`inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-colors ${b.payment_state === 'PAID' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-200' : b.payment_state.includes('PROOF') || b.payment_state === 'UNDER_REVIEW' ? 'bg-blue-600 text-white hover:bg-blue-700' : b.payment_state === 'REJECTED' || b.payment_state.includes('WARNING') ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                                                >
+                                                    {b.payment_state === 'PAID' ? 'View Payment' : b.payment_state.includes('PROOF') || b.payment_state === 'UNDER_REVIEW' ? 'Proof Under Review' : 'Pay / Upload Proof'}
+                                                </button>
+                                            );
+                                        })()}
                                         <button onClick={() => setPreviewId(b.booking_id)} className="inline-flex items-center px-3 py-1.5 bg-slate-50 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors shadow-sm">
                                             <Eye className="w-4 h-4 mr-1.5" /> Preview
                                         </button>
@@ -321,6 +336,8 @@ export default function ApplicantDashboard() {
             )}
             
             {previewId && <BookingDetailsModal bookingId={previewId} onClose={() => setPreviewId(null)} />}
+
+            {paymentModalBooking && <PaymentProofModal booking={paymentModalBooking} onClose={() => setPaymentModalBooking(null)} />}
 
             {extendModalId && extendTarget && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="extend-stay-title">

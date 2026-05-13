@@ -98,9 +98,9 @@ exports.submitBookingRequest = async (data) => {
         }
 
         // 5. ENGINE RULE: Dynamic Payment Assignment
-        const paymentResponsible = category.payment_modes && category.payment_modes.length > 0 
-            ? category.payment_modes[0]  // Defaults based on matrix priority (e.g., 'institute' for CAT-I)
-            : 'guest';
+        const paymentResponsible = data.payment_responsibility || (category.payment_modes && category.payment_modes.length > 0 
+            ? category.payment_modes[0]
+            : 'guest');
 
         // Handle date combination if passed from frontend date/time pickers
         const arrivalDatetime = data.arrival_datetime || `${data.arrival_date} ${data.arrival_time}:00`;
@@ -236,18 +236,22 @@ exports.reapplyBookingRequest = async (data) => {
             autoApproveLog = 'Auto-approved by applicant (Self-Approval) upon reapplication.';
         }
 
+        const paymentResponsible = data.payment_responsibility || (category.payment_modes && category.payment_modes.length > 0 
+            ? category.payment_modes[0]
+            : 'guest');
+
         await client.query(`
             UPDATE booking_requests SET 
                 category_id = $1, purpose_of_visit = $2, visit_type = $3, project_code = $4,
                 arrival_datetime = $5, departure_datetime = $6, rooms_required = $7,
                 booking_state = $8, room_type = $9, extra_beds = $10, total_estimated_amount = $11,
-                assigned_approver_id = $12, version = version + 1, updated_at = CURRENT_TIMESTAMP
-            WHERE booking_id = $13
+            assigned_approver_id = $12, payment_responsible = $13, version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE booking_id = $14
         `, [
             data.category_id, data.purpose_of_visit, data.visit_type, data.project_code || null,
             arrivalDatetime, departureDatetime, data.rooms_required,
             newState, data.room_type || 'Standard Room', data.extra_beds || 0,
-            data.total_estimated_amount || 0, data.assigned_approver_id || null, data.booking_id
+            data.total_estimated_amount || 0, data.assigned_approver_id || null, paymentResponsible, data.booking_id
         ]);
         await client.query('DELETE FROM guests WHERE booking_id = $1', [data.booking_id]);
         if (data.guests && data.guests.length > 0) {

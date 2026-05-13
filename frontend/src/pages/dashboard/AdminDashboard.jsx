@@ -14,6 +14,8 @@ import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
 import MyBookingsTable from './MyBookingsTable';
 import ApprovalQueueTable from './ApprovalQueueTable';
 import PaymentsTable from './PaymentsTable';
+import PaymentProofModal from '../../components/ui/PaymentProofModal';
+import AdminPaymentVerificationModal from '../../components/ui/AdminPaymentVerificationModal';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -21,6 +23,8 @@ export default function AdminDashboard() {
   const [approvalBookings, setApprovalBookings] = useState([]);
   const [activeTab, setActiveTab] = useState('my_bookings'); // 'my_bookings' or 'approvals'
   const [previewId, setPreviewId] = useState(null);
+  const [paymentModalBooking, setPaymentModalBooking] = useState(null);
+  const [verificationModalBooking, setVerificationModalBooking] = useState(null);
   const navigate = useNavigate();
 
   const userRole = String(user?.role || '').trim().toLowerCase();
@@ -156,12 +160,14 @@ export default function AdminDashboard() {
                 </button>
               </>
             )}
-            <button
-              onClick={() => setActiveTab('payments')}
-              className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'payments' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              <CreditCard className="w-4 h-4 mr-2" /> Payments
-            </button>
+            {isSuperAdmin && (
+              <button
+                onClick={() => setActiveTab('payments')}
+                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'payments' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <CreditCard className="w-4 h-4 mr-2" /> Payments
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -169,7 +175,7 @@ export default function AdminDashboard() {
       {activeTab === 'my_bookings' && (
         <MyBookingsTable
           bookings={myBookings}
-          handleMockPay={handleMockPay}
+          handleOpenPayment={setPaymentModalBooking}
           handleDelete={handleDelete}
         />
       )}
@@ -186,11 +192,23 @@ export default function AdminDashboard() {
       )}
 
       {activeTab === 'payments' && (
-        <PaymentsTable bookings={myBookings} handleMockPay={handleMockPay} />
+        <PaymentsTable bookings={approvalBookings} handleManage={setVerificationModalBooking} refresh={fetchApprovalBookings} />
       )}
 
       {previewId && (
         <BookingDetailsModal bookingId={previewId} onClose={() => setPreviewId(null)} />
+      )}
+
+      {paymentModalBooking && (
+        <PaymentProofModal booking={paymentModalBooking} onClose={() => setPaymentModalBooking(null)} />
+      )}
+
+      {verificationModalBooking && (
+        <AdminPaymentVerificationModal 
+          booking={verificationModalBooking} 
+          onClose={() => setVerificationModalBooking(null)} 
+          onSuccess={() => { setVerificationModalBooking(null); fetchApprovalBookings(); fetchMyBookings(); }} 
+        />
       )}
     </div>
   );

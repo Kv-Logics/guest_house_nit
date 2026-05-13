@@ -1,7 +1,7 @@
 import React from 'react';
 import { FileText, Trash2 } from 'lucide-react';
 
-export default function MyBookingsTable({ bookings, handleMockPay, handleDelete }) {
+export default function MyBookingsTable({ bookings, handleOpenPayment, handleDelete }) {
   if (bookings.length === 0) {
     return (
       <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
@@ -38,15 +38,26 @@ export default function MyBookingsTable({ bookings, handleMockPay, handleDelete 
                 </span>
               </td>
               <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                {booking.booking_state === 'APPROVED' && (
-                  <button onClick={() => handleMockPay(booking.booking_id)} className="inline-flex items-center px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 shadow-sm transition-colors">Pay Now</button>
-                )}
-                {['PENDING_APPROVER', 'PENDING_ADMIN', 'ADMIN_APPROVED'].includes(booking.booking_state) && (
-                  <button onClick={() => handleDelete(booking.booking_id)} className="inline-flex items-center p-1.5 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-lg transition-colors border border-red-200 shadow-sm ml-2" title="Delete Request"><Trash2 className="w-4 h-4" /></button>
-                )}
-                {booking.payment_state === 'PAID' && (
-                  <button onClick={() => alert('Mock Receipt Generated!')} className="inline-flex items-center px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-200 border border-slate-200 shadow-sm transition-colors">Receipt</button>
-                )}
+                {(() => {
+                  const showPaymentBtn = Number(booking.total_estimated_amount) > 0 &&
+                                         booking.payment_responsible !== 'institute' &&
+                                         !['DRAFT', 'CANCELLED', 'ADMIN_REJECTED', 'APPROVER_REJECTED'].includes(booking.booking_state);
+                  return (
+                    <>
+                      {showPaymentBtn && (
+                          <button
+                              onClick={() => handleOpenPayment(booking)}
+                              className={`inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-colors mr-2 ${booking.payment_state === 'PAID' ? 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-200' : booking.payment_state.includes('PROOF') || booking.payment_state === 'UNDER_REVIEW' ? 'bg-amber-500 text-white hover:bg-amber-600' : booking.payment_state === 'REJECTED' || booking.payment_state.includes('WARNING') ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                          >
+                              {booking.payment_state === 'PAID' ? 'View Payment' : booking.payment_state.includes('PROOF') || booking.payment_state === 'UNDER_REVIEW' ? 'Proof Under Review' : 'Pay / Upload Proof'}
+                          </button>
+                      )}
+                      {['PENDING_APPROVER', 'PENDING_ADMIN', 'ADMIN_APPROVED'].includes(booking.booking_state) && (
+                        <button onClick={() => handleDelete(booking.booking_id)} className="inline-flex items-center p-1.5 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-lg transition-colors border border-red-200 shadow-sm" title="Delete Request"><Trash2 className="w-4 h-4" /></button>
+                      )}
+                    </>
+                  );
+                })()}
               </td>
             </tr>
           ))}
