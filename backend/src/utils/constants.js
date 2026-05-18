@@ -6,11 +6,14 @@ exports.ROLES = {
     REGISTRAR: 'registrar',
     ADMIN: 'super_admin',
     GUEST_HOUSE_ADMIN: 'guest_house_admin',
-    RECEPTIONIST: 'reception_staff'
+    RECEPTIONIST: 'reception_staff',
+    DIRECTOR: 'director'
 };
 
 exports.BOOKING_STATUS = {
     PENDING_APPROVER: 'PENDING_APPROVER',
+    PENDING_DIRECTOR: 'PENDING_DIRECTOR',
+    DIRECTOR_REJECTED: 'DIRECTOR_REJECTED',
     APPROVER_APPROVED: 'APPROVER_APPROVED',
     APPROVER_REJECTED: 'APPROVER_REJECTED',
     PENDING_ADMIN: 'PENDING_ADMIN',

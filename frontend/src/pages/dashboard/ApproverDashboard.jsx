@@ -93,7 +93,7 @@ export default function ApproverDashboard() {
                                         <button onClick={() => setPreviewId(b.booking_id)} className="inline-flex items-center px-4 py-2 bg-slate-50 text-slate-700 font-bold rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors shadow-sm">
                                             <Eye className="w-4 h-4 mr-1.5" /> Preview
                                         </button>
-                                        {b.booking_state === 'PENDING_APPROVER' && (
+                                        {(b.booking_state === 'PENDING_APPROVER' || b.booking_state === 'PENDING_DIRECTOR') && (
                                             <>
                                                 <button onClick={() => setActionModal({ isOpen: true, id: b.booking_id, action: 'APPROVED' })} className="px-4 py-2 bg-emerald-50 text-emerald-700 font-bold rounded-xl hover:bg-emerald-100 transition-colors">Approve</button>
                                                 <button onClick={() => setActionModal({ isOpen: true, id: b.booking_id, action: 'REJECTED' })} className="px-4 py-2 bg-red-50 text-red-700 font-bold rounded-xl hover:bg-red-100 transition-colors">Reject</button>

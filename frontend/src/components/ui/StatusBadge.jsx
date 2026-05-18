@@ -9,6 +9,16 @@ export default function StatusBadge({ status }) {
       icon: Clock,
       label: 'Pending Approver',
     },
+    [BOOKING_STATUS.PENDING_DIRECTOR]: {
+      color: 'bg-violet-100 text-violet-800 border border-violet-200',
+      icon: Clock,
+      label: 'Pending Director',
+    },
+    [BOOKING_STATUS.DIRECTOR_REJECTED]: {
+      color: 'bg-red-100 text-red-800',
+      icon: XCircle,
+      label: 'Rejected (Director)',
+    },
     [BOOKING_STATUS.APPROVER_APPROVED]: {
       color: 'bg-blue-100 text-blue-800',
       icon: CheckCircle,

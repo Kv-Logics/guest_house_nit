@@ -49,7 +49,7 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 mb-6">
         <div className="relative col-span-1 sm:col-span-2">
-          <label className="block text-sm font-bold text-slate-700 mb-2">Arrival Date & Time</label>
+          <label className="block text-sm font-bold text-slate-700 mb-2">Default Arrival Date & Time (Auto-fills Guests)</label>
           <div className="flex gap-2">
             <div className="relative flex-1">
               <CalendarDays className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
@@ -63,7 +63,7 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
         </div>
         
         <div className="relative col-span-1 sm:col-span-2">
-          <label className="block text-sm font-bold text-slate-700 mb-2">Departure Date & Time</label>
+          <label className="block text-sm font-bold text-slate-700 mb-2">Default Departure Date & Time (Auto-fills Guests)</label>
           <div className="flex gap-2">
             <div className="relative flex-1">
               <CalendarDays className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
@@ -79,33 +79,31 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <div className="relative">
-          <label className="block text-sm font-bold text-slate-700 mb-2">Room Type</label>
+          <label className="block text-sm font-bold text-slate-700 mb-2">Room Type Priority Order <span className="text-red-500">*</span></label>
           <DoorOpen className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
           <select
-            name="room_type"
-            value={formData.room_type || 'Standard Room'}
-            onChange={handleChange}
-            className="block w-full pl-11 pr-10 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer"
+            name="room_priority"
+            required
+            value={formData.room_priority || formData.room_type || 'Standard Room'}
+            onChange={(e) => {
+              handleChange(e);
+              // Maintain compatibility with room_type as well
+              setFormData((prev) => ({ ...prev, room_type: e.target.value }));
+            }}
+            className="block w-full pl-11 pr-10 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer font-bold text-sm"
           >
-            {availableTariffs.length > 0 ? (
-              availableTariffs.map((t) => (
-                <option key={t.tariff_id} value={t.room_type}>
-                  {t.room_type} (₹{Number(t.single_occupancy)} Single / ₹{Number(t.double_occupancy)} Double)
-                </option>
-              ))
-            ) : (
-              <>
-                <option value="Standard Room">Standard Room</option>
-                <option value="Mini Suite Room">Mini Suite Room</option>
-                <option value="Suite Room">Suite Room</option>
-              </>
-            )}
+            <option value="Standard Room">Standard Room Priority (Standard Room &gt; Mini Suite Room &gt; Suite Room)</option>
+            <option value="Mini Suite Room">Mini Suite Room Priority (Mini Suite Room &gt; Standard Room &gt; Suite Room)</option>
+            <option value="Suite Room">Suite Room Priority (Suite Room &gt; Mini Suite Room &gt; Standard Room)</option>
           </select>
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 pt-7 text-slate-500">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
             </svg>
           </div>
+          <p className="text-xs font-semibold text-slate-500 mt-2">
+            * Preferred room choice. Reception will allocate alternatives in priority order if unavailable.
+          </p>
         </div>
       </div>
 

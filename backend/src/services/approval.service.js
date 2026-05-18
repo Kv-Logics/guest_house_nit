@@ -12,25 +12,59 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
     try {
         await client.query('BEGIN');
 
+        // Fetch booking details and approver's role
         const sel = await client.query(
-            `SELECT b.pending_extension_datetime, r.role_name as applicant_role 
+            `SELECT b.booking_state, b.room_type, b.room_priority, b.pending_extension_datetime, 
+                    r.role_name as applicant_role,
+                    (SELECT rx.role_name FROM user_roles urx JOIN roles rx ON urx.role_id = rx.role_id WHERE urx.user_id = $2 LIMIT 1) as approver_role
              FROM booking_requests b
              JOIN users u ON b.user_id = u.user_id
              JOIN user_roles ur ON u.user_id = ur.user_id
              JOIN roles r ON ur.role_id = r.role_id
              WHERE b.booking_id = $1 FOR UPDATE`,
-            [bookingId]
+            [bookingId, approverId]
         );
         if (!sel.rows.length) throw new Error('Booking not found');
 
-        const pendingExt = sel.rows[0].pending_extension_datetime;
-        const applicantRole = sel.rows[0].applicant_role;
+        const booking = sel.rows[0];
+        const pendingExt = booking.pending_extension_datetime;
+        const applicantRole = booking.applicant_role;
+        const approverRole = booking.approver_role;
 
-        let newState =
-            action === 'APPROVED' ? BOOKING_STATUS.PENDING_ADMIN : BOOKING_STATUS.APPROVER_REJECTED;
-            
-        if (action === 'APPROVED' && ['super_admin', 'guest_house_admin'].includes(applicantRole)) {
-            newState = BOOKING_STATUS.ADMIN_APPROVED;
+        let newState;
+        let finalRemarks = remarks;
+
+        if (approverRole === 'director') {
+            if (action === 'APPROVED') {
+                newState = BOOKING_STATUS.PENDING_ADMIN;
+            } else {
+                // Director rejected Suite Room
+                const priorityStr = booking.room_priority || booking.room_type || '';
+                const hasAlternatives = priorityStr.includes('Standard Room') || priorityStr.includes('Mini Suite Room');
+                if (hasAlternatives) {
+                    // Route to Admin/Reception instead of rejecting completely
+                    newState = BOOKING_STATUS.PENDING_ADMIN;
+                    finalRemarks = `[DIRECTOR DECLINED SUITE - REDIRECT TO ALTERNATIVE PRIORITY] ${remarks || ''}`;
+                } else {
+                    newState = BOOKING_STATUS.DIRECTOR_REJECTED;
+                }
+            }
+        } else {
+            // Standard Authority (HOD / Dean / Registrar / Faculty)
+            if (action === 'APPROVED') {
+                const requestedSuite = (booking.room_type === 'Suite Room') || (booking.room_priority && booking.room_priority.startsWith('Suite Room'));
+                if (requestedSuite) {
+                    newState = BOOKING_STATUS.PENDING_DIRECTOR;
+                } else {
+                    newState = BOOKING_STATUS.PENDING_ADMIN;
+                }
+
+                if (['super_admin', 'guest_house_admin'].includes(applicantRole) && !requestedSuite) {
+                    newState = BOOKING_STATUS.ADMIN_APPROVED;
+                }
+            } else {
+                newState = BOOKING_STATUS.APPROVER_REJECTED;
+            }
         }
 
         if (action === 'REJECTED' && pendingExt != null) {
@@ -49,7 +83,6 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
                 [newState, bookingId]
             );
         } else if (action === 'APPROVED' && pendingExt != null) {
-            // Stay extension: keep pending_extension_datetime until admin applies dates in updateAdminStatus.
             bookingRes = await client.query(
                 `
             UPDATE booking_requests
@@ -60,7 +93,6 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
                 [newState, bookingId]
             );
         } else {
-            // Normal queue: clear any stray pending_extension_datetime when advancing to admin.
             bookingRes = await client.query(
                 `
             UPDATE booking_requests
@@ -75,7 +107,7 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
 
         await client.query(
             `INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`,
-            [bookingId, approverId, action, remarks]
+            [bookingId, approverId, action, finalRemarks]
         );
 
         logger.info(`Booking approval action taken`, {

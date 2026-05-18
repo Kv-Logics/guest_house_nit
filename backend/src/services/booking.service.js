@@ -4,35 +4,98 @@ const { BOOKING_STATUS } = require('../utils/constants');
 
 const MAX_STAY_EXTENSION_DAYS = 60;
 
-function estimateBookingTotalFromTariffs(booking, tariffs, guestCount) {
-    const arrival = new Date(booking.arrival_datetime);
-    const departure = new Date(booking.departure_datetime);
-    const ms = departure - arrival;
-    const days = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+function estimateBookingTotalFromTariffs(booking, tariffs, guestsList) {
     const categoryId = String(booking.category_id);
     const roomType = booking.room_type || 'Standard Room';
     const activeTariff =
         tariffs.find((t) => String(t.category_id) === categoryId && t.room_type === roomType) ||
         tariffs.find((t) => String(t.category_id) === categoryId);
     if (!activeTariff) return Number(booking.total_estimated_amount) || 0;
-    const rooms = Number(booking.rooms_required) || 1;
-    const guestsCount = Math.max(1, guestCount || 1);
-    const doubleRooms = Math.min(rooms, Math.max(0, guestsCount - rooms));
-    const singleRooms = Math.max(0, rooms - doubleRooms);
+
     const singleRate = Number(activeTariff.single_occupancy);
     const doubleRate = Number(activeTariff.double_occupancy);
     const extraBedRate = Number(activeTariff.extra_bed) || 400;
-    const roomCost = days * (singleRooms * singleRate + doubleRooms * doubleRate);
-    const extraBeds = Number(booking.extra_beds) || 0;
-    const extraBedCost = days * extraBeds * extraBedRate;
-    const subtotal = roomCost + extraBedCost;
-    return Math.round(subtotal + subtotal * 0.12);
+
+    if (!guestsList || guestsList.length === 0) return 0;
+
+    const guestsDates = guestsList.map(g => {
+        return {
+            arrival: new Date(g.arrival_datetime || `${g.arrival_date} ${g.arrival_time || '12:00'}:00`),
+            departure: new Date(g.departure_datetime || `${g.departure_date} ${g.departure_time || '12:00'}:00`)
+        };
+    });
+
+    let minDate = null;
+    let maxDate = null;
+    for (const g of guestsDates) {
+        if (!minDate || g.arrival < minDate) minDate = g.arrival;
+        if (!maxDate || g.departure > maxDate) maxDate = g.departure;
+    }
+
+    if (!minDate || !maxDate) return 0;
+
+    let totalSubtotal = 0;
+    const startDay = new Date(minDate);
+    startDay.setHours(12, 0, 0, 0);
+    const endDay = new Date(maxDate);
+    endDay.setHours(12, 0, 0, 0);
+
+    let currentNight = new Date(startDay);
+    while (currentNight < endDay) {
+        let activeGuests = 0;
+        for (const g of guestsDates) {
+            const arrivalCompare = new Date(g.arrival);
+            const departureCompare = new Date(g.departure);
+            if (arrivalCompare <= currentNight && departureCompare > currentNight) {
+                activeGuests++;
+            }
+        }
+
+        if (activeGuests > 0) {
+            const R = Number(booking.rooms_required) || 1;
+            let guestsRemaining = activeGuests;
+            let doubleRoomsCount = 0;
+            let singleRoomsCount = 0;
+            let extraBedsCount = 0;
+
+            let guestsInRooms = Array(R).fill(0);
+            for (let i = 0; i < R; i++) {
+                if (guestsRemaining > 0) {
+                    guestsInRooms[i] = 1;
+                    guestsRemaining--;
+                }
+            }
+            for (let i = 0; i < R; i++) {
+                if (guestsRemaining > 0 && guestsInRooms[i] === 1) {
+                    guestsInRooms[i] = 2;
+                    guestsRemaining--;
+                }
+            }
+            extraBedsCount = guestsRemaining;
+
+            for (let i = 0; i < R; i++) {
+                if (guestsInRooms[i] === 2) {
+                    doubleRoomsCount++;
+                } else if (guestsInRooms[i] === 1) {
+                    singleRoomsCount++;
+                }
+            }
+
+            const roomCostForNight = (singleRoomsCount * singleRate) + (doubleRoomsCount * doubleRate);
+            const extraBedCostForNight = extraBedsCount * extraBedRate;
+            totalSubtotal += (roomCostForNight + extraBedCostForNight);
+        }
+
+        currentNight.setDate(currentNight.getDate() + 1);
+    }
+
+    return Math.round(totalSubtotal + totalSubtotal * 0.12);
 }
 
 /** Apply pending_extension_datetime to departure fields and totals; clears pending_extension_datetime. */
 async function applyStayExtension(client, bookingId) {
     const bRes = await client.query(
-        `SELECT b.*, (SELECT COUNT(*)::int FROM guests g WHERE g.booking_id = b.booking_id) AS guest_count
+        `SELECT b.*, (SELECT json_agg(g) FROM guests g WHERE g.booking_id = b.booking_id) AS guests
          FROM booking_requests b WHERE b.booking_id = $1`,
         [bookingId]
     );
@@ -42,6 +105,13 @@ async function applyStayExtension(client, bookingId) {
     if (!newDeparture) throw new Error('No pending extension to apply.');
 
     await client.query(
+        `UPDATE guests
+         SET departure_datetime = $1
+         WHERE booking_id = $2 AND departure_datetime = $3`,
+        [newDeparture, bookingId, booking.departure_datetime]
+    );
+
+    await client.query(
         `UPDATE booking_requests
          SET departure_datetime = $1,
              updated_at = CURRENT_TIMESTAMP
@@ -49,10 +119,14 @@ async function applyStayExtension(client, bookingId) {
         [newDeparture, bookingId]
     );
 
-    const refreshed = await client.query('SELECT * FROM booking_requests WHERE booking_id = $1', [bookingId]);
+    const refreshed = await client.query(
+        `SELECT b.*, (SELECT json_agg(g) FROM guests g WHERE g.booking_id = b.booking_id) AS guests
+         FROM booking_requests b WHERE b.booking_id = $1`,
+        [bookingId]
+    );
     const row = refreshed.rows[0];
     const tariffsRes = await client.query('SELECT * FROM room_tariffs');
-    const total = estimateBookingTotalFromTariffs(row, tariffsRes.rows, booking.guest_count);
+    const total = estimateBookingTotalFromTariffs(row, tariffsRes.rows, row.guests);
 
     await client.query(
         `UPDATE booking_requests
@@ -89,10 +163,7 @@ exports.submitBookingRequest = async (data) => {
             throw new Error(`Your role (${userRole}) is not eligible to book under ${category.category_code}.`);
         }
 
-        // 4. ENGINE RULE: Conditional Requirement Checks (e.g., CAT-II Project Links)
-        if (category.requires_project_code && !data.project_code) {
-            throw new Error(`A valid project code is strictly required for ${category.category_code} bookings.`);
-        }
+        // 4. ENGINE RULE: Conditional Requirement Checks (e.g. max rooms)
         if (data.rooms_required > category.max_rooms_allowed) {
             throw new Error(`Exceeded max rooms allowed (${category.max_rooms_allowed}) for ${category.category_code}.`);
         }
@@ -102,9 +173,19 @@ exports.submitBookingRequest = async (data) => {
             ? category.payment_modes[0]
             : 'guest');
 
-        // Handle date combination if passed from frontend date/time pickers
-        const arrivalDatetime = data.arrival_datetime || `${data.arrival_date} ${data.arrival_time}:00`;
-        const departureDatetime = data.departure_datetime || `${data.departure_date} ${data.departure_time}:00`;
+        // Calculate min arrival and max departure dates from guest list
+        let minArrival = null;
+        let maxDeparture = null;
+        if (data.guests && data.guests.length > 0) {
+            for (const guest of data.guests) {
+                const arr = new Date(guest.arrival_datetime || `${guest.arrival_date} ${guest.arrival_time || '12:00'}:00`);
+                const dep = new Date(guest.departure_datetime || `${guest.departure_date} ${guest.departure_time || '12:00'}:00`);
+                if (!minArrival || arr < minArrival) minArrival = arr;
+                if (!maxDeparture || dep > maxDeparture) maxDeparture = dep;
+            }
+        }
+        const arrivalDatetime = minArrival ? minArrival.toISOString() : (data.arrival_datetime || `${data.arrival_date} ${data.arrival_time}:00`);
+        const departureDatetime = maxDeparture ? maxDeparture.toISOString() : (data.departure_datetime || `${data.departure_date} ${data.departure_time}:00`);
 
         // 6. Evaluate Bypass & Auto-Approval Logic
         let initialState = BOOKING_STATUS.PENDING_APPROVER;
@@ -126,16 +207,16 @@ exports.submitBookingRequest = async (data) => {
         // 7. Insert Booking Request
         const insertBookingQuery = `
             INSERT INTO booking_requests (
-                user_id, category_id, purpose_of_visit, visit_type, project_code,
+                user_id, category_id, purpose_of_visit, visit_type, room_priority,
                 arrival_datetime, departure_datetime, rooms_required, undertaking_accepted,
                 booking_state, payment_responsible, room_type, extra_beds, total_estimated_amount, assigned_approver_id
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING booking_id;
         `;
         
         const bookingValues = [
-            data.user_id, data.category_id, data.purpose_of_visit, data.visit_type, data.project_code || null,
+            data.user_id, data.category_id, data.purpose_of_visit, data.visit_type, data.room_priority || data.room_type || 'Standard Room',
             arrivalDatetime, departureDatetime, data.rooms_required, data.undertaking_accepted || true,
-            initialState, paymentResponsible, data.room_type || 'Standard Room', data.extra_beds || 0, data.total_estimated_amount || 0, data.assigned_approver_id || null
+            initialState, paymentResponsible, data.room_type || 'Standard Room', data.extra_beds || 0, 0, data.assigned_approver_id || null
         ];
         
         const bookingRes = await client.query(insertBookingQuery, bookingValues);
@@ -144,11 +225,14 @@ exports.submitBookingRequest = async (data) => {
         // 8. Insert Associated Guest Details & Food Preferences
         if (data.guests && data.guests.length > 0) {
             for (const guest of data.guests) {
+                const guestArrival = guest.arrival_datetime || `${guest.arrival_date} ${guest.arrival_time || '12:00'}:00`;
+                const guestDeparture = guest.departure_datetime || `${guest.departure_date} ${guest.departure_time || '12:00'}:00`;
+
                 const gRes = await client.query(`
-                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING guest_id
+                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number, arrival_datetime, departure_datetime)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING guest_id
                 `, [
-                    bookingId, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type, guest.id_proof_number
+                    bookingId, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type, guest.id_proof_number, guestArrival, guestDeparture
                 ]);
                 
                 const newGuestId = gRes.rows[0].guest_id;
@@ -162,6 +246,20 @@ exports.submitBookingRequest = async (data) => {
                 }
             }
         }
+
+        // Calculate actual pricing total
+        const tariffsRes = await client.query('SELECT * FROM room_tariffs');
+        const calculatedTotal = estimateBookingTotalFromTariffs({
+            category_id: data.category_id,
+            room_type: data.room_type || 'Standard Room',
+            rooms_required: data.rooms_required,
+            extra_beds: data.extra_beds || 0
+        }, tariffsRes.rows, data.guests);
+
+        await client.query(
+            `UPDATE booking_requests SET total_estimated_amount = $1 WHERE booking_id = $2`,
+            [calculatedTotal, bookingId]
+        );
 
         // 9. Handle Uploaded Documents
         if (data.files) {
@@ -218,8 +316,19 @@ exports.reapplyBookingRequest = async (data) => {
         `, [data.user_id]);
         const userRole = userRes.rows[0].role;
 
-        const arrivalDatetime = data.arrival_datetime || `${data.arrival_date} ${data.arrival_time}:00`;
-        const departureDatetime = data.departure_datetime || `${data.departure_date} ${data.departure_time}:00`;
+        // Calculate min arrival and max departure dates from guest list
+        let minArrival = null;
+        let maxDeparture = null;
+        if (data.guests && data.guests.length > 0) {
+            for (const guest of data.guests) {
+                const arr = new Date(guest.arrival_datetime || `${guest.arrival_date} ${guest.arrival_time || '12:00'}:00`);
+                const dep = new Date(guest.departure_datetime || `${guest.departure_date} ${guest.departure_time || '12:00'}:00`);
+                if (!minArrival || arr < minArrival) minArrival = arr;
+                if (!maxDeparture || dep > maxDeparture) maxDeparture = dep;
+            }
+        }
+        const arrivalDatetime = minArrival ? minArrival.toISOString() : (data.arrival_datetime || `${data.arrival_date} ${data.arrival_time}:00`);
+        const departureDatetime = maxDeparture ? maxDeparture.toISOString() : (data.departure_datetime || `${data.departure_date} ${data.departure_time}:00`);
 
         let newState = BOOKING_STATUS.PENDING_APPROVER;
         let autoApproveLog = null;
@@ -242,24 +351,29 @@ exports.reapplyBookingRequest = async (data) => {
 
         await client.query(`
             UPDATE booking_requests SET 
-                category_id = $1, purpose_of_visit = $2, visit_type = $3, project_code = $4,
+                category_id = $1, purpose_of_visit = $2, visit_type = $3, room_priority = $4,
                 arrival_datetime = $5, departure_datetime = $6, rooms_required = $7,
                 booking_state = $8, room_type = $9, extra_beds = $10, total_estimated_amount = $11,
             assigned_approver_id = $12, payment_responsible = $13, version = version + 1, updated_at = CURRENT_TIMESTAMP
         WHERE booking_id = $14
         `, [
-            data.category_id, data.purpose_of_visit, data.visit_type, data.project_code || null,
+            data.category_id, data.purpose_of_visit, data.visit_type, data.room_priority || data.room_type || 'Standard Room',
             arrivalDatetime, departureDatetime, data.rooms_required,
             newState, data.room_type || 'Standard Room', data.extra_beds || 0,
-            data.total_estimated_amount || 0, data.assigned_approver_id || null, paymentResponsible, data.booking_id
+            0, data.assigned_approver_id || null, paymentResponsible, data.booking_id
         ]);
+        
         await client.query('DELETE FROM guests WHERE booking_id = $1', [data.booking_id]);
         if (data.guests && data.guests.length > 0) {
             for (const guest of data.guests) {
+                const guestArrival = guest.arrival_datetime || `${guest.arrival_date} ${guest.arrival_time || '12:00'}:00`;
+                const guestDeparture = guest.departure_datetime || `${guest.departure_date} ${guest.departure_time || '12:00'}:00`;
+
                 const gRes = await client.query(`
-                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING guest_id
-                `, [data.booking_id, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type, guest.id_proof_number]);
+                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number, arrival_datetime, departure_datetime)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING guest_id
+                `, [data.booking_id, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type, guest.id_proof_number, guestArrival, guestDeparture]);
+                
                 const newGuestId = gRes.rows[0].guest_id;
                 if (guest.food_preferences && guest.food_preferences.length > 0) {
                     for (const meal of guest.food_preferences) {
@@ -268,6 +382,20 @@ exports.reapplyBookingRequest = async (data) => {
                 }
             }
         }
+
+        // Calculate actual pricing total
+        const tariffsRes = await client.query('SELECT * FROM room_tariffs');
+        const calculatedTotal = estimateBookingTotalFromTariffs({
+            category_id: data.category_id,
+            room_type: data.room_type || 'Standard Room',
+            rooms_required: data.rooms_required,
+            extra_beds: data.extra_beds || 0
+        }, tariffsRes.rows, data.guests);
+
+        await client.query(
+            `UPDATE booking_requests SET total_estimated_amount = $1 WHERE booking_id = $2`,
+            [calculatedTotal, data.booking_id]
+        );
         if (data.files && (data.files.document_1 || data.files.document_2)) {
             const filesToInsert = [];
             if (data.files.document_1 && data.files.document_1[0]) filesToInsert.push({ doc: data.files.document_1[0], type: 'Primary Document' });

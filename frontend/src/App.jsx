@@ -59,7 +59,7 @@ function App() {
                   <Route
                     element={
                       <ProtectedRoute
-                        allowedRoles={[ROLES.REGISTRAR, ROLES.DEAN, ROLES.HOD, ROLES.FACULTY]}
+                        allowedRoles={[ROLES.REGISTRAR, ROLES.DEAN, ROLES.HOD, ROLES.FACULTY, ROLES.DIRECTOR]}
                       />
                     }
                   >

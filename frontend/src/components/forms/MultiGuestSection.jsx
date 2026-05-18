@@ -54,10 +54,12 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
           <label className="block text-xs font-bold text-slate-600 mb-1">Full Name *</label>
           <input required type="text" value={guest.guest_name} onChange={(e) => updateGuest('guest_name', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" />
         </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-600 mb-1">Relation to Applicant *</label>
-          <input required type="text" value={guest.relation_to_applicant} onChange={(e) => updateGuest('relation_to_applicant', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="e.g. Parent, Colleague" />
-        </div>
+        {formData.category_id !== '2' && (
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1">Relation to Applicant *</label>
+            <input required={formData.category_id !== '2'} type="text" value={guest.relation_to_applicant || ''} onChange={(e) => updateGuest('relation_to_applicant', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="e.g. Parent, Colleague" />
+          </div>
+        )}
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">Email Address</label>
           <input type="email" value={guest.email} onChange={(e) => updateGuest('email', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="guest@institute.edu" />
@@ -77,15 +79,39 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">ID Proof (Type & Number) *</label>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <select required value={guest.id_proof_type || ''} onChange={(e) => { updateGuest('id_proof_type', e.target.value); if (!e.target.value) updateGuest('id_proof_number', ''); }} className={`${guest.id_proof_type ? 'w-full sm:w-1/3' : 'w-full'} px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <select required value={guest.id_proof_type || ''} onChange={(e) => { updateGuest('id_proof_type', e.target.value); if (!e.target.value) updateGuest('id_proof_number', ''); }} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors">
               <option value="" disabled>Select ID</option>
               <option value="Aadhar">Aadhar</option><option value="PAN">PAN</option><option value="Passport">Passport</option><option value="Voter ID">Voter ID</option><option value="Driving License">Driving License</option>
             </select>
-            {guest.id_proof_type && (
-              <input required type="text" value={guest.id_proof_number} onChange={(e) => updateGuest('id_proof_number', e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 animate-fade-in bg-slate-50 focus:bg-white transition-colors" placeholder={`Enter ${guest.id_proof_type}`} />
-            )}
+            <input required type="text" value={guest.id_proof_number || ''} disabled={!guest.id_proof_type} onChange={(e) => updateGuest('id_proof_number', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder={guest.id_proof_type ? `Enter ${guest.id_proof_type} Number` : "Enter ID Number"} />
           </div>
+        </div>
+      </div>
+
+      {/* Guest Stay Duration Matrix */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4 border-t border-slate-100 pt-4">
+        <div className="sm:col-span-4 flex flex-wrap gap-2 justify-between items-start sm:items-center">
+          <div>
+            <p className="text-xs font-bold text-slate-700">Guest Stay Duration <span className="text-red-500">*</span></p>
+            <p className="text-[10px] text-slate-500">Define the exact check-in and check-out dates for this specific guest.</p>
+          </div>
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Arrival Date</label>
+          <input type="date" required value={guest.arrival_date || ''} onChange={(e) => updateGuest('arrival_date', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs bg-slate-50 focus:bg-white" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Arrival Time</label>
+          <input type="time" required value={guest.arrival_time || '12:00'} onChange={(e) => updateGuest('arrival_time', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs bg-slate-50 focus:bg-white" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Departure Date</label>
+          <input type="date" required value={guest.departure_date || ''} onChange={(e) => updateGuest('departure_date', e.target.value)} min={guest.arrival_date || ''} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs bg-slate-50 focus:bg-white" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Departure Time</label>
+          <input type="time" required value={guest.departure_time || '12:00'} onChange={(e) => updateGuest('departure_time', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs bg-slate-50 focus:bg-white" />
         </div>
       </div>
 
@@ -99,7 +125,7 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
         </div>
         {guest.food_preferences.map((meal, fIndex) => (
           <div key={fIndex} className="flex gap-3 mb-2 items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-sm">
-            <input type="date" min={formData.arrival_date || ''} max={formData.departure_date || ''} value={meal.date} onChange={(e) => { const ng = [...rooms[rIndex].guests]; ng[gIndex].food_preferences[fIndex].date = e.target.value; const nr = [...rooms]; nr[rIndex].guests = ng; setFormData({ ...formData, rooms: nr }); }} className="w-36 text-xs border border-slate-300 rounded-md p-1.5 text-slate-700 outline-none focus:ring-1 focus:ring-orange-500" />
+            <input type="date" min={guest.arrival_date || ''} max={guest.departure_date || ''} value={meal.date} onChange={(e) => { const ng = [...rooms[rIndex].guests]; ng[gIndex].food_preferences[fIndex].date = e.target.value; const nr = [...rooms]; nr[rIndex].guests = ng; setFormData({ ...formData, rooms: nr }); }} className="w-36 text-xs border border-slate-300 rounded-md p-1.5 text-slate-700 outline-none focus:ring-1 focus:ring-orange-500" />
             <label className="text-xs flex items-center cursor-pointer bg-white px-2 py-1.5 border border-slate-200 rounded-md hover:bg-slate-100 transition-colors">
               <span className="mr-2 font-extrabold text-slate-600">B</span>
               <input type="checkbox" checked={meal.breakfast > 0} onChange={(e) => { const ng = [...rooms[rIndex].guests]; ng[gIndex].food_preferences[fIndex].breakfast = e.target.checked ? 1 : 0; const nr = [...rooms]; nr[rIndex].guests = ng; setFormData({ ...formData, rooms: nr }); }} className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer" />

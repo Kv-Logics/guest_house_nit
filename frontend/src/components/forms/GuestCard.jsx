@@ -45,10 +45,12 @@ export default function GuestCard({ guest, gIndex, guests, setFormData, formData
           <label className="block text-xs font-bold text-slate-600 mb-1">Full Name *</label>
           <input required type="text" value={guest.guest_name} onChange={(e) => updateGuest('guest_name', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500" />
         </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-600 mb-1">Relation to Applicant *</label>
-          <input required type="text" value={guest.relation_to_applicant} onChange={(e) => updateGuest('relation_to_applicant', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500" placeholder="e.g. Parent, Colleague" />
-        </div>
+        {formData.category_id !== '2' && (
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1">Relation to Applicant *</label>
+            <input required={formData.category_id !== '2'} type="text" value={guest.relation_to_applicant || ''} onChange={(e) => updateGuest('relation_to_applicant', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500" placeholder="e.g. Parent, Colleague" />
+          </div>
+        )}
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">Email Address</label>
           <input type="email" value={guest.email} onChange={(e) => updateGuest('email', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500" placeholder="guest@institute.edu" />
@@ -68,14 +70,12 @@ export default function GuestCard({ guest, gIndex, guests, setFormData, formData
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">ID Proof (Type & Number) *</label>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <select required value={guest.id_proof_type || ''} onChange={(e) => { updateGuest('id_proof_type', e.target.value); if (!e.target.value) updateGuest('id_proof_number', ''); }} className={`${guest.id_proof_type ? 'w-full sm:w-1/3' : 'w-full'} px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 transition-all`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <select required value={guest.id_proof_type || ''} onChange={(e) => { updateGuest('id_proof_type', e.target.value); if (!e.target.value) updateGuest('id_proof_number', ''); }} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 transition-all">
               <option value="" disabled>Select ID Type</option>
               <option value="Aadhar">Aadhar</option><option value="PAN">PAN</option><option value="Passport">Passport</option><option value="Voter ID">Voter ID</option><option value="Driving License">Driving License</option>
             </select>
-            {guest.id_proof_type && (
-              <input required type="text" value={guest.id_proof_number} onChange={(e) => updateGuest('id_proof_number', e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 animate-fade-in" placeholder={`Enter ${guest.id_proof_type} Number`} />
-            )}
+            <input required type="text" value={guest.id_proof_number || ''} disabled={!guest.id_proof_type} onChange={(e) => updateGuest('id_proof_number', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500" placeholder={guest.id_proof_type ? `Enter ${guest.id_proof_type} Number` : "Enter ID Number"} />
           </div>
         </div>
       </div>
