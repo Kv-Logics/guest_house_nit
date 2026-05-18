@@ -10,12 +10,11 @@ export default function SuccessPage() {
       <div className="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-green-100 mb-8 shadow-inner border border-green-50">
         <CheckCircle2 className="h-12 w-12 text-emerald-600" />
       </div>
-      <h2 className="text-4xl font-extrabold text-slate-800 mb-4 tracking-tight">
-        Booking Confirmed
+      <h2 className="text-3xl font-extrabold text-slate-800 mb-4 tracking-tight">
+        Application Submitted Successfully
       </h2>
       <p className="text-slate-500 mb-10 text-base px-2">
-        Your application has been logged securely and is awaiting final review by the Guest House
-        Manager.
+        Your accommodation request has been successfully submitted and routed to the approval authority. You can track its live stage progress on your dashboard.
       </p>
 
       <div className="bg-slate-50/80 rounded-2xl p-6 mb-10 border border-slate-200 shadow-sm">

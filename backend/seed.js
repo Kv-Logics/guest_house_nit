@@ -184,7 +184,7 @@ async function seedDatabase() {
           guests: [{ name: 'Mr. Subramanian', relation: 'Father' }, { name: 'Mrs. Lakshmi', relation: 'Mother' }]
       },
       { // 3. Admin Approved (Arriving Today)
-          applicant: 'gs@nitt.edu', approver: 'deanap@nitt.edu', cat_id: 2, visit_type: 'official', project_code: 'DST-SERB-2026', purpose: 'Project Review',
+          applicant: 'gs@nitt.edu', approver: 'deanap@nitt.edu', cat_id: 2, visit_type: 'official', purpose: 'Project Review',
           rooms: 2, room_type: 'Mini Suite Room', status: 'ADMIN_APPROVED',
           arrival: addTime(0, -1), departure: addTime(3), // Arrived 1 hr ago, not checked in yet
           guests: [{ name: 'Prof. HC Verma', relation: 'Reviewer' }, { name: 'Dr. RS Aggarwal', relation: 'Reviewer' }]
@@ -196,7 +196,7 @@ async function seedDatabase() {
           guests: [{ name: 'Dr. Marie Curie', relation: 'Keynote Speaker' }]
       },
       { // 5. Checked In -> Extension Pending Approver
-          applicant: 'kbaskar@nitt.edu', approver: 'hodmech@nitt.edu', cat_id: 2, visit_type: 'official', project_code: 'ISRO-2025', purpose: 'Research',
+          applicant: 'kbaskar@nitt.edu', approver: 'hodmech@nitt.edu', cat_id: 2, visit_type: 'official', purpose: 'Research',
           rooms: 1, room_type: 'Standard Room', status: 'PENDING_APPROVER',
           arrival: addTime(-3), departure: addTime(0, 2), // Leaving in 2 hrs
           checked_in: addTime(-3, 1), is_extension: true, pending_ext: addTime(2, 2), // Extend by 2 days
@@ -228,7 +228,7 @@ async function seedDatabase() {
           guests: [{ name: 'Mr. Vignesh', relation: 'Friend' }]
       },
       { // 10. Cancelled
-          applicant: 'sams@nitt.edu', approver: 'hodmba@nitt.edu', cat_id: 2, visit_type: 'official', project_code: 'UGC-99', purpose: 'Audit',
+          applicant: 'sams@nitt.edu', approver: 'hodmba@nitt.edu', cat_id: 2, visit_type: 'official', purpose: 'Audit',
           rooms: 1, room_type: 'Standard Room', status: 'CANCELLED',
           arrival: addTime(25), departure: addTime(27), cancelled: addTime(-1),
           guests: [{ name: 'Mr. Auditor', relation: 'Official' }]
@@ -297,16 +297,15 @@ async function seedDatabase() {
 
     // 3. Insert Full Category Intelligence
     await db.query(`
-            INSERT INTO category_rules (category_id, category_code, allowed_applicant_roles, requires_project_code, visit_type, max_rooms_allowed, max_guest_count, approval_hierarchy, payment_modes)
+            INSERT INTO category_rules (category_id, category_code, allowed_applicant_roles, visit_type, max_rooms_allowed, max_guest_count, approval_hierarchy, payment_modes)
             VALUES 
-            (1, 'CAT-I', '{faculty,staff,hod,dean,super_admin,guest_house_admin,reception_staff}', false, 'official', 5, 10, 'director_dean_registrar', '{"institute"}'),
-            (2, 'CAT-II', '{faculty,hod,dean,super_admin,guest_house_admin,reception_staff}', true, 'official', 3, 6, 'dean_hod', '{"project","coordinator","guest"}'),
-            (3, 'CAT-III', '{faculty,staff,student,super_admin,guest_house_admin,reception_staff}', false, 'both', 2, 4, 'faculty_staff', '{"guest","faculty"}'),
-            (4, 'CAT-IV', '{faculty,staff,super_admin,guest_house_admin,reception_staff}', false, 'personal', 1, 2, 'registrar_hod', '{"guest"}')
+            (1, 'CAT-I', '{faculty,staff,hod,dean,super_admin,guest_house_admin,reception_staff}', 'official', 5, 10, 'director_dean_registrar', '{"institute"}'),
+            (2, 'CAT-II', '{faculty,hod,dean,super_admin,guest_house_admin,reception_staff}', 'official', 3, 6, 'dean_hod', '{"project","coordinator","guest"}'),
+            (3, 'CAT-III', '{faculty,staff,student,super_admin,guest_house_admin,reception_staff}', 'both', 2, 4, 'faculty_staff', '{"guest","faculty"}'),
+            (4, 'CAT-IV', '{faculty,staff,super_admin,guest_house_admin,reception_staff}', 'personal', 1, 2, 'registrar_hod', '{"guest"}')
             ON CONFLICT (category_id) DO UPDATE SET 
                 category_code = EXCLUDED.category_code,
                 allowed_applicant_roles = EXCLUDED.allowed_applicant_roles,
-                requires_project_code = EXCLUDED.requires_project_code,
                 visit_type = EXCLUDED.visit_type,
                 max_rooms_allowed = EXCLUDED.max_rooms_allowed,
                 max_guest_count = EXCLUDED.max_guest_count,
@@ -347,13 +346,13 @@ async function seedDatabase() {
 
       const reqRes = await db.query(
           `INSERT INTO booking_requests (
-              user_id, category_id, purpose_of_visit, visit_type, project_code,
+              user_id, category_id, purpose_of_visit, visit_type, room_priority,
               arrival_datetime, departure_datetime, rooms_required, room_type, total_estimated_amount,
               undertaking_accepted, booking_state, payment_responsible, assigned_approver_id,
               checked_in_at, checked_out_at, pending_extension_datetime, cancelled_at
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11, $12, $13, $14, $15, $16, $17) RETURNING booking_id;`,
           [
-              userId, b.cat_id, b.purpose, b.visit_type, b.project_code || null,
+              userId, b.cat_id, b.purpose, b.visit_type, b.room_type,
               b.arrival.toISOString(), b.departure.toISOString(), b.rooms, b.room_type, 1500,
               b.status, 'guest', approverId,
               b.checked_in ? b.checked_in.toISOString() : null,
@@ -366,8 +365,8 @@ async function seedDatabase() {
 
       for (const g of b.guests) {
           await db.query(
-              `INSERT INTO guests (booking_id, guest_name, relation_to_applicant, phone, gender, age) VALUES ($1, $2, $3, $4, 'Male', 30)`,
-              [bookingId, g.name, g.relation, '9999999999']
+              `INSERT INTO guests (booking_id, guest_name, relation_to_applicant, phone, gender, age, arrival_datetime, departure_datetime) VALUES ($1, $2, $3, $4, 'Male', 30, $5, $6)`,
+              [bookingId, g.name, g.relation, '9999999999', b.arrival.toISOString(), b.departure.toISOString()]
           );
       }
 

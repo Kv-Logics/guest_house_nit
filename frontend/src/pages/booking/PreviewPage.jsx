@@ -44,8 +44,23 @@ export default function PreviewPage() {
   }
 
   // Calculate Stay Duration and Breakdown
-  const earliestArrival = new Date(`${formData.arrival_date}T${formData.arrival_time}`);
-  const latestDeparture = new Date(`${formData.departure_date}T${formData.departure_time}`);
+  const flatGuests = (formData.rooms || []).flatMap(r => r.guests);
+  let minArrival = null;
+  let maxDeparture = null;
+  
+  flatGuests.forEach(g => {
+    if (g.arrival_date) {
+      const arr = new Date(`${g.arrival_date}T${g.arrival_time || '12:00'}`);
+      if (!minArrival || arr < minArrival) minArrival = arr;
+    }
+    if (g.departure_date) {
+      const dep = new Date(`${g.departure_date}T${g.departure_time || '12:00'}`);
+      if (!maxDeparture || dep > maxDeparture) maxDeparture = dep;
+    }
+  });
+
+  const earliestArrival = minArrival || new Date(`${formData.arrival_date || new Date().toISOString().split('T')[0]}T${formData.arrival_time || '12:00'}`);
+  const latestDeparture = maxDeparture || new Date(`${formData.departure_date || new Date().toISOString().split('T')[0]}T${formData.departure_time || '11:00'}`);
   
   let days = 1;
   if (latestDeparture > earliestArrival) {
@@ -64,16 +79,57 @@ export default function PreviewPage() {
   const doubleRate = activeTariff ? Number(activeTariff.double_occupancy) : 0;
   const extraBedRate = activeTariff ? (Number(activeTariff.extra_bed) || 400) : 400;
   
-  const roomCost = days * ((singleRooms * singleRate) + (doubleRooms * doubleRate));
-  const extraBedCost = days * extraBeds * extraBedRate;
-  const subtotal = roomCost + extraBedCost;
+  // Simulate night-by-night tariff calculator exactly mirroring backend
+  let subtotal = 0;
+  let roomCost = 0;
+  let extraBedCost = 0;
+
+  if (minArrival && maxDeparture) {
+    // Generate each night date range
+    const start = new Date(minArrival.getFullYear(), minArrival.getMonth(), minArrival.getDate());
+    const end = new Date(maxDeparture.getFullYear(), maxDeparture.getMonth(), maxDeparture.getDate());
+    
+    // For each night
+    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+      const currentDateStr = d.toISOString().split('T')[0];
+      
+      // Calculate active guests in each room for this night
+      roomsList.forEach(room => {
+        let activeGuestsCount = 0;
+        room.guests.forEach(guest => {
+          if (guest.arrival_date && guest.departure_date) {
+            const arrDate = new Date(guest.arrival_date);
+            const depDate = new Date(guest.departure_date);
+            const curDate = new Date(currentDateStr);
+            if (curDate >= arrDate && curDate < depDate) {
+              activeGuestsCount++;
+            }
+          }
+        });
+
+        if (activeGuestsCount === 1) {
+          roomCost += singleRate;
+        } else if (activeGuestsCount >= 2) {
+          roomCost += doubleRate;
+          if (room.extra_bed) {
+            extraBedCost += extraBedRate;
+          }
+        }
+      });
+    }
+    subtotal = roomCost + extraBedCost;
+  } else {
+    roomCost = days * ((singleRooms * singleRate) + (doubleRooms * doubleRate));
+    extraBedCost = days * extraBeds * extraBedRate;
+    subtotal = roomCost + extraBedCost;
+  }
   const gst = Math.round(subtotal * 0.12);
+  const calculatedTotal = subtotal + gst;
 
   const handleSubmit = async () => {
     setIsLoading(true);
     setError('');
     try {
-      const flatGuests = (formData.rooms || []).flatMap(r => r.guests);
       const sanitizedGuests = flatGuests.map((g) => {
         const guest = { ...g };
         
@@ -109,14 +165,13 @@ export default function PreviewPage() {
         category_id: parseInt(formData.category_id),
         rooms_required: roomsCount,
         extra_beds: extraBeds,
-        total_estimated_amount: Number(formData.total_estimated_amount) || 0,
-        estimated_amount: Number(formData.total_estimated_amount) || 0,
+        total_estimated_amount: calculatedTotal,
+        estimated_amount: calculatedTotal,
         payment_responsibility:
           formData.category_id === '1' || formData.category_id === 1
             ? 'institute'
             : formData.payment_responsibility,
         undertaking_accepted: true,
-        project_code: formData.project_code?.trim() || "",
         // Fallback to own user ID for Admins (Auto-Approve) to satisfy strict UUID Zod validation
         assigned_approver_id: formData.assigned_approver_id || user.user_id || user.id,
       };
@@ -293,9 +348,11 @@ export default function PreviewPage() {
                     <h4 className="font-bold text-slate-800">
                       {guest.guest_name || 'Unnamed Guest'}
                     </h4>
-                    <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-md">
-                      {guest.relation_to_applicant}
-                    </span>
+                    {formData.category_id !== '2' && guest.relation_to_applicant && (
+                      <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-md">
+                        {guest.relation_to_applicant}
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-slate-600 space-y-1 mb-3">
                     {guest.phone && (
@@ -303,10 +360,15 @@ export default function PreviewPage() {
                         📞 {guest.phone} &nbsp; ✉️ {guest.email}
                       </p>
                     )}
+                    {guest.arrival_date && guest.departure_date && (
+                      <p>
+                        📅 Stay: <span className="font-bold text-slate-800">{new Date(guest.arrival_date).toLocaleDateString()} ({guest.arrival_time || '12:00'})</span> to <span className="font-bold text-slate-800">{new Date(guest.departure_date).toLocaleDateString()} ({guest.departure_time || '11:00'})</span>
+                      </p>
+                    )}
                     <p>
-                      🆔 {guest.id_proof_type}:{' '}
+                      🆔 {guest.id_proof_type || 'ID'}:{' '}
                       <span className="font-mono bg-white px-1 border border-slate-200 rounded">
-                        {guest.id_proof_number}
+                        {guest.id_proof_number || 'N/A'}
                       </span>
                     </p>
                   </div>

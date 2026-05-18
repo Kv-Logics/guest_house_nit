@@ -58,19 +58,22 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       return;
     }
 
-    const arrival = new Date(`${formData.arrival_date}T${formData.arrival_time}`);
-    const departure = new Date(`${formData.departure_date}T${formData.departure_time}`);
-    if (arrival < new Date(new Date().setHours(0, 0, 0, 0))) {
-      setLocalError(`Arrival date cannot be in the past.`);
-      return;
-    }
-    if (departure <= arrival) {
-      setLocalError(`Departure date & time must be strictly after arrival.`);
-      return;
-    }
-    if (formData.category_id === '2' && (!formData.project_code || !formData.project_code.trim())) {
-      setLocalError('Project code is strictly required for CAT II bookings.');
-      return;
+    for (let i = 0; i < flatGuests.length; i++) {
+      const guest = flatGuests[i];
+      if (!guest.arrival_date || !guest.departure_date) {
+        setLocalError(`Please specify stay dates for Guest ${i + 1}.`);
+        return;
+      }
+      const arr = new Date(`${guest.arrival_date}T${guest.arrival_time || '12:00'}`);
+      const dep = new Date(`${guest.departure_date}T${guest.departure_time || '12:00'}`);
+      if (arr < new Date(new Date().setHours(0, 0, 0, 0))) {
+        setLocalError(`Guest ${i + 1} arrival date cannot be in the past.`);
+        return;
+      }
+      if (dep <= arr) {
+        setLocalError(`Guest ${i + 1} departure must be strictly after arrival.`);
+        return;
+      }
     }
 
     // Category & Visit Type Compatibility Rules

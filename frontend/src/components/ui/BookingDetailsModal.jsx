@@ -44,7 +44,15 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
     };
 
     const renderTimeline = (booking) => {
-        const steps = [
+        const isSuiteRoom = booking.room_type === 'Suite Room' || booking.booking_state === 'PENDING_DIRECTOR' || booking.booking_state === 'DIRECTOR_REJECTED';
+        
+        const steps = isSuiteRoom ? [
+            { id: 1, title: 'Submitted', description: 'Application Received' },
+            { id: 2, title: 'HOD / Dean', description: booking.assigned_approver_name || 'Pending routing' },
+            { id: 3, title: 'Director', description: 'Director Review' },
+            { id: 4, title: 'Admin / Recpt', description: 'Verification & Payment' },
+            { id: 5, title: 'Front Desk', description: 'Check-in & Stay' }
+        ] : [
             { id: 1, title: 'Submitted', description: 'Application Received' },
             { id: 2, title: 'Authority', description: booking.assigned_approver_name || 'Pending Routing' },
             { id: 3, title: 'Admin', description: 'Verification & Payment' },
@@ -55,21 +63,35 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
         let isRejected = false;
         const state = booking.booking_state;
 
-        // Freeze main stepper at the end if we are in the middle of a stay extension
-        if (booking.pending_extension_datetime != null) currentStep = 5; 
-        else if (state === 'PENDING_APPROVER') currentStep = 2;
-        else if (state === 'APPROVER_REJECTED') { currentStep = 2; isRejected = true; }
-        else if (state === 'PENDING_ADMIN') currentStep = 3;
-        else if (state === 'ADMIN_REJECTED') { currentStep = 3; isRejected = true; }
-        else if (['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CONFIRMED'].includes(state)) currentStep = 4;
-        else if (['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(state)) currentStep = 5;
-        else if (state === 'CANCELLED') { currentStep = 1; isRejected = true; }
+        if (isSuiteRoom) {
+            if (booking.pending_extension_datetime != null) currentStep = 6; 
+            else if (state === 'PENDING_APPROVER') currentStep = 2;
+            else if (state === 'APPROVER_REJECTED') { currentStep = 2; isRejected = true; }
+            else if (state === 'PENDING_DIRECTOR') currentStep = 3;
+            else if (state === 'DIRECTOR_REJECTED') { currentStep = 3; isRejected = true; }
+            else if (state === 'PENDING_ADMIN') currentStep = 4;
+            else if (state === 'ADMIN_REJECTED') { currentStep = 4; isRejected = true; }
+            else if (['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CONFIRMED'].includes(state)) currentStep = 5;
+            else if (['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(state)) currentStep = 6;
+            else if (state === 'CANCELLED') { currentStep = 1; isRejected = true; }
+        } else {
+            if (booking.pending_extension_datetime != null) currentStep = 5; 
+            else if (state === 'PENDING_APPROVER') currentStep = 2;
+            else if (state === 'APPROVER_REJECTED') { currentStep = 2; isRejected = true; }
+            else if (state === 'PENDING_ADMIN') currentStep = 3;
+            else if (state === 'ADMIN_REJECTED') { currentStep = 3; isRejected = true; }
+            else if (['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CONFIRMED'].includes(state)) currentStep = 4;
+            else if (['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(state)) currentStep = 5;
+            else if (state === 'CANCELLED') { currentStep = 1; isRejected = true; }
+        }
+
+        const totalSteps = steps.length;
 
         return (
             <div className="w-full pt-8 pb-12 px-6 border-b border-slate-100 bg-slate-50/80">
                 <div className="flex items-center justify-between w-full max-w-2xl mx-auto relative">
                     <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1.5 bg-slate-200 rounded-full z-0"></div>
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-blue-500 rounded-full z-0 transition-all duration-500" style={{ width: `${(Math.min(currentStep - 1, 3) / 3) * 100}%` }}></div>
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-blue-500 rounded-full z-0 transition-all duration-500" style={{ width: `${(Math.min(currentStep - 1, totalSteps - 1) / (totalSteps - 1)) * 100}%` }}></div>
                     {steps.map((step) => {
                         const isComplete = currentStep > step.id;
                         const isCurrent = currentStep === step.id;

@@ -97,40 +97,21 @@ export default function CategoryVisitSection({ formData, handleChange, setFormDa
 
       {formData.category_id === '2' && (
         <div className="mb-6 animate-fade-in transition-all duration-300 bg-blue-50 p-6 rounded-2xl border border-blue-200 shadow-sm">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-bold text-blue-900 mb-2">
-                CAT-II Project Code <span className="text-red-500">*</span>
-              </label>
-              <input
-                required
-                type="text"
-                name="project_code"
-                value={formData.project_code}
-                onChange={handleChange}
-                className="block w-full px-4 py-3 rounded-xl border border-blue-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm"
-                placeholder="e.g., DST-2026"
-              />
-              <p className="text-xs font-semibold text-blue-600 mt-2 flex items-center">
-                <Info className="w-3 h-3 mr-1" /> Project code is mandatory for CAT II.
-              </p>
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-blue-900 mb-2">
-                Payment Responsibility
-              </label>
-              <select
-                name="payment_responsibility"
-                value={formData.payment_responsibility}
-                onChange={handleChange}
-                className="block w-full px-4 py-3 rounded-xl border border-blue-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-              >
-                <option value="guest">Guest</option>
-                <option value="coordinator">Coordinator</option>
-                <option value="department">Department</option>
-                <option value="project">Project Account</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm font-bold text-blue-900 mb-2">
+              Payment Responsibility
+            </label>
+            <select
+              name="payment_responsibility"
+              value={formData.payment_responsibility}
+              onChange={handleChange}
+              className="block w-full px-4 py-3 rounded-xl border border-blue-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+            >
+              <option value="guest">Guest</option>
+              <option value="coordinator">Coordinator</option>
+              <option value="department">Department</option>
+              <option value="project">Project Account</option>
+            </select>
           </div>
         </div>
       )}
