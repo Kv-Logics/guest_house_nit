@@ -92,3 +92,20 @@ exports.getProfile = async (userId) => {
         designation: user.designation
     };
 };
+
+exports.getProfileByEmail = async (email) => {
+    const user = await authRepository.findUserByEmail(email);
+    if (!user) {
+        throw new Error('User not found.');
+    }
+    return {
+        id: user.user_id,
+        user_id: user.user_id,
+        name: user.full_name,
+        full_name: user.full_name,
+        email: user.email,
+        role: user.role,
+        department: user.department,
+        designation: user.designation
+    };
+};

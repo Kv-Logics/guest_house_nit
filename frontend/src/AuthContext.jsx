@@ -4,7 +4,14 @@ import { authService } from '../services/auth.service';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
+    const [user, setUser] = useState(() => {
+        const savedUser = localStorage.getItem('user');
+        try {
+            return savedUser ? JSON.parse(savedUser) : null;
+        } catch (error) {
+            return null;
+        }
+    });
     const [loading, setLoading] = useState(true);
 
     const fetchUser = async () => {
@@ -12,10 +19,15 @@ export const AuthProvider = ({ children }) => {
             const res = await authService.getProfile();
             if (res.success) {
                 setUser(res.data);
+                localStorage.setItem('user', JSON.stringify(res.data));
+            } else {
+                setUser(null);
+                localStorage.removeItem('user');
             }
         } catch (error) {
             console.error("Auth verification failed:", error);
             setUser(null);
+            localStorage.removeItem('user');
         } finally {
             setLoading(false);
         }
@@ -33,6 +45,7 @@ export const AuthProvider = ({ children }) => {
         const res = await authService.verifyOtp(email, otp);
         if (res.success) {
             setUser(res.data.user);
+            localStorage.setItem('user', JSON.stringify(res.data.user));
         }
         return res;
     };
@@ -43,6 +56,7 @@ export const AuthProvider = ({ children }) => {
         } catch (err) {
             console.error(err);
         } finally {
+            localStorage.removeItem('user'); // wipe local user metadata
             setUser(null);
         }
     };

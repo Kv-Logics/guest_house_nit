@@ -7,6 +7,7 @@ import { ROLES } from './utils/constants';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 
 const LoginPage = React.lazy(() => import('./pages/auth/LoginPage'));
+const AuthCallbackPage = React.lazy(() => import('./pages/auth/AuthCallbackPage'));
 const BookingPage = React.lazy(() => import('./pages/booking/BookingPage'));
 const SuccessPage = React.lazy(() => import('./pages/booking/SuccessPage'));
 const ErrorPage = React.lazy(() => import('./pages/booking/ErrorPage'));
@@ -31,6 +32,7 @@ function App() {
             <Routes>
               {/* Public Routes */}
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/admin/login" element={<Navigate to="/login" replace />} />
 
               {/* Enterprise Protected Routing System */}

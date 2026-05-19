@@ -1,62 +1,12 @@
-import React, { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useEffect } from 'react';
 import nitLogo from '../../assets/images/nitlogo.png';
 import nitBg from '../../assets/images/NitImgBg.jpeg';
 
 export default function LoginPage() {
-  const { requestOtp, verifyOtp } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const [step, setStep] = useState(1);
-  const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Where to redirect the user after login
-  const from = location.state?.from?.pathname || '/dashboard';
-
-  const handleRequestOtp = async (e) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-
-    try {
-      const res = await requestOtp(email);
-      if (res && res.success) {
-        setStep(2);
-        if (res.data && res.data.otp) {
-          setOtp(res.data.otp);
-        }
-      } else {
-        setError(res?.message || 'Failed to send OTP.');
-      }
-    } catch (err) {
-      setError(err.message || 'An error occurred while requesting OTP.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-    try {
-      const res = await verifyOtp(email, otp);
-      if (res && res.success) {
-        navigate(from, { replace: true });
-      } else {
-        setError(res?.message || 'Invalid OTP.');
-      }
-    } catch (err) {
-      setError(err.message || 'An error occurred during verification.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  useEffect(() => {
+    // Redirect unauthorized users to Central SSO Auth Service
+    window.location.href = 'http://localhost:5000/api/v1/auth/authorize?redirectTo=http://localhost:3000/auth/callback';
+  }, []);
 
   return (
     <div 
@@ -74,58 +24,19 @@ export default function LoginPage() {
       </div>
 
       <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white/95 backdrop-blur-md py-8 px-4 shadow-2xl sm:rounded-2xl sm:px-10 border border-white/20">
-          <form className="space-y-6" onSubmit={step === 1 ? handleRequestOtp : handleVerifyOtp}>
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-medium">
-                {error}
-              </div>
-            )}
-
-            {step === 1 ? (
-              <div>
-                <label className="block text-sm font-bold text-slate-700">Email address</label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-slate-300 rounded-xl p-3 border outline-none transition-all"
-                    placeholder="e.g. student@nitt.edu"
-                    disabled={isLoading}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-bold text-slate-700">Enter 6-digit OTP</label>
-                <p className="text-xs text-slate-500 mb-2">Sent to {email}</p>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <input
-                    type="text"
-                    required
-                    maxLength={6}
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-slate-300 rounded-xl p-3 border outline-none transition-all text-center tracking-widest text-lg font-mono"
-                    placeholder="000000"
-                    disabled={isLoading}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                {isLoading ? 'Processing...' : step === 1 ? 'Request OTP' : 'Verify & Sign In'}
-              </button>
-            </div>
-          </form>
+        <div className="bg-white/95 backdrop-blur-md py-8 px-4 shadow-2xl sm:rounded-2xl sm:px-10 border border-white/20 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-slate-600 font-bold">Redirecting to Central NITT Auth Service...</p>
+          <p className="text-xs text-slate-400 mt-2">Please wait a moment while we establish a secure connection.</p>
+          
+          <button
+            onClick={() => {
+              window.location.href = 'http://localhost:5000/api/v1/auth/authorize?redirectTo=http://localhost:3000/auth/callback';
+            }}
+            className="mt-6 w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none transition-all"
+          >
+            Click here if not redirected
+          </button>
         </div>
       </div>
     </div>

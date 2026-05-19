@@ -43,8 +43,10 @@ exports.verifyOtp = async (req, res, next) => {
 
 exports.logout = async (req, res, next) => {
     try {
-        // Clear the cookie securely
+        // Clear all authentication cookies securely
         res.clearCookie('token', { httpOnly: true, sameSite: 'strict' });
+        res.clearCookie('accessToken', { httpOnly: true, sameSite: 'strict' });
+        res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'strict' });
         return sendSuccess(res, 'Logged out successfully');
     } catch (error) {
         next(error);
@@ -53,8 +55,19 @@ exports.logout = async (req, res, next) => {
 
 exports.getProfile = async (req, res, next) => {
     try {
+        const email = req.user.email;
         const userId = req.user.id || req.user.user_id;
-        const profile = await authService.getProfile(userId);
+        
+        let profile;
+        if (email) {
+            try {
+                profile = await authService.getProfileByEmail(email);
+            } catch (err) {
+                profile = await authService.getProfile(userId);
+            }
+        } else {
+            profile = await authService.getProfile(userId);
+        }
         
         return sendSuccess(res, 'Profile retrieved', profile);
     } catch (error) {
@@ -68,7 +81,7 @@ exports.getProfile = async (req, res, next) => {
 exports.refresh = async (req, res, next) => {
     try {
         // Extensible for future refresh-token implementations
-        return sendSuccess(res, 'Token refreshed', { token: req.cookies?.token || null });
+        return sendSuccess(res, 'Token refreshed', { token: req.cookies?.accessToken || req.cookies?.token || null });
     } catch (error) {
         next(error);
     }

@@ -4,7 +4,14 @@ import { authService } from '../services/auth.service';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem('user');
+    try {
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
 
   const fetchUser = async () => {
@@ -13,12 +20,15 @@ export const AuthProvider = ({ children }) => {
       const res = await authService.getProfile();
       if (res.success) {
         setUser(res.data);
+        localStorage.setItem('user', JSON.stringify(res.data));
       } else {
         setUser(null);
+        localStorage.removeItem('user');
       }
     } catch {
       // 401 just means no active session — not a real error
       setUser(null);
+      localStorage.removeItem('user');
     } finally {
       setLoading(false);
     }
@@ -55,6 +65,7 @@ export const AuthProvider = ({ children }) => {
       console.error(err);
     } finally {
       localStorage.removeItem('token'); // cleanup in case any legacy token exists
+      localStorage.removeItem('user');  // wipe local user metadata
       setUser(null);
     }
   };
