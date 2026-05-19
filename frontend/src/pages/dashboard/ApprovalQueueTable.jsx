@@ -8,6 +8,7 @@ export default function ApprovalQueueTable({
   handleUpdateStatus,
   handleMockPay,
   handleDelete,
+  handleWithdrawDecision,
 }) {
   if (bookings.length === 0) {
     return (
@@ -104,11 +105,19 @@ export default function ApprovalQueueTable({
                       Receipt
                     </button>
                   )}
-                  {!['CANCELLED', 'CHECKED_IN', 'CHECKED_OUT', 'REJECTED', 'ADMIN_REJECTED', 'APPROVER_REJECTED'].includes(booking.booking_state) && (
+                  {!['CANCELLED', 'CHECKED_IN', 'CHECKED_OUT'].includes(booking.booking_state) && !booking.booking_state.startsWith('PENDING_') && (
                     <button
-                      onClick={() => handleDelete(booking.booking_id)}
-                      className="inline-flex items-center p-2 bg-slate-100 text-slate-500 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors border border-slate-200 shadow-sm ml-2"
-                      title="Withdraw Request"
+                      onClick={() => {
+                        const isRej = booking.booking_state.includes('REJECT');
+                        const msg = isRej 
+                          ? 'Are you sure you want to withdraw your rejection for this booking? This will return it to your pending queue.'
+                          : 'Are you sure you want to withdraw your approval for this booking? This will return it to your pending queue.';
+                        if (window.confirm(msg)) {
+                          handleWithdrawDecision(booking.booking_id);
+                        }
+                      }}
+                      className="inline-flex items-center p-2 bg-slate-50 text-slate-500 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition-colors border border-slate-200 shadow-sm ml-2"
+                      title="Withdraw Decision"
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>

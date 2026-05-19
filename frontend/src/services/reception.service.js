@@ -4,4 +4,10 @@ export const receptionService = {
   getTodayArrivals: async () => api.get('/reception/arrivals'),
   checkIn: async (id, allocated_room_numbers) => api.post(`/reception/${id}/check-in`, { allocated_room_numbers }),
   checkOut: async (id) => api.post(`/reception/${id}/check-out`),
+  updateGuestTimes: async (guestId, arrivalDatetime, departureDatetime, pendingExtensionDatetime) => 
+    api.patch(`/reception/guests/${guestId}`, {
+      arrival_datetime: arrivalDatetime,
+      departure_datetime: departureDatetime,
+      pending_extension_datetime: pendingExtensionDatetime
+    }),
 };

@@ -27,7 +27,7 @@ export default function ApproverDashboard() {
     });
 
     const withdrawMutation = useMutation({
-        mutationFn: (id) => bookingService.cancelBooking(id),
+        mutationFn: (id) => approvalService.approveBooking(id, { action: 'WITHDRAW', remarks: 'Approval withdrawn by Approving Authority' }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['pendingApprovals'] });
         },
@@ -99,8 +99,16 @@ export default function ApproverDashboard() {
                                                 <button onClick={() => setActionModal({ isOpen: true, id: b.booking_id, action: 'REJECTED' })} className="px-4 py-2 bg-red-50 text-red-700 font-bold rounded-xl hover:bg-red-100 transition-colors">Reject</button>
                                             </>
                                         )}
-                                        {!['CANCELLED', 'CHECKED_IN', 'CHECKED_OUT', 'REJECTED', 'APPROVER_REJECTED', 'ADMIN_REJECTED'].includes(b.booking_state) && b.booking_state !== 'PENDING_APPROVER' && (
-                                            <button onClick={() => { if(window.confirm('Are you sure you want to withdraw this approved booking?')) withdrawMutation.mutate(b.booking_id); }} disabled={withdrawMutation.isPending} className="inline-flex items-center px-4 py-2 bg-slate-50 text-slate-500 font-bold rounded-xl border border-slate-200 hover:bg-red-50 hover:text-red-600 transition-colors shadow-sm ml-2" title="Withdraw Request">
+                                        {!['CANCELLED', 'CHECKED_IN', 'CHECKED_OUT'].includes(b.booking_state) && b.booking_state !== 'PENDING_APPROVER' && b.booking_state !== 'PENDING_DIRECTOR' && (
+                                            <button onClick={() => {
+                                                const isRej = b.booking_state.includes('REJECT');
+                                                const msg = isRej 
+                                                    ? 'Are you sure you want to withdraw your rejection for this booking? This will return it to your pending queue.'
+                                                    : 'Are you sure you want to withdraw your approval for this booking? This will return it to your pending queue.';
+                                                if (window.confirm(msg)) {
+                                                    withdrawMutation.mutate(b.booking_id);
+                                                }
+                                            }} disabled={withdrawMutation.isPending} className="inline-flex items-center px-4 py-2 bg-slate-50 text-slate-500 font-bold rounded-xl border border-slate-200 hover:bg-rose-50 hover:text-rose-700 transition-colors shadow-sm ml-2" title="Withdraw Decision">
                                                 <Trash2 className="w-4 h-4 mr-1.5" /> Withdraw
                                             </button>
                                         )}

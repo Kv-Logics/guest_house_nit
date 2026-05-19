@@ -59,6 +59,29 @@ export default function PreviewPage() {
     }
   });
 
+  const getDurationString = (arrivalDate, arrivalTime, departureDate, departureTime) => {
+    if (!arrivalDate || !departureDate) return '';
+    const arr = new Date(`${arrivalDate}T${arrivalTime || '12:00'}`);
+    const dep = new Date(`${departureDate}T${departureTime || '11:00'}`);
+    
+    if (dep <= arr) return '0 Days';
+    
+    const diffMs = dep - arr;
+    const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    
+    let parts = [];
+    if (days > 0) {
+      parts.push(`${days} Day${days > 1 ? 's' : ''}`);
+    }
+    if (hours > 0) {
+      parts.push(`${hours} Hour${hours > 1 ? 's' : ''}`);
+    }
+    
+    return parts.length > 0 ? parts.join(', ') : '0 Days';
+  };
+
   const earliestArrival = minArrival || new Date(`${formData.arrival_date || new Date().toISOString().split('T')[0]}T${formData.arrival_time || '12:00'}`);
   const latestDeparture = maxDeparture || new Date(`${formData.departure_date || new Date().toISOString().split('T')[0]}T${formData.departure_time || '11:00'}`);
   
@@ -67,7 +90,9 @@ export default function PreviewPage() {
     days = Math.ceil(Math.abs(latestDeparture - earliestArrival) / (1000 * 60 * 60 * 24));
   }
 
-  const activeTariff = tariffs.find(t => String(t.category_id) === String(formData.category_id) && t.room_type === formData.room_type) || tariffs.find(t => String(t.category_id) === String(formData.category_id));
+  const [selectedBillingRoomType, setSelectedBillingRoomType] = useState(formData.room_type || 'Standard Room');
+
+  const activeTariff = tariffs.find(t => String(t.category_id) === String(formData.category_id) && t.room_type === selectedBillingRoomType) || tariffs.find(t => String(t.category_id) === String(formData.category_id));
   
   const roomsList = formData.rooms || [];
   const roomsCount = roomsList.length;
@@ -83,6 +108,9 @@ export default function PreviewPage() {
   let subtotal = 0;
   let roomCost = 0;
   let extraBedCost = 0;
+  let singleNightsCount = 0;
+  let doubleNightsCount = 0;
+  let extraBedNightsCount = 0;
 
   if (minArrival && maxDeparture) {
     // Generate each night date range
@@ -91,40 +119,119 @@ export default function PreviewPage() {
     
     // For each night
     for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-      const currentDateStr = d.toISOString().split('T')[0];
+      const currentDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       
       // Calculate active guests in each room for this night
       roomsList.forEach(room => {
         let activeGuestsCount = 0;
         room.guests.forEach(guest => {
           if (guest.arrival_date && guest.departure_date) {
-            const arrDate = new Date(guest.arrival_date);
-            const depDate = new Date(guest.departure_date);
-            const curDate = new Date(currentDateStr);
-            if (curDate >= arrDate && curDate < depDate) {
+            if (currentDateStr >= guest.arrival_date && currentDateStr < guest.departure_date) {
               activeGuestsCount++;
             }
           }
         });
 
         if (activeGuestsCount === 1) {
+          singleNightsCount++;
           roomCost += singleRate;
-        } else if (activeGuestsCount >= 2) {
+        } else if (activeGuestsCount === 2) {
+          doubleNightsCount++;
+          roomCost += doubleRate;
+        } else if (activeGuestsCount >= 3) {
+          doubleNightsCount++;
           roomCost += doubleRate;
           if (room.extra_bed) {
-            extraBedCost += extraBedRate;
+            const extraBedsNeeded = activeGuestsCount - 2;
+            extraBedNightsCount += extraBedsNeeded;
+            extraBedCost += extraBedsNeeded * extraBedRate;
           }
         }
       });
     }
     subtotal = roomCost + extraBedCost;
   } else {
+    // Fallback if no guest dates
     roomCost = days * ((singleRooms * singleRate) + (doubleRooms * doubleRate));
     extraBedCost = days * extraBeds * extraBedRate;
     subtotal = roomCost + extraBedCost;
+    singleNightsCount = days * singleRooms;
+    doubleNightsCount = days * doubleRooms;
+    extraBedNightsCount = days * extraBeds;
   }
   const gst = Math.round(subtotal * 0.12);
   const calculatedTotal = subtotal + gst;
+
+  const getPriorities = () => {
+    const defaultTypes = ['Standard Room', 'Mini Suite Room'];
+    if (!formData.room_priority) return defaultTypes;
+    
+    return formData.room_priority
+      .split(' > ')
+      .map(s => s.trim())
+      .filter(s => ['Standard Room', 'Mini Suite Room', 'Suite Room'].includes(s));
+  };
+
+  const priorities = getPriorities();
+
+  const calculateBillingForRoomType = (roomType) => {
+    const targetTariff =
+      tariffs.find(
+        (t) =>
+          String(t.category_id) === String(formData.category_id) &&
+          t.room_type === roomType
+      ) || tariffs.find((t) => String(t.category_id) === String(formData.category_id));
+
+    if (!targetTariff) return { roomCost: 0, extraBedCost: 0, subtotal: 0, total: 0 };
+
+    const sRate = Number(targetTariff.single_occupancy);
+    const dRate = Number(targetTariff.double_occupancy);
+    const ebRate = Number(targetTariff.extra_bed) || 400;
+
+    let sub = 0;
+    let rCost = 0;
+    let ebCost = 0;
+
+    if (minArrival && maxDeparture) {
+      const start = new Date(minArrival.getFullYear(), minArrival.getMonth(), minArrival.getDate());
+      const end = new Date(maxDeparture.getFullYear(), maxDeparture.getMonth(), maxDeparture.getDate());
+
+      for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+        const currentDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        
+        roomsList.forEach(room => {
+          let activeGuestsCount = 0;
+          room.guests.forEach(guest => {
+            if (guest.arrival_date && guest.departure_date) {
+              if (currentDateStr >= guest.arrival_date && currentDateStr < guest.departure_date) {
+                activeGuestsCount++;
+              }
+            }
+          });
+
+          if (activeGuestsCount === 1) {
+            rCost += sRate;
+          } else if (activeGuestsCount === 2) {
+            rCost += dRate;
+          } else if (activeGuestsCount >= 3) {
+            rCost += dRate;
+            if (room.extra_bed) {
+              const extraBedsNeeded = activeGuestsCount - 2;
+              ebCost += extraBedsNeeded * ebRate;
+            }
+          }
+        });
+      }
+      sub = rCost + ebCost;
+    } else {
+      rCost = days * ((singleRooms * sRate) + (doubleRooms * dRate));
+      ebCost = days * extraBeds * ebRate;
+      sub = rCost + ebCost;
+    }
+
+    const tot = Math.round(sub + sub * 0.12);
+    return { roomCost: rCost, extraBedCost: ebCost, subtotal: sub, total: tot };
+  };
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -330,8 +437,10 @@ export default function PreviewPage() {
                 </p>
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase mb-1">Extra Beds</p>
-                <p className="font-semibold text-slate-800">{extraBeds}</p>
+                <p className="text-xs font-bold text-slate-400 uppercase mb-1">Preferred Room Priority</p>
+                <p className="font-semibold text-blue-700 font-mono text-xs">
+                  {formData.room_priority || formData.room_type || 'Standard Room'}
+                </p>
               </div>
             </div>
           </div>
@@ -361,9 +470,16 @@ export default function PreviewPage() {
                       </p>
                     )}
                     {guest.arrival_date && guest.departure_date && (
-                      <p>
-                        📅 Stay: <span className="font-bold text-slate-800">{new Date(guest.arrival_date).toLocaleDateString()} ({guest.arrival_time || '12:00'})</span> to <span className="font-bold text-slate-800">{new Date(guest.departure_date).toLocaleDateString()} ({guest.departure_time || '11:00'})</span>
-                      </p>
+                      <div>
+                        <p>
+                          📅 Stay: <span className="font-bold text-slate-800">{new Date(guest.arrival_date).toLocaleDateString()} ({guest.arrival_time || '12:00'})</span> to <span className="font-bold text-slate-800">{new Date(guest.departure_date).toLocaleDateString()} ({guest.departure_time || '11:00'})</span>
+                        </p>
+                        <p className="mt-1.5 mb-1.5 flex items-center gap-1">
+                          <span className="text-[10px] font-extrabold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg border border-indigo-100/50 uppercase tracking-wider inline-flex items-center shadow-sm">
+                            ⏱️ Duration: {getDurationString(guest.arrival_date, guest.arrival_time, guest.departure_date, guest.departure_time)}
+                          </span>
+                        </p>
+                      </div>
                     )}
                     <p>
                       🆔 {guest.id_proof_type || 'ID'}:{' '}
@@ -481,42 +597,91 @@ export default function PreviewPage() {
               <Wallet className="w-5 h-5 mr-2 text-emerald-500" /> Financial Summary
             </h3>
 
-            {activeTariff && (
-              <div className="space-y-3 mb-4 border-b border-slate-100 pb-4 text-sm text-slate-600">
-                {singleRooms > 0 && (
-                  <div className="flex justify-between">
-                    <span>Single Room Charges ({days} Days × {singleRooms} {formData.room_type})</span>
-                    <span className="font-medium">₹{days * singleRooms * singleRate}</span>
+             {activeTariff && (
+              <div className="space-y-4 mb-4 border-b border-slate-100 pb-4 text-sm text-slate-600">
+                {/* Granular Breakdown for the selected choice */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 mb-2">
+                  <p className="font-extrabold text-[10px] text-slate-700 uppercase tracking-wider mb-2">
+                    {selectedBillingRoomType === formData.room_type ? 'Primary Preference' : 'Alternative Preference'} ({selectedBillingRoomType})
+                  </p>
+                  {singleNightsCount > 0 && (
+                    <div className="flex justify-between text-xs mb-1">
+                      <span>Single Occupancy ({singleNightsCount} × ₹{singleRate})</span>
+                      <span className="font-semibold text-slate-800">₹{singleNightsCount * singleRate}</span>
+                    </div>
+                  )}
+                  {doubleNightsCount > 0 && (
+                    <div className="flex justify-between text-xs mb-1">
+                      <span>Double Occupancy ({doubleNightsCount} × ₹{doubleRate})</span>
+                      <span className="font-semibold text-slate-800">₹{doubleNightsCount * doubleRate}</span>
+                    </div>
+                  )}
+                  {extraBedNightsCount > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span>Extra Bed ({extraBedNightsCount} Nights × ₹{extraBedRate})</span>
+                      <span className="font-semibold text-slate-800">₹{extraBedNightsCount * extraBedRate}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Grid for all choices */}
+                <div className="border-t border-slate-100 pt-3">
+                  <p className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider mb-2">
+                    Estimated Totals (Click to inspect breakdown)
+                  </p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {priorities.map((type, idx) => {
+                      const billing = calculateBillingForRoomType(type);
+                      const isSelected = type === selectedBillingRoomType;
+                      const isPrimary = type === formData.room_type;
+                      return (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setSelectedBillingRoomType(type)}
+                          className={`w-full flex justify-between items-center p-2.5 rounded-xl border text-xs text-left transition-all ${
+                            isSelected 
+                              ? 'bg-blue-50/70 border-blue-300 text-blue-900 font-bold ring-2 ring-blue-100' 
+                              : 'bg-white border-slate-100 hover:border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <span className={`w-4 h-4 rounded-full flex items-center justify-center font-black text-[9px] ${
+                              isSelected ? 'bg-blue-200 text-blue-800' : 'bg-slate-100 text-slate-500'
+                            }`}>{idx + 1}</span>
+                            {type}
+                            {isPrimary && (
+                              <span className="text-[8px] font-extrabold text-blue-600 bg-blue-100/60 px-1 py-0.5 rounded uppercase tracking-wider">Primary</span>
+                            )}
+                          </span>
+                          <span className="font-extrabold text-slate-800">₹{billing.total}</span>
+                        </button>
+                      );
+                    })}
                   </div>
-                )}
-                {doubleRooms > 0 && (
-                  <div className="flex justify-between">
-                    <span>Double Room Charges ({days} Days × {doubleRooms} {formData.room_type})</span>
-                    <span className="font-medium">₹{days * doubleRooms * doubleRate}</span>
-                  </div>
-                )}
-                {extraBeds > 0 && (
-                  <div className="flex justify-between">
-                    <span>Extra Beds ({days} Days × {extraBeds})</span>
-                    <span className="font-medium">₹{extraBedCost}</span>
-                  </div>
-                )}
+                </div>
+
                 <div className="flex justify-between pt-2 border-t border-slate-50">
-                  <span>Subtotal</span>
-                  <span className="font-medium">₹{subtotal}</span>
+                  <span>Subtotal ({selectedBillingRoomType === formData.room_type ? 'Primary' : 'Alternative'})</span>
+                  <span className="font-medium text-slate-800">₹{subtotal}</span>
                 </div>
                 <div className="flex justify-between text-xs text-slate-500">
                   <span>GST (12%)</span>
-                  <span>₹{gst}</span>
+                  <span className="text-slate-700">₹{gst}</span>
                 </div>
               </div>
             )}
 
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-slate-500">Est. Total Amount</span>
+                <span className="text-sm font-medium text-slate-500 flex items-center gap-1">
+                  Est. Total Amount
+                  {selectedBillingRoomType !== formData.room_type && (
+                    <span className="text-[8px] font-extrabold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200 uppercase tracking-wider">Alt View</span>
+                  )}
+                </span>
                 <span className="text-xl font-extrabold text-emerald-600">
-                  ₹{formData.total_estimated_amount}
+                  ₹{calculatedTotal}
                 </span>
               </div>
               <div className="flex justify-between items-center">

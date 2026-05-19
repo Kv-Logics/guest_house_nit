@@ -21,7 +21,9 @@ export default function BookingForm({ formData, setFormData, user, authorities =
     if (formData.assigned_approver_id && authorities.length > 0) {
       const a = authorities.find((auth) => auth.user_id === formData.assigned_approver_id);
       if (a) {
-        setApproverSearch(`${a.full_name} (${a.department} - ${String(a.role).toUpperCase()})`);
+        const roleStr = String(a.role).toUpperCase();
+        const designation = roleStr === 'DIRECTOR' ? 'Director' : (roleStr === 'REGISTRAR' ? 'Registrar' : `${roleStr} (${a.department})`);
+        setApproverSearch(designation);
       }
     }
   }, [formData.assigned_approver_id, authorities]);
@@ -51,7 +53,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
     }
 
     const flatGuests = (formData.rooms || []).flatMap(r => r.guests);
-    
+
     if (flatGuests.length === 0) {
       setLocalError('You must add at least one guest.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -180,6 +182,46 @@ export default function BookingForm({ formData, setFormData, user, authorities =
           <div
             className={`transition-all duration-500 space-y-10 ${undertakingAccepted ? 'opacity-100 translate-y-0' : 'opacity-40 grayscale-[30%] pointer-events-none translate-y-2'}`}
           >
+            {/* Dynamic Route Map */}
+            {(() => {
+              const isSuiteRoom = formData.room_type === 'Suite Room';
+              const isStudent = user?.role === 'student' || user?.role === 'STUDENT';
+              const isPersonal = ['3', '4'].includes(String(formData.category_id)) && !isStudent;
+
+              const routeInfo = isPersonal ? {
+                steps: ['Submitted', 'GH Manager', 'Receptionist']
+              } : isSuiteRoom ? {
+                steps: ['Submitted', 'HOD / Dean', 'Director', 'GH Manager', 'Receptionist']
+              } : {
+                steps: ['Submitted', 'Authority', 'GH Manager', 'Receptionist']
+              };
+
+              return (
+                <div className="bg-slate-50/50 border border-slate-200/60 rounded-2xl p-4 animate-fade-in text-left">
+                  <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 select-none">
+                    Application Route
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {routeInfo.steps.map((step, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="inline-flex items-center bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
+                          <span className="w-4 h-4 rounded-full bg-blue-50 text-blue-600 font-extrabold text-[9px] flex items-center justify-center mr-2">
+                            {idx + 1}
+                          </span>
+                          <span className="text-xs font-bold text-slate-700">{step}</span>
+                        </div>
+
+                        {idx < routeInfo.steps.length - 1 && (
+                          <span className="text-slate-300 font-bold text-sm select-none">→</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             <CategoryVisitSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
             <MultiGuestSection formData={formData} setFormData={setFormData} />
             <StayDetailsSection formData={formData} handleChange={handleChange} setFormData={setFormData} tariffs={tariffs} />

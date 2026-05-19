@@ -1,15 +1,93 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
+import { receptionService } from '../../services/reception.service';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { X, FileText, Users, Utensils, Paperclip, Loader2, RefreshCw, History, AlertCircle, Receipt, ShieldCheck } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import nitLogo from '../../assets/images/nitlogo.png';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
+const getActionStyle = (action) => {
+  const act = String(action || '').toUpperCase();
+  if (act.includes('REJECT') || act === 'CANCELLED') {
+    return {
+      dot: 'bg-rose-500',
+      badge: 'bg-rose-50 text-rose-700 border-rose-100',
+      cardBorder: 'border-rose-200 bg-rose-50/10'
+    };
+  }
+  if (act.includes('APPROV') || act === 'CONFIRMED') {
+    return {
+      dot: 'bg-emerald-500',
+      badge: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+      cardBorder: 'border-emerald-200 bg-emerald-50/10'
+    };
+  }
+  if (act === 'WITHDRAW') {
+    return {
+      dot: 'bg-purple-500',
+      badge: 'bg-purple-50 text-purple-700 border-purple-100',
+      cardBorder: 'border-purple-200 bg-purple-50/10'
+    };
+  }
+  if (act === 'REAPPLIED') {
+    return {
+      dot: 'bg-amber-500',
+      badge: 'bg-amber-50 text-amber-700 border-amber-100',
+      cardBorder: 'border-amber-200 bg-amber-50/10'
+    };
+  }
+  if (act === 'SUBMITTED') {
+    return {
+      dot: 'bg-blue-500',
+      badge: 'bg-blue-50 text-blue-700 border-blue-100',
+      cardBorder: 'border-blue-200 bg-blue-50/10'
+    };
+  }
+  if (act === 'CHECKED_IN') {
+    return {
+      dot: 'bg-cyan-500',
+      badge: 'bg-cyan-50 text-cyan-700 border-cyan-100',
+      cardBorder: 'border-cyan-200 bg-cyan-50/10'
+    };
+  }
+  if (act === 'CHECKED_OUT') {
+    return {
+      dot: 'bg-slate-500',
+      badge: 'bg-slate-50 text-slate-700 border-slate-100',
+      cardBorder: 'border-slate-200 bg-slate-50/10'
+    };
+  }
+  return {
+    dot: 'bg-slate-400',
+    badge: 'bg-slate-100 text-slate-700 border-slate-200',
+    cardBorder: 'border-slate-200 bg-slate-50'
+  };
+};
 
 export default function BookingDetailsModal({ bookingId, onClose }) {
     const [showFood, setShowFood] = useState(false); // Default to hiding food
     const [showInvoice, setShowInvoice] = useState(false);
+    const [activeGuestAction, setActiveGuestAction] = useState({ guestId: null, type: null });
+    const [guestActionDatetime, setGuestActionDatetime] = useState('');
+
+    const { user } = useAuth();
+    const isAuthorityOrAdmin = user && ['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin'].includes(user.role);
+    const queryClient = useQueryClient();
+
+    const updateGuestMutation = useMutation({
+        mutationFn: ({ guestId, arrivalDatetime, departureDatetime, pendingExtensionDatetime }) => 
+            receptionService.updateGuestTimes(guestId, arrivalDatetime, departureDatetime, pendingExtensionDatetime),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
+            setActiveGuestAction({ guestId: null, type: null });
+            setGuestActionDatetime('');
+        },
+        onError: (err) => {
+            alert(err?.message || 'Failed to update guest stay details.');
+        }
+    });
 
     const { data, isLoading } = useQuery({
         queryKey: ['booking', bookingId],
@@ -43,21 +121,48 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
         return '< 1 Hour';
     };
 
+    const getApproverDesignation = (booking) => {
+        if (!booking || !booking.assigned_approver_id) return 'Pending Routing';
+        const role = booking.assigned_approver_role ? String(booking.assigned_approver_role).toUpperCase() : '';
+        const dept = booking.assigned_approver_department ? booking.assigned_approver_department : '';
+        if (!role) return 'Authority';
+        if (role === 'DIRECTOR') return 'Director';
+        if (role === 'REGISTRAR') return 'Registrar';
+        if (dept) return `${role} (${dept})`;
+        return role;
+    };
+
     const renderTimeline = (booking) => {
         const isSuiteRoom = booking.room_type === 'Suite Room' || booking.booking_state === 'PENDING_DIRECTOR' || booking.booking_state === 'DIRECTOR_REJECTED';
+        const isApplicant = !user || !['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin'].includes(user.role);
         
-        const steps = isSuiteRoom ? [
-            { id: 1, title: 'Submitted', description: 'Application Received' },
-            { id: 2, title: 'HOD / Dean', description: booking.assigned_approver_name || 'Pending routing' },
-            { id: 3, title: 'Director', description: 'Director Review' },
-            { id: 4, title: 'Admin / Recpt', description: 'Verification & Payment' },
-            { id: 5, title: 'Front Desk', description: 'Check-in & Stay' }
-        ] : [
-            { id: 1, title: 'Submitted', description: 'Application Received' },
-            { id: 2, title: 'Authority', description: booking.assigned_approver_name || 'Pending Routing' },
-            { id: 3, title: 'Admin', description: 'Verification & Payment' },
-            { id: 4, title: 'Front Desk', description: 'Check-in & Stay' }
-        ];
+        const steps = isSuiteRoom ? (
+            isApplicant ? [
+                { id: 1, title: 'Submitted', description: 'Application Received' },
+                { id: 2, title: 'HOD / Dean', description: 'Authority Review' },
+                { id: 3, title: 'Director', description: 'Director Review' },
+                { id: 4, title: 'Guest House Manager', description: 'Verification & Payment' },
+                { id: 5, title: 'Receptionist', description: 'Check-in & Stay' }
+            ] : [
+                { id: 1, title: 'Submitted', description: 'Application Received' },
+                { id: 2, title: 'HOD / Dean', description: getApproverDesignation(booking) },
+                { id: 3, title: 'Director', description: 'Director Review' },
+                { id: 4, title: 'Admin / Recpt', description: 'Verification & Payment' },
+                { id: 5, title: 'Front Desk', description: 'Check-in & Stay' }
+            ]
+        ) : (
+            isApplicant ? [
+                { id: 1, title: 'Submitted', description: 'Application Received' },
+                { id: 2, title: 'Authority', description: 'Authority Review' },
+                { id: 3, title: 'Guest House Manager', description: 'Verification & Payment' },
+                { id: 4, title: 'Receptionist', description: 'Check-in & Stay' }
+            ] : [
+                { id: 1, title: 'Submitted', description: 'Application Received' },
+                { id: 2, title: 'Authority', description: getApproverDesignation(booking) },
+                { id: 3, title: 'Admin', description: 'Verification & Payment' },
+                { id: 4, title: 'Front Desk', description: 'Check-in & Stay' }
+            ]
+        );
 
         let currentStep = 1;
         let isRejected = false;
@@ -121,7 +226,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
 
         const steps = [
             { id: 1, title: 'Requested', description: new Date(booking.pending_extension_datetime).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) },
-            { id: 2, title: 'Authority', description: booking.assigned_approver_name || 'Pending Routing' },
+            { id: 2, title: 'Authority', description: getApproverDesignation(booking) },
             { id: 3, title: 'Admin', description: 'Verification & Payment' },
             { id: 4, title: 'Applied', description: 'Dates Updated' }
         ];
@@ -161,9 +266,14 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
     };
 
     const renderAdminCat2Timeline = (booking) => {
-        const steps = [
+        const isApplicant = !user || !['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin'].includes(user.role);
+        const steps = isApplicant ? [
             { id: 1, title: 'Submitted', description: 'Admin Application' },
-            { id: 2, title: 'Authority', description: booking.assigned_approver_name || 'Pending Routing' },
+            { id: 2, title: 'Authority', description: 'Authority Review' },
+            { id: 3, title: 'Receptionist', description: 'Check-in & Stay' }
+        ] : [
+            { id: 1, title: 'Submitted', description: 'Admin Application' },
+            { id: 2, title: 'Authority', description: getApproverDesignation(booking) },
             { id: 3, title: 'Front Desk', description: 'Check-in & Stay' }
         ];
 
@@ -277,6 +387,16 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                             <div className="flex items-center gap-3">
                                 <h3 className="text-xl font-extrabold text-slate-800">Booking Preview</h3>
                                 {booking && <StatusBadge status={booking.booking_state} />}
+                                {booking && booking.booking_state === 'PENDING_APPROVER' && (
+                                    <span className="bg-amber-100 text-amber-800 text-xs font-extrabold px-2.5 py-1 rounded-lg border border-amber-200 shadow-sm">
+                                        Pending With: {isAuthorityOrAdmin && booking.assigned_approver_name ? booking.assigned_approver_name : 'Approving Authority'}
+                                    </span>
+                                )}
+                                {booking && booking.booking_state === 'PENDING_ADMIN' && (
+                                    <span className="bg-purple-100 text-purple-800 text-xs font-extrabold px-2.5 py-1 rounded-lg border border-purple-200 shadow-sm">
+                                        Pending With: {isAuthorityOrAdmin ? 'Guest House Admin' : 'Guest House Manager'}
+                                    </span>
+                                )}
                                 {booking && booking.version > 1 && (
                                     <span className="bg-amber-100 text-amber-800 text-xs font-extrabold px-2.5 py-1 rounded-lg border border-amber-200 shadow-sm flex items-center">
                                         <RefreshCw className="w-3 h-3 mr-1.5" /> Re-applied (v{booking.version})
@@ -355,7 +475,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Applicant</p><p className="text-slate-800 font-semibold">{booking.applicant_name}</p><p className="text-xs text-slate-500">{booking.applicant_email}</p></div>
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Category & Visit</p><p className="text-slate-800 font-semibold">{booking.category_code || `CAT-${booking.category_id}`} - <span className="capitalize">{booking.visit_type}</span></p></div>
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Purpose</p><p className="text-slate-800 font-semibold">{booking.purpose_of_visit}</p></div>
-                                    {booking.assigned_approver_name && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Routed To</p><p className="text-slate-800 font-semibold">{booking.assigned_approver_name}</p></div>}
+                                    {booking.assigned_approver_id && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Routed To</p><p className="text-slate-800 font-semibold">{getApproverDesignation(booking)}</p></div>}
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Duration</p><p className="text-slate-800 font-semibold">{new Date(booking.arrival_datetime).toLocaleDateString()} to {new Date(booking.departure_datetime).toLocaleDateString()}</p><p className="text-xs text-blue-600 font-bold mt-0.5">{calculateDuration(booking.arrival_datetime, booking.departure_datetime)}</p></div>
                                     {booking.checked_in_at && <div><p className="text-emerald-600 font-medium mb-1 text-xs uppercase tracking-wider">Checked In At</p><p className="text-slate-800 font-semibold">{new Date(booking.checked_in_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</p></div>}
                                     {booking.checked_out_at && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Checked Out At</p><p className="text-slate-800 font-semibold">{new Date(booking.checked_out_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</p></div>}
@@ -364,6 +484,28 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Rooms</p><p className="text-slate-800 font-semibold">{booking.rooms_required} x {booking.room_type || 'Standard Room'}</p>{booking.extra_beds > 0 && <p className="text-xs text-slate-500">+{booking.extra_beds} Extra Bed(s)</p>}</div>
                                     {booking.allocated_room_numbers && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Allocated Room(s)</p><p className="text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-100 inline-block">{booking.allocated_room_numbers}</p></div>}
                                     <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Est. Amount</p><p className="text-emerald-700 font-bold">₹{booking.total_estimated_amount || booking.estimated_amount || 0}</p></div>
+                                    {booking.room_priority && (
+                                        <div className="col-span-1 sm:col-span-2 md:col-span-4 mt-2">
+                                            <p className="text-slate-500 font-medium mb-1.5 text-xs uppercase tracking-wider">Room Preference Priorities</p>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                {booking.room_priority.split('>').map((pref, pIdx) => {
+                                                    const trimPref = pref.trim();
+                                                    return (
+                                                        <React.Fragment key={pIdx}>
+                                                            {pIdx > 0 && <span className="text-slate-400 text-xs font-bold">→</span>}
+                                                            <span className={`px-2.5 py-1 text-xs font-bold rounded-lg border shadow-sm ${
+                                                                pIdx === 0 
+                                                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
+                                                                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                                                            }`}>
+                                                                {pIdx + 1}. {trimPref}
+                                                            </span>
+                                                        </React.Fragment>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -383,10 +525,99 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                             <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm transition-all">
                                                 <p className="font-bold text-slate-800">{guest.guest_name}</p>
                                                 <p className="text-xs font-medium text-slate-500 mt-1 uppercase tracking-wider">{guest.relation_to_applicant || 'Guest'}</p>
-                                                <div className="mt-2 space-y-1 text-slate-600">
+                                                <div className="mt-2 space-y-1 text-slate-600 text-xs">
                                                     {guest.phone && <p>📞 {guest.phone}</p>}
                                                     {guest.email && <p>✉️ {guest.email}</p>}
+                                                    {(guest.arrival_datetime || guest.arrival_date) && (guest.departure_datetime || guest.departure_date) && (
+                                                        <div className="mt-2 pt-2 border-t border-slate-200/50">
+                                                            <p className="font-bold text-slate-700 text-[10px] uppercase tracking-wider mb-0.5">Stay Timeline</p>
+                                                            <p className="text-[11px] text-slate-500 font-medium">
+                                                                {new Date(guest.arrival_datetime || guest.arrival_date).toLocaleDateString()} ({guest.arrival_time || '12:00'}) to {new Date(guest.departure_datetime || guest.departure_date).toLocaleDateString()} ({guest.departure_time || '11:00'})
+                                                            </p>
+                                                            <p className="mt-1.5">
+                                                                <span className="text-[9px] font-extrabold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100/50 uppercase tracking-wider inline-flex items-center shadow-xs">
+                                                                    ⏱️ Duration: {calculateDuration(guest.arrival_datetime || `${guest.arrival_date}T${guest.arrival_time || '12:00'}`, guest.departure_datetime || `${guest.departure_date}T${guest.departure_time || '11:00'}`)}
+                                                                </span>
+                                                            </p>
+                                                        </div>
+                                                    )}
                                                 </div>
+                                                {user && ['reception_staff', 'guest_house_admin', 'super_admin'].includes(user.role) && (
+                                                    <div className="mt-3 pt-3 border-t border-slate-200/60 flex flex-col gap-2">
+                                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Front Desk Controls</p>
+                                                        <div className="flex gap-1.5 flex-wrap">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setActiveGuestAction({ guestId: guest.guest_id, type: 'checkin' });
+                                                                    setGuestActionDatetime(guest.arrival_datetime ? new Date(guest.arrival_datetime).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16));
+                                                                }}
+                                                                className="px-2.5 py-1 text-[10px] font-bold rounded bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 transition-colors shadow-xs"
+                                                            >
+                                                                Check In
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setActiveGuestAction({ guestId: guest.guest_id, type: 'checkout' });
+                                                                    setGuestActionDatetime(guest.departure_datetime ? new Date(guest.departure_datetime).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16));
+                                                                }}
+                                                                className="px-2.5 py-1 text-[10px] font-bold rounded bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-colors shadow-xs"
+                                                            >
+                                                                Check Out
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setActiveGuestAction({ guestId: guest.guest_id, type: 'extend' });
+                                                                    const currentDep = guest.departure_datetime ? new Date(guest.departure_datetime) : new Date();
+                                                                    currentDep.setDate(currentDep.getDate() + 1);
+                                                                    setGuestActionDatetime(currentDep.toISOString().slice(0, 16));
+                                                                }}
+                                                                className="px-2.5 py-1 text-[10px] font-bold rounded bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 transition-colors shadow-xs"
+                                                            >
+                                                                Extend Stay
+                                                            </button>
+                                                        </div>
+
+                                                        {activeGuestAction.guestId === guest.guest_id && (
+                                                            <div className="mt-2.5 bg-white p-3 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
+                                                                <p className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider mb-2">
+                                                                    {activeGuestAction.type === 'checkin' ? '🔔 Check-In Date & Time' : 
+                                                                     activeGuestAction.type === 'checkout' ? '🚪 Check-Out Date & Time' : '⏱️ Extend Stay Date & Time'}
+                                                                </p>
+                                                                <input
+                                                                    type="datetime-local"
+                                                                    value={guestActionDatetime}
+                                                                    onChange={(e) => setGuestActionDatetime(e.target.value)}
+                                                                    className="w-full text-xs border border-slate-200 rounded p-2 focus:ring-1 focus:ring-indigo-500 outline-none mb-2"
+                                                                />
+                                                                <div className="flex justify-end gap-1.5">
+                                                                    <button
+                                                                        onClick={() => setActiveGuestAction({ guestId: null, type: null })}
+                                                                        className="px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-50 rounded"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const payload = { guestId: guest.guest_id };
+                                                                            if (activeGuestAction.type === 'checkin') {
+                                                                                payload.arrivalDatetime = new Date(guestActionDatetime).toISOString();
+                                                                            } else if (activeGuestAction.type === 'checkout') {
+                                                                                payload.departureDatetime = new Date(guestActionDatetime).toISOString();
+                                                                            } else if (activeGuestAction.type === 'extend') {
+                                                                                payload.departureDatetime = new Date(guestActionDatetime).toISOString();
+                                                                            }
+                                                                            updateGuestMutation.mutate(payload);
+                                                                        }}
+                                                                        disabled={updateGuestMutation.isPending}
+                                                                        className="px-2.5 py-1 text-[10px] font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 rounded shadow-xs"
+                                                                    >
+                                                                        {updateGuestMutation.isPending ? 'Saving...' : 'Save'}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 {showFood && (
                                                     <div className="mt-3 pt-3 border-t border-slate-200 animate-fade-in">
                                                         <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider flex items-center">
@@ -442,32 +673,41 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                         <History className="w-5 h-5 mr-2 text-indigo-500" /> Detailed Lifecycle Tracking
                                     </h4>
                                     <div className="relative border-l-2 border-slate-200 ml-4 space-y-8">
-                                        {historyRes.data.map((log, idx) => (
-                                            <div key={idx} className="relative pl-6">
-                                                <div className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-white shadow-sm ${log.action.includes('REJECT') ? 'bg-red-500' : log.action === 'REAPPLIED' ? 'bg-amber-500' : log.action === 'SUBMITTED' ? 'bg-blue-500' : 'bg-emerald-500'}`}></div>
-                                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-sm shadow-sm transition-all hover:shadow-md">
-                                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-3">
-                                                        <div>
-                                                            <span className={`font-extrabold px-2 py-1 rounded text-xs uppercase tracking-wider ${log.action.includes('REJECT') ? 'bg-red-100 text-red-700' : log.action === 'REAPPLIED' ? 'bg-amber-100 text-amber-700' : log.action === 'SUBMITTED' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                                                {log.action.replace(/_/g, ' ')}
-                                                            </span>
-                                                            <span className="font-semibold text-slate-600 text-xs ml-0 sm:ml-3 mt-2 sm:mt-0 block sm:inline">
-                                                                Action by: <span className="text-slate-800">{log.approver_name || 'System / Applicant'}</span>
+                                        {historyRes.data.map((log, idx) => {
+                                            const style = getActionStyle(log.action);
+                                            return (
+                                                <div key={idx} className="relative pl-6">
+                                                    <div className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-white shadow-sm ${style.dot}`}></div>
+                                                    <div className={`p-4 rounded-2xl border text-sm shadow-sm transition-all hover:shadow-md ${style.cardBorder}`}>
+                                                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-3">
+                                                            <div>
+                                                                <span className={`font-extrabold px-2.5 py-1 rounded-lg text-xs uppercase tracking-wider border ${style.badge}`}>
+                                                                    {log.action.replace(/_/g, ' ')}
+                                                                </span>
+                                                                <span className="font-semibold text-slate-600 text-xs ml-0 sm:ml-3 mt-2 sm:mt-0 block sm:inline">
+                                                                    Action by: <span className="text-slate-800">
+                                                                        {isAuthorityOrAdmin 
+                                                                            ? (log.approver_name || 'System / Applicant') 
+                                                                            : (log.approver_name === booking.applicant_name 
+                                                                                ? booking.applicant_name 
+                                                                                : (log.action.includes('REJECT') || log.action === 'APPROVED' ? 'Approving Authority' : 'Guest House Manager'))}
+                                                                    </span>
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-[11px] font-bold text-slate-500 bg-white px-2 py-1 rounded-lg border border-slate-100 shadow-sm whitespace-nowrap">
+                                                                {new Date(log.created_at).toLocaleString()}
                                                             </span>
                                                         </div>
-                                                        <span className="text-[11px] font-bold text-slate-500 bg-white px-2 py-1 rounded-lg border border-slate-100 shadow-sm whitespace-nowrap">
-                                                            {new Date(log.created_at).toLocaleString()}
-                                                        </span>
+                                                        {log.comments && (
+                                                            <div className="bg-white p-3.5 rounded-xl border border-slate-100 text-slate-700 font-medium italic shadow-sm mt-2 relative">
+                                                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-200 rounded-l-xl"></div>
+                                                                &quot;{log.comments}&quot;
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    {log.comments && (
-                                                        <div className="bg-white p-3.5 rounded-xl border border-slate-100 text-slate-700 font-medium italic shadow-sm mt-2 relative">
-                                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-200 rounded-l-xl"></div>
-                                                            &quot;{log.comments}&quot;
-                                                        </div>
-                                                    )}
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}

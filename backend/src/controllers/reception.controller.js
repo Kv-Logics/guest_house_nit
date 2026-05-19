@@ -27,3 +27,13 @@ exports.checkOut = async (req, res, next) => {
         next(error);
     }
 };
+
+exports.updateGuestTimes = async (req, res, next) => {
+    try {
+        const { arrival_datetime, departure_datetime, pending_extension_datetime } = req.body;
+        const data = await receptionService.updateGuestTimes(req.params.guestId, arrival_datetime, departure_datetime, pending_extension_datetime);
+        return sendSuccess(res, 'Guest stay times updated successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};

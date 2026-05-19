@@ -34,7 +34,9 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
         let newState;
         let finalRemarks = remarks;
 
-        if (approverRole === 'director') {
+        if (action === 'WITHDRAW') {
+            newState = BOOKING_STATUS.PENDING_APPROVER;
+        } else if (approverRole === 'director') {
             if (action === 'APPROVED') {
                 newState = BOOKING_STATUS.PENDING_ADMIN;
             } else {
