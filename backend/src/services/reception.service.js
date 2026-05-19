@@ -24,3 +24,12 @@ exports.checkOut = async (bookingId) => {
     logger.info(`Guest checked out for booking ID: ${bookingId}`);
     return booking;
 };
+
+exports.updateGuestTimes = async (guestId, arrivalDatetime, departureDatetime, pendingExtensionDatetime) => {
+    const guest = await receptionRepository.updateGuestTimes(guestId, arrivalDatetime, departureDatetime, pendingExtensionDatetime);
+    if (!guest) {
+        throw new Error('Guest not found.');
+    }
+    logger.info(`Updated check-in/out times for guest ID: ${guestId}`);
+    return guest;
+};

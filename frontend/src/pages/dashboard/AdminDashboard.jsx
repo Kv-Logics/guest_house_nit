@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   CheckCircle,
+  XCircle,
   FileText,
   ClipboardCheck,
   Plus,
@@ -21,10 +22,12 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const [myBookings, setMyBookings] = useState([]);
   const [approvalBookings, setApprovalBookings] = useState([]);
-  const [activeTab, setActiveTab] = useState('my_bookings'); // 'my_bookings' or 'approvals'
+  const [activeTab, setActiveTab] = useState('approvals'); // 'approvals', 'approved_requests', 'rejected_requests', 'payments'
   const [previewId, setPreviewId] = useState(null);
   const [paymentModalBooking, setPaymentModalBooking] = useState(null);
   const [verificationModalBooking, setVerificationModalBooking] = useState(null);
+  const [actionModal, setActionModal] = useState({ isOpen: false, id: null, action: null });
+  const [remarks, setRemarks] = useState('');
   const navigate = useNavigate();
 
   const userRole = String(user?.role || '').trim().toLowerCase();
@@ -67,14 +70,19 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleUpdateStatus = async (id, status) => {
-    let remarks = '';
-    if (status === 'REJECTED') {
-      remarks = window.prompt('Please enter the reason for rejection:');
-      if (remarks === null) return;
-    }
+  const handleUpdateStatus = (id, status) => {
+    setActionModal({ isOpen: true, id, action: status });
+    setRemarks('');
+  };
+
+  const handleConfirmAction = async () => {
     try {
-      await api.patch(`/bookings/${id}/admin-status`, { status, remarks });
+      await api.patch(`/bookings/${actionModal.id}/admin-status`, { 
+        status: actionModal.action, 
+        remarks 
+      });
+      setActionModal({ isOpen: false, id: null, action: null });
+      setRemarks('');
       fetchApprovalBookings(); // Refresh list
     } catch (error) {
       console.error('Failed to update status:', error);
@@ -103,16 +111,27 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleWithdrawDecision = async (id) => {
+    try {
+      await api.patch(`/bookings/${id}/admin-status`, { status: 'WITHDRAW', remarks: 'Decision withdrawn by Guest House Manager' });
+      fetchApprovalBookings(); // Refresh list
+    } catch (error) {
+      alert(error.message || 'Failed to withdraw decision.');
+    }
+  };
+
   if (!user) return null;
 
 
   const adminPending = approvalBookings.filter(
-    (b) => b.booking_state && b.booking_state.startsWith('PENDING_')
+    (b) => b.booking_state === 'PENDING_ADMIN'
   );
-  const adminProcessed = approvalBookings.filter(
-    (b) => b.booking_state && !b.booking_state.startsWith('PENDING_')
+  const adminApproved = approvalBookings.filter(
+    (b) => b.booking_state && ['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN', 'CHECKED_OUT', 'CONFIRMED'].includes(b.booking_state)
   );
-  const activeAdminList = activeTab === 'approvals' ? adminPending : adminProcessed;
+  const adminRejected = approvalBookings.filter(
+    (b) => b.booking_state && ['ADMIN_REJECTED', 'REJECTED'].includes(b.booking_state)
+  );
 
   return (
     <div className="bg-white p-8 md:p-10 rounded-3xl shadow-sm border border-slate-200">
@@ -136,38 +155,30 @@ export default function AdminDashboard() {
             <Plus className="w-4 h-4 mr-2" /> New Application
           </button>
           <div className="flex bg-slate-100 p-1 rounded-xl">
-            {!isSuperAdmin && (
-              <button
-                onClick={() => setActiveTab('my_bookings')}
-                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'my_bookings' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                <FileText className="w-4 h-4 mr-2" /> My Bookings
-              </button>
-            )}
-            {isApprover && (
-              <>
-                <button
-                  onClick={() => setActiveTab('approvals')}
-                  className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'approvals' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  <ClipboardCheck className="w-4 h-4 mr-2" /> Pending Approvals
-                </button>
-                <button
-                  onClick={() => setActiveTab('approved_requests')}
-                  className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'approved_requests' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  <CheckCircle className="w-4 h-4 mr-2" /> Approved
-                </button>
-              </>
-            )}
-            {isSuperAdmin && (
-              <button
-                onClick={() => setActiveTab('payments')}
-                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'payments' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                <CreditCard className="w-4 h-4 mr-2" /> Payments
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab('approvals')}
+              className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'approvals' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <ClipboardCheck className="w-4 h-4 mr-2" /> Pending
+            </button>
+            <button
+              onClick={() => setActiveTab('approved_requests')}
+              className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'approved_requests' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <CheckCircle className="w-4 h-4 mr-2" /> Approved
+            </button>
+            <button
+              onClick={() => setActiveTab('rejected_requests')}
+              className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'rejected_requests' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <XCircle className="w-4 h-4 mr-2" /> Rejected
+            </button>
+            <button
+              onClick={() => setActiveTab('payments')}
+              className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'payments' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <CreditCard className="w-4 h-4 mr-2" /> Payments
+            </button>
           </div>
         </div>
       </div>
@@ -180,14 +191,39 @@ export default function AdminDashboard() {
         />
       )}
 
-      {(activeTab === 'approvals' || activeTab === 'approved_requests') && (
+      {activeTab === 'approvals' && (
         <ApprovalQueueTable
           activeTab={activeTab}
-          bookings={activeAdminList}
+          bookings={adminPending}
           setPreviewId={setPreviewId}
           handleUpdateStatus={handleUpdateStatus}
           handleMockPay={handleMockPay}
           handleDelete={handleDelete}
+          handleWithdrawDecision={handleWithdrawDecision}
+        />
+      )}
+
+      {activeTab === 'approved_requests' && (
+        <ApprovalQueueTable
+          activeTab={activeTab}
+          bookings={adminApproved}
+          setPreviewId={setPreviewId}
+          handleUpdateStatus={handleUpdateStatus}
+          handleMockPay={handleMockPay}
+          handleDelete={handleDelete}
+          handleWithdrawDecision={handleWithdrawDecision}
+        />
+      )}
+
+      {activeTab === 'rejected_requests' && (
+        <ApprovalQueueTable
+          activeTab={activeTab}
+          bookings={adminRejected}
+          setPreviewId={setPreviewId}
+          handleUpdateStatus={handleUpdateStatus}
+          handleMockPay={handleMockPay}
+          handleDelete={handleDelete}
+          handleWithdrawDecision={handleWithdrawDecision}
         />
       )}
 
@@ -209,6 +245,45 @@ export default function AdminDashboard() {
           onClose={() => setVerificationModalBooking(null)} 
           onSuccess={() => { setVerificationModalBooking(null); fetchApprovalBookings(); fetchMyBookings(); }} 
         />
+      )}
+
+      {actionModal.isOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200">
+            <div className="flex items-center mb-6">
+              {actionModal.action === 'APPROVED' ? <CheckCircle className="w-6 h-6 text-emerald-500 mr-2" /> : <XCircle className="w-6 h-6 text-red-500 mr-2" />}
+              <h3 className="text-xl font-extrabold text-slate-800">
+                {actionModal.action === 'APPROVED' ? 'Approve Booking' : 'Reject Booking'}
+              </h3>
+            </div>
+            <p className="text-sm text-slate-500 mb-4 font-medium">
+              {actionModal.action === 'APPROVED' 
+                ? 'Are you sure you want to approve this accommodation request?' 
+                : 'Please provide a brief reason for rejecting this request:'}
+            </p>
+            <textarea
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder={actionModal.action === 'APPROVED' ? 'Optional remarks...' : 'Reason for rejection (required)...'}
+              className="w-full border border-slate-200 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-6 h-28 resize-none shadow-inner"
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setActionModal({ isOpen: false, id: null, action: null }); setRemarks(''); }}
+                className="px-5 py-2.5 bg-slate-100 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmAction}
+                disabled={actionModal.action === 'REJECTED' && !remarks.trim()}
+                className={`px-5 py-2.5 text-white text-sm font-bold rounded-xl transition-colors shadow-sm ${actionModal.action === 'APPROVED' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed'}`}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

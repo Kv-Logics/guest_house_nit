@@ -12,11 +12,11 @@ import { ROLES } from '../../utils/constants';
 const MS_DAY = 1000 * 60 * 60 * 24;
 /** In dev, warn when departure is this soon (so short seeded stays surface the banner). Prod keeps 24h. */
 const DEPARTURE_WARNING_MS =
-  import.meta.env.VITE_DEPARTURE_WARNING_MINUTES != null && import.meta.env.VITE_DEPARTURE_WARNING_MINUTES !== ''
-    ? Math.max(60000, Number(import.meta.env.VITE_DEPARTURE_WARNING_MINUTES) * 60 * 1000)
-    : import.meta.env.PROD
-      ? MS_DAY
-      : 3 * 60 * 1000;
+    import.meta.env.VITE_DEPARTURE_WARNING_MINUTES != null && import.meta.env.VITE_DEPARTURE_WARNING_MINUTES !== ''
+        ? Math.max(60000, Number(import.meta.env.VITE_DEPARTURE_WARNING_MINUTES) * 60 * 1000)
+        : import.meta.env.PROD
+            ? MS_DAY
+            : 3 * 60 * 1000;
 
 function stayDepartureAlert(booking) {
     if (booking.booking_state !== 'CHECKED_IN') return null;
@@ -86,7 +86,7 @@ export default function ApplicantDashboard() {
                         const mDate = new Date(f.meal_date || f.date);
                         return {
                             ...f,
-                            date: `${mDate.getFullYear()}-${String(mDate.getMonth()+1).padStart(2,'0')}-${String(mDate.getDate()).padStart(2,'0')}`
+                            date: `${mDate.getFullYear()}-${String(mDate.getMonth() + 1).padStart(2, '0')}-${String(mDate.getDate()).padStart(2, '0')}`
                         };
                     }) : []
                 };
@@ -98,7 +98,7 @@ export default function ApplicantDashboard() {
                 guests: [],
                 extra_bed: false
             }));
-            
+
             let guestIdx = 0;
             // Distribute first 2 guests per room
             for (let i = 0; i < roomsRequired; i++) {
@@ -120,9 +120,9 @@ export default function ApplicantDashboard() {
             const formattedData = {
                 ...b,
                 category_id: String(b.category_id),
-                arrival_date: `${arrDate.getFullYear()}-${String(arrDate.getMonth()+1).padStart(2,'0')}-${String(arrDate.getDate()).padStart(2,'0')}`,
+                arrival_date: `${arrDate.getFullYear()}-${String(arrDate.getMonth() + 1).padStart(2, '0')}-${String(arrDate.getDate()).padStart(2, '0')}`,
                 arrival_time: `${String(arrDate.getHours()).padStart(2, '0')}:${String(arrDate.getMinutes()).padStart(2, '0')}`,
-                departure_date: `${depDate.getFullYear()}-${String(depDate.getMonth()+1).padStart(2,'0')}-${String(depDate.getDate()).padStart(2,'0')}`,
+                departure_date: `${depDate.getFullYear()}-${String(depDate.getMonth() + 1).padStart(2, '0')}-${String(depDate.getDate()).padStart(2, '0')}`,
                 departure_time: `${String(depDate.getHours()).padStart(2, '0')}:${String(depDate.getMinutes()).padStart(2, '0')}`,
                 rooms: reconstructedRooms,
                 document_1: null,
@@ -138,7 +138,7 @@ export default function ApplicantDashboard() {
     if (error) return <div className="p-8 text-center text-red-500 font-bold">Failed to load applications.</div>;
 
     const bookings = data?.data || [];
-    
+
     // Compute Active and Past bookings
     const pastStates = ['CANCELLED', 'CHECKED_OUT', 'ADMIN_REJECTED', 'APPROVER_REJECTED'];
     const activeBookings = bookings.filter(b => !pastStates.includes(b.booking_state));
@@ -220,7 +220,7 @@ export default function ApplicantDashboard() {
             {user && ![ROLES.STUDENT, ROLES.RECEPTIONIST].includes(user.role) && (
                 <div className="bg-blue-50/80 p-4 rounded-xl text-sm font-semibold text-indigo-800 leading-relaxed border border-blue-100 flex items-start mb-6 shadow-sm">
                     <Info className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-blue-500" />
-                    <span className="text-left">Cancellation Notice: If your plans have changed, you may cancel your pending application at any time using the &quot;Cancel&quot; action next to the booking preview.</span>
+                    <span className="text-left">Withdrawal Notice: If your plans have changed, you may withdraw your pending application at any time using the &quot;Withdraw&quot; action next to the booking preview.</span>
                 </div>
             )}
 
@@ -231,7 +231,7 @@ export default function ApplicantDashboard() {
                     <p className="text-slate-500 mb-6">You have not submitted any accommodation requests yet.</p>
                     <Link to="/book" className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-sm">
                         <PlusCircle className="w-5 h-5" />
-                        Create New Booking
+                        New Application
                     </Link>
                 </div>
             ) : (
@@ -270,27 +270,15 @@ export default function ApplicantDashboard() {
                                         <StatusBadge status={b.booking_state} />
                                         {extensionAwaitingApproval(b) && (
                                             <p className="text-xs text-violet-700 mt-1.5 font-bold bg-violet-50 px-2 py-1 rounded inline-block border border-violet-100">
-                                                Stay extension until {new Date(b.pending_extension_datetime).toLocaleString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})} awaiting approval
+                                                Stay extension until {new Date(b.pending_extension_datetime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} awaiting approval
                                             </p>
-                                        )}
-                                        {b.booking_state === 'PENDING_APPROVER' && b.assigned_approver_name && (
-                                            <div className="mt-1.5 inline-block text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100 px-2.5 py-1.5 rounded-xl shadow-sm leading-tight">
-                                                Pending With: <br />
-                                                <span className="font-extrabold text-amber-900">{b.assigned_approver_name}</span>
-                                            </div>
-                                        )}
-                                        {b.booking_state === 'PENDING_ADMIN' && (
-                                            <div className="mt-1.5 inline-block text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-1.5 rounded-xl shadow-sm leading-tight">
-                                                Pending With: <br />
-                                                <span className="font-extrabold text-purple-900">Guest House Admin</span>
-                                            </div>
                                         )}
                                     </td>
                                     <td className="p-4 text-right space-x-2 whitespace-nowrap">
                                         {(() => {
                                             const showPaymentBtn = Number(b.total_estimated_amount) > 0 &&
-                                                                   b.payment_responsible !== 'institute' &&
-                                                                   !['DRAFT', 'CANCELLED', 'ADMIN_REJECTED', 'APPROVER_REJECTED'].includes(b.booking_state);
+                                                b.payment_responsible !== 'institute' &&
+                                                !['DRAFT', 'CANCELLED', 'ADMIN_REJECTED', 'APPROVER_REJECTED'].includes(b.booking_state);
                                             return showPaymentBtn && (
                                                 <button
                                                     onClick={() => setPaymentModalBooking(b)}
@@ -303,30 +291,31 @@ export default function ApplicantDashboard() {
                                         <button onClick={() => setPreviewId(b.booking_id)} className="inline-flex items-center px-3 py-1.5 bg-slate-50 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors shadow-sm">
                                             <Eye className="w-4 h-4 mr-1.5" /> Preview
                                         </button>
-                                    {['PENDING_APPROVER', 'PENDING_ADMIN', 'ADMIN_APPROVED'].includes(b.booking_state) && !(b.checked_in_at && b.pending_extension_datetime) && (
-                                        <button 
-                                            onClick={() => { if(window.confirm('Are you sure you want to cancel this application?')) cancelMutation.mutate(b.booking_id); }}
-                                            disabled={cancelMutation.isPending}
-                                            className="inline-flex items-center px-3 py-1.5 bg-red-50 text-red-600 text-xs font-bold rounded-lg hover:bg-red-100 border border-red-200 transition-colors shadow-sm ml-2">
-                                            <Trash2 className="w-4 h-4 mr-1.5" /> Cancel
-                                        </button>
-                                    )}
-                                    {b.booking_state === 'CHECKED_IN' && (
-                                        <button
-                                            type="button"
-                                            onClick={() => { setExtendModalId(b.booking_id); setExtendDatetime(new Date(b.departure_datetime).toISOString().slice(0, 16)); }}
-                                            className="inline-flex items-center px-3 py-1.5 bg-teal-50 text-teal-800 text-xs font-bold rounded-lg hover:bg-teal-100 border border-teal-200 transition-colors shadow-sm ml-2"
-                                        >
-                                            <CalendarClock className="w-4 h-4 mr-1.5" /> Extend stay
-                                        </button>
-                                    )}
-                                    {(b.booking_state.endsWith('REJECTED') || b.booking_state === 'CANCELLED') && (
-                                        <button 
-                                            onClick={() => handleReapply(b.booking_id)}
-                                            className="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-bold rounded-lg hover:bg-amber-100 border border-amber-200 transition-colors shadow-sm ml-2">
-                                            <RefreshCw className="w-4 h-4 mr-1.5" /> Edit & Re-apply
-                                        </button>
-                                    )}
+                                        {['PENDING_APPROVER', 'PENDING_ADMIN', 'ADMIN_APPROVED'].includes(b.booking_state) && !(b.checked_in_at && b.pending_extension_datetime) && (
+                                            <button
+                                                onClick={() => { if (window.confirm('Are you sure you want to withdraw this application?')) cancelMutation.mutate(b.booking_id); }}
+                                                disabled={cancelMutation.isPending}
+                                                className="inline-flex items-center px-3 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 text-xs font-bold rounded-lg transition-colors shadow-sm ml-2"
+                                            >
+                                                <Trash2 className="w-4 h-4 mr-1.5" /> Withdraw
+                                            </button>
+                                        )}
+                                        {b.booking_state === 'CHECKED_IN' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => { setExtendModalId(b.booking_id); setExtendDatetime(new Date(b.departure_datetime).toISOString().slice(0, 16)); }}
+                                                className="inline-flex items-center px-3 py-1.5 bg-teal-50 text-teal-800 text-xs font-bold rounded-lg hover:bg-teal-100 border border-teal-200 transition-colors shadow-sm ml-2"
+                                            >
+                                                <CalendarClock className="w-4 h-4 mr-1.5" /> Extend stay
+                                            </button>
+                                        )}
+                                        {(b.booking_state.endsWith('REJECTED') || b.booking_state === 'CANCELLED') && (
+                                            <button
+                                                onClick={() => handleReapply(b.booking_id)}
+                                                className="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-bold rounded-lg hover:bg-amber-100 border border-amber-200 transition-colors shadow-sm ml-2">
+                                                <RefreshCw className="w-4 h-4 mr-1.5" /> Edit & Re-apply
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -334,7 +323,7 @@ export default function ApplicantDashboard() {
                     </table>
                 </div>
             )}
-            
+
             {previewId && <BookingDetailsModal bookingId={previewId} onClose={() => setPreviewId(null)} />}
 
             {paymentModalBooking && <PaymentProofModal booking={paymentModalBooking} onClose={() => setPaymentModalBooking(null)} />}
@@ -345,7 +334,7 @@ export default function ApplicantDashboard() {
                         <h3 id="extend-stay-title" className="text-lg font-extrabold text-slate-800 tracking-tight mb-1">Extend stay</h3>
                         <p className="text-sm text-slate-500 font-medium mb-4">
                             Booking <span className="font-mono text-xs">{extendTarget.booking_id.split('-')[0]}</span> — add nights after the current scheduled departure. This will be sent for the same approver and admin review as a new application.
-                            <br/><br/>Current Departure: <strong className="text-slate-800">{new Date(extendTarget.departure_datetime).toLocaleString()}</strong>
+                            <br /><br />Current Departure: <strong className="text-slate-800">{new Date(extendTarget.departure_datetime).toLocaleString()}</strong>
                         </p>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">New Exact Departure Date & Time</label>
                         <input

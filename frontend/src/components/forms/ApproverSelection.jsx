@@ -1,5 +1,12 @@
 import { ShieldAlert } from 'lucide-react';
 
+const getDesignation = (a) => {
+  const roleStr = String(a.role).toUpperCase();
+  if (roleStr === 'DIRECTOR') return 'Director';
+  if (roleStr === 'REGISTRAR') return 'Registrar';
+  return `${roleStr} (${a.department})`;
+};
+
 export default function ApproverSelection({ approverSearch, setApproverSearch, isOpen, setIsOpen, authorities, setFormData }) {
   return (
     <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm">
@@ -12,7 +19,7 @@ export default function ApproverSelection({ approverSearch, setApproverSearch, i
         </label>
         <input
           type="text"
-          placeholder="Search by name or department..."
+          placeholder="Search by designation or department..."
           value={approverSearch}
           onChange={(e) => {
             setApproverSearch(e.target.value);
@@ -26,20 +33,20 @@ export default function ApproverSelection({ approverSearch, setApproverSearch, i
         {isOpen && (
           <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
             {authorities
-              .filter((a) => a.full_name.toLowerCase().includes(approverSearch.toLowerCase()) || a.department.toLowerCase().includes(approverSearch.toLowerCase()))
+              .filter((a) => getDesignation(a).toLowerCase().includes(approverSearch.toLowerCase()))
               .map((a) => (
                 <div
                   key={a.user_id}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     setFormData((prev) => ({ ...prev, assigned_approver_id: a.user_id }));
-                    setApproverSearch(`${a.full_name} (${a.department} - ${String(a.role).toUpperCase()})`);
+                    setApproverSearch(getDesignation(a));
                     setIsOpen(false);
                   }}
                   className="p-3 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-0"
                 >
-                  <p className="font-bold text-slate-800">{a.full_name}</p>
-                  <p className="text-xs text-slate-500">{a.department} - {String(a.role).toUpperCase()}</p>
+                  <p className="font-bold text-slate-800">{getDesignation(a)}</p>
+                  <p className="text-xs text-slate-500">Approval Authority</p>
                 </div>
               ))}
             {authorities.length === 0 && <div className="p-3 text-sm text-slate-500">No authorities available for this category.</div>}

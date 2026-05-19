@@ -1,4 +1,5 @@
-import { UploadCloud, CalendarClock, DoorOpen, CalendarDays, Clock } from 'lucide-react';
+import { UploadCloud, CalendarClock, DoorOpen, ArrowUp, ArrowDown, Move, Plus, Trash2 } from 'lucide-react';
+import { useEffect } from 'react';
 import FilePreview from './FilePreview';
 
 export default function StayDetailsSection({ formData, handleChange, setFormData, tariffs = [] }) {
@@ -23,13 +24,72 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
     }
   };
 
+  const getInitialPriorities = () => {
+    const defaultTypes = ['Standard Room', 'Mini Suite Room'];
+    if (!formData.room_priority) return defaultTypes;
+    
+    const parsed = formData.room_priority
+      .split(' > ')
+      .map(s => s.trim())
+      .filter(s => ['Standard Room', 'Mini Suite Room', 'Suite Room'].includes(s));
+      
+    return parsed.length > 0 ? parsed : defaultTypes;
+  };
+
+  const priorities = getInitialPriorities();
+
+  // Ensure room_priority is initialized (Suite Room is NOT included by default)
+  useEffect(() => {
+    if (!formData.room_priority) {
+      setFormData(prev => ({
+        ...prev,
+        room_priority: 'Standard Room > Mini Suite Room',
+        room_type: prev.room_type || 'Standard Room'
+      }));
+    }
+  }, [formData.room_priority, setFormData]);
+
+  const handleMove = (index, direction) => {
+    const newPriorities = [...priorities];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= newPriorities.length) return;
+    
+    // Swap
+    const temp = newPriorities[index];
+    newPriorities[index] = newPriorities[targetIndex];
+    newPriorities[targetIndex] = temp;
+    
+    const priorityStr = newPriorities.join(' > ');
+    setFormData(prev => ({
+      ...prev,
+      room_priority: priorityStr,
+      room_type: newPriorities[0] // Set highest preference as primary
+    }));
+  };
+
+  const handleAddSuite = () => {
+    if (priorities.includes('Suite Room')) return;
+    const newPriorities = [...priorities, 'Suite Room'];
+    const priorityStr = newPriorities.join(' > ');
+    setFormData(prev => ({
+      ...prev,
+      room_priority: priorityStr,
+      room_type: newPriorities[0]
+    }));
+  };
+
+  const handleRemoveSuite = () => {
+    const newPriorities = priorities.filter(t => t !== 'Suite Room');
+    const priorityStr = newPriorities.join(' > ');
+    setFormData(prev => ({
+      ...prev,
+      room_priority: priorityStr,
+      room_type: newPriorities[0] || 'Standard Room'
+    }));
+  };
+
   const currentCategoryId = formData.category_id || '1';
   const availableTariffs = tariffs.filter(t => String(t.category_id) === String(currentCategoryId));
-
-  const getTodayString = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
 
   return (
     <div>
@@ -47,62 +107,107 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 mb-6">
-        <div className="relative col-span-1 sm:col-span-2">
-          <label className="block text-sm font-bold text-slate-700 mb-2">Default Arrival Date & Time (Auto-fills Guests)</label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <CalendarDays className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
-              <input type="date" name="arrival_date" required value={formData.arrival_date || ''} onChange={handleChange} min={getTodayString()} className="block w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 transition-all" />
-            </div>
-            <div className="relative w-32">
-              <Clock className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
-              <input type="time" name="arrival_time" required value={formData.arrival_time || '12:00'} onChange={handleChange} className="block w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 transition-all" />
-            </div>
-          </div>
-        </div>
-        
-        <div className="relative col-span-1 sm:col-span-2">
-          <label className="block text-sm font-bold text-slate-700 mb-2">Default Departure Date & Time (Auto-fills Guests)</label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <CalendarDays className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
-              <input type="date" name="departure_date" required value={formData.departure_date || ''} onChange={handleChange} min={formData.arrival_date || getTodayString()} className="block w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 transition-all" />
-            </div>
-            <div className="relative w-32">
-              <Clock className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
-              <input type="time" name="departure_time" required value={formData.departure_time || '11:00'} onChange={handleChange} className="block w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 transition-all" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div className="relative">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2">
           <label className="block text-sm font-bold text-slate-700 mb-2">Room Type Priority Order <span className="text-red-500">*</span></label>
-          <DoorOpen className="absolute bottom-3.5 left-4 w-5 h-5 text-slate-400 pointer-events-none" />
-          <select
-            name="room_priority"
-            required
-            value={formData.room_priority || formData.room_type || 'Standard Room'}
-            onChange={(e) => {
-              handleChange(e);
-              // Maintain compatibility with room_type as well
-              setFormData((prev) => ({ ...prev, room_type: e.target.value }));
-            }}
-            className="block w-full pl-11 pr-10 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer font-bold text-sm"
-          >
-            <option value="Standard Room">Standard Room Priority (Standard Room &gt; Mini Suite Room &gt; Suite Room)</option>
-            <option value="Mini Suite Room">Mini Suite Room Priority (Mini Suite Room &gt; Standard Room &gt; Suite Room)</option>
-            <option value="Suite Room">Suite Room Priority (Suite Room &gt; Mini Suite Room &gt; Standard Room)</option>
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 pt-7 text-slate-500">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
+          <div className="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-200 shadow-sm">
+            {priorities.map((roomType, idx) => {
+              const isFirst = idx === 0;
+              const isLast = idx === priorities.length - 1;
+              
+              return (
+                <div
+                  key={roomType}
+                  className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-200 shadow-sm ${
+                    isFirst 
+                      ? 'bg-blue-50/80 border-blue-200 text-blue-900 ring-1 ring-blue-100' 
+                      : 'bg-white border-slate-200 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
+                      isFirst 
+                        ? 'bg-blue-200 text-blue-800' 
+                        : idx === 1 
+                          ? 'bg-slate-200 text-slate-700' 
+                          : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {idx + 1}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-extrabold text-sm tracking-tight">{roomType}</span>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider mt-0.5 ${
+                        isFirst ? 'text-blue-600' : 'text-slate-400'
+                      }`}>
+                        {idx === 0 ? 'Highest Preference' : idx === 1 ? 'Second Choice' : 'Third Choice'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-1.5">
+                    {roomType === 'Suite Room' && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveSuite}
+                        className="p-2 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 bg-white hover:border-red-200 shadow-sm transition-all mr-1"
+                        title="Remove Suite Room from Preferences"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      disabled={isFirst}
+                      onClick={() => handleMove(idx, -1)}
+                      className={`p-2 rounded-lg border transition-all ${
+                        isFirst 
+                          ? 'text-slate-300 border-slate-100 cursor-not-allowed bg-slate-50' 
+                          : 'text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900 bg-white shadow-sm'
+                      }`}
+                      title="Move Preference Up"
+                    >
+                      <ArrowUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isLast}
+                      onClick={() => handleMove(idx, 1)}
+                      className={`p-2 rounded-lg border transition-all ${
+                        isLast 
+                          ? 'text-slate-300 border-slate-100 cursor-not-allowed bg-slate-50' 
+                          : 'text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900 bg-white shadow-sm'
+                      }`}
+                      title="Move Preference Down"
+                    >
+                      <ArrowDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <p className="text-xs font-semibold text-slate-500 mt-2">
-            * Preferred room choice. Reception will allocate alternatives in priority order if unavailable.
+          {!priorities.includes('Suite Room') && (
+            <div className="mt-3 flex justify-start">
+              <button
+                type="button"
+                onClick={handleAddSuite}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 transition-colors shadow-sm animate-fade-in"
+              >
+                <Plus className="w-4 h-4" /> Add Suite Room to Preferences
+              </button>
+            </div>
+          )}
+          {priorities.includes('Suite Room') && (
+            <div className="mt-4 p-4 bg-amber-50 border-l-4 border-amber-500 rounded-r-2xl text-amber-950 text-xs font-medium shadow-sm animate-fade-in flex items-start gap-3">
+              <span className="text-base flex-shrink-0">⚠️</span>
+              <div>
+                <p className="font-extrabold text-amber-900 uppercase tracking-wider text-[10px] mb-1">HOD Review & Director Approval Required</p>
+                <p className="leading-relaxed">Choosing a <strong>Suite Room</strong> in your preferences initiates an advanced approval workflow. Your Departmental Authority (HOD / Dean) must first review and endorse the booking, after which it will automatically route to the <strong>Director</strong> for final executive authorization.</p>
+              </div>
+            </div>
+          )}
+          <p className="text-xs font-semibold text-slate-500 mt-3">
+            * Rank your preferred room choices. Reception will allocate alternatives in this exact order if your first choice is unavailable.
           </p>
         </div>
       </div>

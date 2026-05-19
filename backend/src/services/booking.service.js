@@ -455,21 +455,26 @@ exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
         }
 
         let result;
-            if (action === 'APPROVED' && row.pending_extension_datetime != null) {
-                await applyStayExtension(client, bookingId);
+        if (action === 'WITHDRAW') {
+            result = await client.query(
+                `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+                [BOOKING_STATUS.PENDING_ADMIN, bookingId]
+            );
+        } else if (action === 'APPROVED' && row.pending_extension_datetime != null) {
+            await applyStayExtension(client, bookingId);
             result = await client.query(
                 `UPDATE booking_requests SET booking_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
                 [BOOKING_STATUS.CHECKED_IN, bookingId]
             );
-            } else if (action === 'REJECTED' && row.pending_extension_datetime != null) {
+        } else if (action === 'REJECTED' && row.pending_extension_datetime != null) {
             result = await client.query(
-                    `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+                `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
                 [BOOKING_STATUS.CHECKED_IN, bookingId]
             );
         } else {
             const newState = action === 'APPROVED' ? BOOKING_STATUS.ADMIN_APPROVED : BOOKING_STATUS.ADMIN_REJECTED;
             result = await client.query(
-                    `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+                `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
                 [newState, bookingId]
             );
         }

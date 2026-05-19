@@ -92,3 +92,22 @@ exports.checkOutBooking = async (bookingId) => {
     const result = await db.query(query, [BOOKING_STATUS.CHECKED_OUT, bookingId, BOOKING_STATUS.CHECKED_IN, BOOKING_STATUS.PENDING_APPROVER, BOOKING_STATUS.PENDING_ADMIN]);
     return result.rows[0];
 };
+
+exports.updateGuestTimes = async (guestId, arrivalDatetime, departureDatetime, pendingExtensionDatetime) => {
+    const query = `
+        UPDATE guests
+        SET arrival_datetime = COALESCE($1, arrival_datetime),
+            departure_datetime = COALESCE($2, departure_datetime),
+            pending_extension_datetime = $3,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE guest_id = $4
+        RETURNING *
+    `;
+    const result = await db.query(query, [
+        arrivalDatetime || null,
+        departureDatetime || null,
+        pendingExtensionDatetime || null,
+        guestId
+    ]);
+    return result.rows[0];
+};

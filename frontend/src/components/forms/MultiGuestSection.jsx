@@ -1,6 +1,12 @@
 import { UserPlus, User, Trash2, Utensils, Plus, BedDouble, DoorOpen, ClipboardList } from 'lucide-react';
 import { useEffect } from 'react';
 
+const today = new Date();
+const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+const tomorrow = new Date(today);
+tomorrow.setDate(tomorrow.getDate() + 1);
+const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+
 // ---------------------------------------------------------------------------
 // EXTRACTED SUB-COMPONENT: Keeps the main section highly readable!
 // ---------------------------------------------------------------------------
@@ -19,7 +25,7 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
     setFormData((prev) => {
       const newRooms = [...prev.rooms];
       const newGuests = [...newRooms[rIndex].guests];
-      const newFood = [...newGuests[gIndex].food_preferences, { date: formData.arrival_date || '', breakfast: 0, lunch: 0, dinner: 0, remarks: '' }];
+      const newFood = [...newGuests[gIndex].food_preferences, { date: guest.arrival_date || todayStr, breakfast: 0, lunch: 0, dinner: 0, remarks: '' }];
       newGuests[gIndex] = { ...newGuests[gIndex], food_preferences: newFood };
       newRooms[rIndex] = { ...newRooms[rIndex], guests: newGuests };
       return { ...prev, rooms: newRooms };
@@ -77,14 +83,14 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
           <label className="block text-xs font-bold text-slate-600 mb-1">Phone Number *</label>
           <input required type="tel" value={guest.phone} onChange={(e) => updateGuest('phone', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" />
         </div>
-        <div>
+        <div className="md:col-span-2">
           <label className="block text-xs font-bold text-slate-600 mb-1">ID Proof (Type & Number) *</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <select required value={guest.id_proof_type || ''} onChange={(e) => { updateGuest('id_proof_type', e.target.value); if (!e.target.value) updateGuest('id_proof_number', ''); }} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <select required value={guest.id_proof_type || ''} onChange={(e) => { updateGuest('id_proof_type', e.target.value); if (!e.target.value) updateGuest('id_proof_number', ''); }} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors sm:col-span-1">
               <option value="" disabled>Select ID</option>
               <option value="Aadhar">Aadhar</option><option value="PAN">PAN</option><option value="Passport">Passport</option><option value="Voter ID">Voter ID</option><option value="Driving License">Driving License</option>
             </select>
-            <input required type="text" value={guest.id_proof_number || ''} disabled={!guest.id_proof_type} onChange={(e) => updateGuest('id_proof_number', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder={guest.id_proof_type ? `Enter ${guest.id_proof_type} Number` : "Enter ID Number"} />
+            <input required type="text" value={guest.id_proof_number || ''} disabled={!guest.id_proof_type} onChange={(e) => updateGuest('id_proof_number', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors sm:col-span-2" placeholder={guest.id_proof_type ? `Enter ${guest.id_proof_type} Number` : "Enter ID Number"} />
           </div>
         </div>
       </div>
@@ -99,7 +105,7 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
         </div>
         <div>
           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Arrival Date</label>
-          <input type="date" required value={guest.arrival_date || ''} onChange={(e) => updateGuest('arrival_date', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs bg-slate-50 focus:bg-white" />
+          <input type="date" required min={todayStr} value={guest.arrival_date || ''} onChange={(e) => updateGuest('arrival_date', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs bg-slate-50 focus:bg-white" />
         </div>
         <div>
           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Arrival Time</label>
@@ -107,11 +113,11 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
         </div>
         <div>
           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Departure Date</label>
-          <input type="date" required value={guest.departure_date || ''} onChange={(e) => updateGuest('departure_date', e.target.value)} min={guest.arrival_date || ''} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs bg-slate-50 focus:bg-white" />
+          <input type="date" required value={guest.departure_date || ''} onChange={(e) => updateGuest('departure_date', e.target.value)} min={guest.arrival_date || todayStr} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs bg-slate-50 focus:bg-white" />
         </div>
         <div>
           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Departure Time</label>
-          <input type="time" required value={guest.departure_time || '12:00'} onChange={(e) => updateGuest('departure_time', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs bg-slate-50 focus:bg-white" />
+          <input type="time" required value={guest.departure_time || '11:00'} onChange={(e) => updateGuest('departure_time', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs bg-slate-50 focus:bg-white" />
         </div>
       </div>
 
@@ -161,6 +167,10 @@ export default function MultiGuestSection({ formData, setFormData }) {
           guests: [{
             guest_name: '', designation: '', relation_to_applicant: '', phone: '', email: '',
             gender: 'Male', age: '', address: '', id_proof_type: '', id_proof_number: '',
+            arrival_date: todayStr,
+            arrival_time: '12:00',
+            departure_date: tomorrowStr,
+            departure_time: '11:00',
             food_preferences: [],
           }],
           extra_bed: false
@@ -184,7 +194,12 @@ export default function MultiGuestSection({ formData, setFormData }) {
         ...newRooms[rIndex].guests,
         {
           guest_name: '', designation: '', relation_to_applicant: '', phone: '', email: '',
-          gender: 'Male', age: '', address: '', id_proof_type: '', id_proof_number: '', food_preferences: [],
+          gender: 'Male', age: '', address: '', id_proof_type: '', id_proof_number: '',
+          arrival_date: todayStr,
+          arrival_time: '12:00',
+          departure_date: tomorrowStr,
+          departure_time: '11:00',
+          food_preferences: [],
         }
       ];
       return { ...prev, rooms: newRooms };
@@ -283,15 +298,15 @@ export default function MultiGuestSection({ formData, setFormData }) {
 
             <div className="space-y-4">
               {room.guests.map((guest, gIndex) => (
-                <GuestCard 
-                  key={gIndex} 
+                <GuestCard
+                  key={gIndex}
                   guest={guest}
                   rIndex={rIndex}
-                  gIndex={gIndex} 
-                  rooms={rooms} 
-                  setFormData={setFormData} 
-                  formData={formData} 
-                  removeGuest={removeGuest} 
+                  gIndex={gIndex}
+                  rooms={rooms}
+                  setFormData={setFormData}
+                  formData={formData}
+                  removeGuest={removeGuest}
                 />
               ))}
             </div>
@@ -299,7 +314,7 @@ export default function MultiGuestSection({ formData, setFormData }) {
             <div className="flex flex-wrap gap-3 mt-6 pt-6 border-t border-slate-200">
               {room.guests.length === 1 && (
                 <button type="button" onClick={() => addGuestToRoom(rIndex)} className="flex items-center px-4 py-2 bg-blue-50 text-blue-700 font-bold text-sm rounded-xl hover:bg-blue-100 border border-blue-200 shadow-sm transition-colors">
-                  <UserPlus className="w-4 h-4 mr-2" /> Add Another Guest (Double)
+                  <UserPlus className="w-4 h-4 mr-2" /> Add Another Guest In Same Room (Double Occupancy)
                 </button>
               )}
               {room.guests.length === 2 && !room.extra_bed && (
