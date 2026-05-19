@@ -37,3 +37,32 @@ exports.updateGuestTimes = async (req, res, next) => {
         next(error);
     }
 };
+
+exports.getRoomsWithStays = async (req, res, next) => {
+    try {
+        const data = await receptionService.getRoomsWithStays();
+        return sendSuccess(res, 'Rooms and stays retrieved successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.updateRoomStatus = async (req, res, next) => {
+    try {
+        const { status } = req.body;
+        const data = await receptionService.updateRoomStatus(req.params.roomNumber, status);
+        return sendSuccess(res, 'Room status updated successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.extendStay = async (req, res, next) => {
+    try {
+        const { departure_datetime } = req.body;
+        const data = await receptionService.extendStay(req.params.bookingId, departure_datetime);
+        return sendSuccess(res, 'Stay extended successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};

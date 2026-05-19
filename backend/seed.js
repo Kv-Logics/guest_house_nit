@@ -193,6 +193,7 @@ async function seedDatabase() {
           applicant: 'moses@nitt.edu', approver: 'director@nitt.edu', cat_id: 1, visit_type: 'official', purpose: 'Keynote Speaker',
           rooms: 1, room_type: 'Suite Room', status: 'CHECKED_IN',
           arrival: addTime(-1), departure: addTime(2), checked_in: addTime(-1, 2),
+          allocated: '104',
           guests: [{ name: 'Dr. Marie Curie', relation: 'Keynote Speaker' }]
       },
       { // 5. Checked In -> Extension Pending Approver
@@ -200,6 +201,7 @@ async function seedDatabase() {
           rooms: 1, room_type: 'Standard Room', status: 'PENDING_APPROVER',
           arrival: addTime(-3), departure: addTime(0, 2), // Leaving in 2 hrs
           checked_in: addTime(-3, 1), is_extension: true, pending_ext: addTime(2, 2), // Extend by 2 days
+          allocated: '102',
           guests: [{ name: 'Dr. APJ Abdul Kalam', relation: 'Scientist' }]
       },
       { // 6. Checked In -> Extension Pending Admin
@@ -207,12 +209,14 @@ async function seedDatabase() {
           rooms: 1, room_type: 'Standard Room', status: 'PENDING_ADMIN',
           arrival: addTime(-2), departure: addTime(0, -1), // Overdue by 1 hr!
           checked_in: addTime(-2, 1), is_extension: true, pending_ext: addTime(1),
+          allocated: '103',
           guests: [{ name: 'Mrs. Saraswathi', relation: 'Mother' }]
       },
       { // 7. Checked Out (Past)
           applicant: 'nisha@nitt.edu', approver: 'registrar@nitt.edu', cat_id: 4, visit_type: 'personal', purpose: 'Vacation',
           rooms: 2, room_type: 'Standard Room', status: 'CHECKED_OUT',
           arrival: addTime(-10), departure: addTime(-5), checked_in: addTime(-10, 1), checked_out: addTime(-5, -2),
+          allocated: '101',
           guests: [{ name: 'Mr. Ramesh', relation: 'Brother' }, { name: 'Mrs. Suresh', relation: 'Sister-in-law' }]
       },
       { // 8. Approver Rejected
@@ -247,7 +251,9 @@ async function seedDatabase() {
     await db.query(`DELETE FROM payments`);
     await db.query(`DELETE FROM invoices`);
     await db.query(`DELETE FROM guests`);
+    await db.query(`DELETE FROM booking_rooms`);
     await db.query(`DELETE FROM booking_requests`);
+    await db.query(`DELETE FROM rooms`);
     await db.query(`DELETE FROM room_tariffs`);
     await db.query(`DELETE FROM users`);
 
@@ -349,8 +355,8 @@ async function seedDatabase() {
               user_id, category_id, purpose_of_visit, visit_type, room_priority,
               arrival_datetime, departure_datetime, rooms_required, room_type, total_estimated_amount,
               undertaking_accepted, booking_state, payment_responsible, assigned_approver_id,
-              checked_in_at, checked_out_at, pending_extension_datetime, cancelled_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11, $12, $13, $14, $15, $16, $17) RETURNING booking_id;`,
+              checked_in_at, checked_out_at, pending_extension_datetime, cancelled_at, allocated_room_numbers
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING booking_id;`,
           [
               userId, b.cat_id, b.purpose, b.visit_type, b.room_type,
               b.arrival.toISOString(), b.departure.toISOString(), b.rooms, b.room_type, 1500,
@@ -358,7 +364,8 @@ async function seedDatabase() {
               b.checked_in ? b.checked_in.toISOString() : null,
               b.checked_out ? b.checked_out.toISOString() : null,
               b.pending_ext ? b.pending_ext.toISOString() : null,
-              b.cancelled ? b.cancelled.toISOString() : null
+              b.cancelled ? b.cancelled.toISOString() : null,
+              b.allocated || null
           ]
       );
       const bookingId = reqRes.rows[0].booking_id;
@@ -392,6 +399,31 @@ async function seedDatabase() {
           await db.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, [bookingId, userId, 'EXTENSION_REQUESTED', `Requested stay extension until ${b.pending_ext.toLocaleString()}.`]);
       }
     }
+
+    // 5. Seed Rooms
+    const sampleRooms = [
+        { room_number: '101', block_name: 'Main Block', floor_number: 1, room_type: 'single', capacity: 1, has_ac: true, current_status: 'available' },
+        { room_number: '102', block_name: 'Main Block', floor_number: 1, room_type: 'double', capacity: 2, has_ac: true, current_status: 'occupied' },
+        { room_number: '103', block_name: 'Main Block', floor_number: 1, room_type: 'double', capacity: 2, has_ac: true, current_status: 'occupied' },
+        { room_number: '104', block_name: 'Main Block', floor_number: 1, room_type: 'suite',  capacity: 2, has_ac: true, current_status: 'occupied' },
+        { room_number: '105', block_name: 'Main Block', floor_number: 1, room_type: 'suite',  capacity: 2, has_ac: true, current_status: 'reserved' },
+        { room_number: '201', block_name: 'Main Block', floor_number: 2, room_type: 'single', capacity: 1, has_ac: true, current_status: 'available' },
+        { room_number: '202', block_name: 'Main Block', floor_number: 2, room_type: 'double', capacity: 2, has_ac: true, current_status: 'reserved' },
+        { room_number: '203', block_name: 'Main Block', floor_number: 2, room_type: 'double', capacity: 2, has_ac: true, current_status: 'available' },
+        { room_number: '204', block_name: 'Main Block', floor_number: 2, room_type: 'single', capacity: 1, has_ac: true, current_status: 'cleaning' },
+        { room_number: '205', block_name: 'Main Block', floor_number: 2, room_type: 'double', capacity: 2, has_ac: true, current_status: 'cleaning' }
+    ];
+
+    for (const r of sampleRooms) {
+        await db.query(
+            `INSERT INTO rooms (room_number, block_name, floor_number, room_type, capacity, has_ac, current_status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (room_number) DO UPDATE SET
+                current_status = EXCLUDED.current_status;`,
+            [r.room_number, r.block_name, r.floor_number, r.room_type, r.capacity, r.has_ac, r.current_status]
+        );
+    }
+
     console.log('Database seeded successfully.');
   } catch (err) {
     console.error('Error seeding database:', err);
