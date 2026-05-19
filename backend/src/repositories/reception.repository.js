@@ -122,7 +122,7 @@ exports.getRoomsWithStays = async () => {
 
     const activeBookingsRes = await db.query(`
         SELECT b.booking_id, b.arrival_datetime, b.departure_datetime, b.room_type, b.extra_beds, b.allocated_room_numbers,
-               u.full_name AS applicant_name
+               b.booking_state, b.pending_extension_datetime, u.full_name AS applicant_name
         FROM booking_requests b
         JOIN users u ON b.user_id = u.user_id
         WHERE b.checked_in_at IS NOT NULL AND b.checked_out_at IS NULL
@@ -165,6 +165,8 @@ exports.getRoomsWithStays = async () => {
                 arrival_datetime: activeBooking.arrival_datetime,
                 departure_datetime: activeBooking.departure_datetime,
                 extra_beds: activeBooking.extra_beds,
+                booking_state: activeBooking.booking_state,
+                pending_extension_datetime: activeBooking.pending_extension_datetime,
                 guests: guestsInBooking.map(g => ({
                     guest_id: g.guest_id,
                     guest_name: g.guest_name,

@@ -595,16 +595,28 @@ exports.cancelBooking = async (bookingId, user) => {
             throw new Error('Unauthorized to withdraw this booking.');
         }
 
-        const updateRes = await client.query(
-            `UPDATE booking_requests SET booking_state = $1, cancelled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
-            [BOOKING_STATUS.CANCELLED, bookingId]
-        );
-
+        let updateRes;
         let logMessage = 'Cancelled by Applicant';
-        if (isAdmin && !isApplicant) logMessage = 'Withdrawn by Admin';
-        else if (isApprover && !isApplicant) logMessage = 'Withdrawn by Authority';
+        let actionStr = 'CANCELLED';
 
-        await client.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, [bookingId, userId, 'CANCELLED', logMessage]);
+        if (booking.checked_in_at != null && booking.checked_out_at == null) {
+            // Checked in booking with pending extension being withdrawn
+            updateRes = await client.query(
+                `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+                [BOOKING_STATUS.CHECKED_IN, bookingId]
+            );
+            logMessage = 'Stay extension request withdrawn by Applicant';
+            actionStr = 'EXTENSION_WITHDRAWN';
+        } else {
+            updateRes = await client.query(
+                `UPDATE booking_requests SET booking_state = $1, cancelled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+                [BOOKING_STATUS.CANCELLED, bookingId]
+            );
+            if (isAdmin && !isApplicant) logMessage = 'Withdrawn by Admin';
+            else if (isApprover && !isApplicant) logMessage = 'Withdrawn by Authority';
+        }
+
+        await client.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, [bookingId, userId, actionStr, logMessage]);
 
         await client.query('COMMIT');
         return updateRes.rows[0];
