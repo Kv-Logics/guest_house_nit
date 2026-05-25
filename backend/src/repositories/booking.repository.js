@@ -35,7 +35,10 @@ exports.getAllBookingsWithDetails = async () => {
                ) as guests,
                (
                    SELECT json_agg(row_to_json(d)) FROM booking_documents d WHERE d.booking_id = b.booking_id
-               ) as documents
+               ) as documents,
+               (
+                   SELECT row_to_json(fb) FROM final_bills fb WHERE fb.booking_id = b.booking_id
+               ) as final_bill
         FROM booking_requests b
         JOIN users u ON b.user_id = u.user_id
         LEFT JOIN users a ON b.assigned_approver_id = a.user_id
@@ -46,7 +49,7 @@ exports.getAllBookingsWithDetails = async () => {
 };
 
 exports.getAllTariffs = async () => {
-    const result = await db.query('SELECT * FROM room_tariffs');
+    const result = await db.query("SELECT * FROM room_tariffs WHERE room_type != 'Renovated Room'");
     return result.rows;
 };
 
@@ -78,7 +81,10 @@ exports.getBookingDetailsById = async (bookingId) => {
                ) as guests,
                (
                    SELECT json_agg(row_to_json(d)) FROM booking_documents d WHERE d.booking_id = b.booking_id
-               ) as documents
+               ) as documents,
+               (
+                   SELECT row_to_json(fb) FROM final_bills fb WHERE fb.booking_id = b.booking_id
+               ) as final_bill
         FROM booking_requests b
         JOIN users u ON b.user_id = u.user_id
         LEFT JOIN users a ON b.assigned_approver_id = a.user_id
