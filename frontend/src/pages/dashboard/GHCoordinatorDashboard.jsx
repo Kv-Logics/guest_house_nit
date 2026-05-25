@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Search, Loader2, Save, Printer, ShieldCheck, AlertCircle, Users, BedDouble, Calendar, CreditCard, ChevronRight } from 'lucide-react';
+import { Search, Loader2, Save, Printer, ShieldCheck, AlertCircle, Users, BedDouble, Calendar, CreditCard, ChevronRight, QrCode } from 'lucide-react';
 import api from '../../services/api';
+import QRScannerModal from '../../components/ui/QRScannerModal';
 
 export default function GHCoordinatorDashboard() {
     const { user } = useAuth();
@@ -10,6 +11,7 @@ export default function GHCoordinatorDashboard() {
     const [searchId, setSearchId] = useState('');
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [loadingDetails, setLoadingDetails] = useState(false);
+    const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
     // Override State
     const [overridePayload, setOverridePayload] = useState(null);
@@ -125,6 +127,16 @@ export default function GHCoordinatorDashboard() {
                 </p>
             </div>
 
+            <QRScannerModal 
+                isOpen={isQRScannerOpen}
+                onClose={() => setIsQRScannerOpen(false)}
+                onScanSuccess={(decodedText) => {
+                    setIsQRScannerOpen(false);
+                    setSearchId(decodedText);
+                    fetchBookingDetails(decodedText);
+                }}
+            />
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column: Search & List */}
                 <div className="lg:col-span-1 space-y-6">
@@ -142,6 +154,14 @@ export default function GHCoordinatorDashboard() {
                             />
                             <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-md">
                                 Load
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={() => setIsQRScannerOpen(true)}
+                                className="bg-slate-800 text-white px-4 py-2 rounded-xl font-bold hover:bg-slate-900 transition-colors shadow-md flex items-center justify-center shrink-0"
+                                title="Scan Application QR Pass"
+                            >
+                                <QrCode className="w-5 h-5" />
                             </button>
                         </form>
                     </div>

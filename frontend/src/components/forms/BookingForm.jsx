@@ -189,11 +189,11 @@ export default function BookingForm({ formData, setFormData, user, authorities =
               const isPersonal = ['3', '4'].includes(String(formData.category_id)) && !isStudent;
 
               const routeInfo = isPersonal ? {
-                steps: ['Submitted', 'GH Manager', 'Receptionist']
+                steps: ['Submitted', 'GH Manager']
               } : isSuiteRoom ? {
-                steps: ['Submitted', 'HOD / Dean', 'Director', 'GH Manager', 'Receptionist']
+                steps: ['Submitted', 'HOD / Dean', 'Director', 'GH Manager']
               } : {
-                steps: ['Submitted', 'Authority', 'GH Manager', 'Receptionist']
+                steps: ['Submitted', 'Authority', 'GH Manager']
               };
 
               return (

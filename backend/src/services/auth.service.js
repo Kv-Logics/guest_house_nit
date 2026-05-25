@@ -20,10 +20,8 @@ exports.requestOtp = async (email) => {
     // Simulate sending an email (in production, integrate nodemailer/SendGrid here)
     logger.info(`[DEV-ONLY] OTP for ${email} is: ${otp}`);
     
-    if (process.env.AUTO_FILL_OTP === 'true') {
-        return otp;
-    }
-    return null;
+    // Auto-fill OTP for testing
+    return otp;
 };
 
 exports.verifyOtp = async (email, otp) => {

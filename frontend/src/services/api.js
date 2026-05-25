@@ -5,7 +5,7 @@ const api = axios.create({
   withCredentials: true, // Crucial for HttpOnly cookies
 });
 
-// Add CSRF token from cookie to request headers
+// Add CSRF token from cookie and Mock System Date to request headers
 api.interceptors.request.use((config) => {
   const getCookie = (name) => {
     const value = `; ${document.cookie}`;
@@ -16,6 +16,13 @@ api.interceptors.request.use((config) => {
   if (csrfToken && ['post', 'put', 'patch', 'delete'].includes(config.method)) {
     config.headers['X-CSRF-Token'] = csrfToken;
   }
+
+  const isMockActive = localStorage.getItem('mock-system-date-active') === 'true';
+  const mockDate = localStorage.getItem('mock-system-date');
+  if (isMockActive && mockDate) {
+    config.headers['X-Mock-Date'] = mockDate;
+  }
+
   return config;
 });
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Bed, UserPlus, LogOut, Receipt, Shield, Calendar, Users, DollarSign, Trash2, UserCheck, CheckCircle2, Sliders, Clock, ArrowLeftRight, ChevronDown, ChevronUp, X, Utensils, Activity, CheckCircle, XCircle, ArrowRight, Home, Settings, FileText, User, Bell, Search, Filter, HelpCircle, Loader2, Save, Printer, CreditCard, Plus } from 'lucide-react';
+import { Bed, UserPlus, LogOut, Receipt, Shield, Calendar, Users, DollarSign, Trash2, UserCheck, CheckCircle2, Sliders, Clock, ArrowLeftRight, ChevronDown, ChevronUp, X, Utensils, Activity, CheckCircle, XCircle, ArrowRight, Home, Settings, FileText, User, Bell, Search, Filter, HelpCircle, Loader2, Save, Printer, CreditCard, Plus, QrCode } from 'lucide-react';
 import { receptionService } from '../../services/reception.service';
 import RoomMatrix from '../../components/dashboard/RoomMatrix';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
+import QRScannerModal from '../../components/ui/QRScannerModal';
 
 // Default Pricing Configuration
 const PRICING_CONFIG = {
@@ -194,6 +195,7 @@ export default function ReceptionDashboard() {
 
     // Invoice Modal state
     const [invoiceBookingId, setInvoiceBookingId] = useState(null);
+    const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
     // Load data from backend API
     const loadDashboardData = async () => {
@@ -642,6 +644,29 @@ export default function ReceptionDashboard() {
                 </div>
             )}
 
+            <QRScannerModal 
+                isOpen={isQRScannerOpen}
+                onClose={() => setIsQRScannerOpen(false)}
+                onScanSuccess={(decodedText) => {
+                    setIsQRScannerOpen(false);
+                    // Search in arrivals
+                    const arrival = bookingData.arrivals.find(a => a.booking_id === decodedText || a.booking_id.split('-')[0] === decodedText);
+                    if (arrival) {
+                        setActiveTab('arrivals');
+                        setPreviewArrival(arrival);
+                        return;
+                    }
+                    // Search in rooms
+                    const room = bookingData.rooms.find(r => r.active_booking && (r.active_booking.booking_id === decodedText || r.active_booking.booking_id.split('-')[0] === decodedText));
+                    if (room) {
+                        setActiveTab('rooms');
+                        setActiveRoomId(room.room_number);
+                        return;
+                    }
+                    alert("Application ID not found in today's arrivals or active rooms.");
+                }}
+            />
+
             {/* Top Navigation Strip */}
             <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 gap-4">
                 <div className="flex items-center gap-3">
@@ -653,12 +678,20 @@ export default function ReceptionDashboard() {
                         <p className="text-xs text-slate-500 font-medium">Category {bookingData.category} Properties • Live Backend Integration</p>
                     </div>
                 </div>
-                <button 
-                    onClick={loadDashboardData}
-                    className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl font-bold text-xs shadow-sm transition-all"
-                >
-                    Force Refresh
-                </button>
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => setIsQRScannerOpen(true)}
+                        className="px-4 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-2"
+                    >
+                        <QrCode className="w-4 h-4" /> Scan App Pass
+                    </button>
+                    <button 
+                        onClick={loadDashboardData}
+                        className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl font-bold text-xs shadow-sm transition-all"
+                    >
+                        Force Refresh
+                    </button>
+                </div>
             </div>
 
             {/* Time Machine / Clock Simulator Panel for Testing */}

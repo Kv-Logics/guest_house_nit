@@ -35,18 +35,25 @@ function estimateBookingTotalFromTariffs(booking, tariffs, guestsList) {
     if (!minDate || !maxDate) return 0;
 
     let totalSubtotal = 0;
+    // Use calendar-day (midnight) boundaries — any stay within a calendar day counts as 1 day
     const startDay = new Date(minDate);
-    startDay.setHours(12, 0, 0, 0);
+    startDay.setHours(0, 0, 0, 0);
     const endDay = new Date(maxDate);
-    endDay.setHours(12, 0, 0, 0);
+    endDay.setHours(0, 0, 0, 0);
+    // Guarantee minimum 1 day (e.g. same-day check-in/out, or sub-24hr stay)
+    if (endDay <= startDay) endDay.setDate(endDay.getDate() + 1);
 
-    let currentNight = new Date(startDay);
-    while (currentNight < endDay) {
+    let currentDay = new Date(startDay);
+    while (currentDay < endDay) {
         let activeGuests = 0;
         for (const g of guestsDates) {
-            const arrivalCompare = new Date(g.arrival);
-            const departureCompare = new Date(g.departure);
-            if (arrivalCompare <= currentNight && departureCompare > currentNight) {
+            // Normalise guest arrival/departure to calendar-day midnight for comparison
+            const gArrDay = new Date(g.arrival); gArrDay.setHours(0, 0, 0, 0);
+            const gDepDay = new Date(g.departure); gDepDay.setHours(0, 0, 0, 0);
+            // Same-day departure still occupies that calendar day
+            if (gDepDay <= gArrDay) gDepDay.setDate(gDepDay.getDate() + 1);
+            // Guest is active on currentDay if: gArrDay <= currentDay < gDepDay
+            if (gArrDay <= currentDay && currentDay < gDepDay) {
                 activeGuests++;
             }
         }
@@ -86,7 +93,7 @@ function estimateBookingTotalFromTariffs(booking, tariffs, guestsList) {
             totalSubtotal += (roomCostForNight + extraBedCostForNight);
         }
 
-        currentNight.setDate(currentNight.getDate() + 1);
+        currentDay.setDate(currentDay.getDate() + 1);
     }
 
     return Math.round(totalSubtotal + totalSubtotal * 0.12);
@@ -229,10 +236,13 @@ exports.submitBookingRequest = async (data) => {
                 const guestDeparture = guest.departure_datetime || `${guest.departure_date} ${guest.departure_time || '12:00'}:00`;
 
                 const gRes = await client.query(`
-                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number, arrival_datetime, departure_datetime)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING guest_id
+                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number, arrival_datetime, departure_datetime, room_index, preferred_occupancy, preferred_extra_bed)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING guest_id
                 `, [
-                    bookingId, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type, guest.id_proof_number, guestArrival, guestDeparture
+                    bookingId, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type, guest.id_proof_number, guestArrival, guestDeparture,
+                    guest.room_index !== undefined ? guest.room_index : 0,
+                    guest.preferred_occupancy || 'single',
+                    guest.preferred_extra_bed !== undefined ? guest.preferred_extra_bed : false
                 ]);
                 
                 const newGuestId = gRes.rows[0].guest_id;
@@ -370,9 +380,14 @@ exports.reapplyBookingRequest = async (data) => {
                 const guestDeparture = guest.departure_datetime || `${guest.departure_date} ${guest.departure_time || '12:00'}:00`;
 
                 const gRes = await client.query(`
-                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number, arrival_datetime, departure_datetime)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING guest_id
-                `, [data.booking_id, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type, guest.id_proof_number, guestArrival, guestDeparture]);
+                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number, arrival_datetime, departure_datetime, room_index, preferred_occupancy, preferred_extra_bed)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING guest_id
+                `, [
+                    data.booking_id, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type, guest.id_proof_number, guestArrival, guestDeparture,
+                    guest.room_index !== undefined ? guest.room_index : 0,
+                    guest.preferred_occupancy || 'single',
+                    guest.preferred_extra_bed !== undefined ? guest.preferred_extra_bed : false
+                ]);
                 
                 const newGuestId = gRes.rows[0].guest_id;
                 if (guest.food_preferences && guest.food_preferences.length > 0) {

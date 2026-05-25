@@ -2,9 +2,15 @@ import { ShieldAlert } from 'lucide-react';
 
 const getDesignation = (a) => {
   const roleStr = String(a.role).toUpperCase();
-  if (roleStr === 'DIRECTOR') return 'Director';
-  if (roleStr === 'REGISTRAR') return 'Registrar';
-  return `${roleStr} (${a.department})`;
+  let designation = '';
+  if (roleStr === 'DIRECTOR') designation = 'Director';
+  else if (roleStr === 'REGISTRAR') designation = 'Registrar';
+  else designation = `${roleStr} (${a.department})`;
+
+  if (a.full_name) {
+    return `${a.full_name} - ${designation}`;
+  }
+  return designation;
 };
 
 export default function ApproverSelection({ approverSearch, setApproverSearch, isOpen, setIsOpen, authorities, setFormData }) {

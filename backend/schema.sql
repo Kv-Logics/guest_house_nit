@@ -1,6 +1,11 @@
 -- schema.sql
 -- 1. SAFELY DROP OLD TABLES
 DROP TABLE IF EXISTS audit_logs CASCADE;
+DROP TABLE IF EXISTS final_bills CASCADE;
+DROP TABLE IF EXISTS billing_override_logs CASCADE;
+DROP TABLE IF EXISTS room_status_history CASCADE;
+DROP TABLE IF EXISTS occupancy_history CASCADE;
+DROP TABLE IF EXISTS guest_room_stays CASCADE;
 DROP TABLE IF EXISTS booking_documents CASCADE;
 DROP TABLE IF EXISTS booking_approvals CASCADE;
 DROP TABLE IF EXISTS booking_workflow_instances CASCADE;
@@ -119,7 +124,7 @@ CREATE TABLE rooms (
     room_number VARCHAR(20) UNIQUE NOT NULL,
     block_name VARCHAR(50),
     floor_number INTEGER,
-    room_type VARCHAR(30) CHECK (room_type IN ('single', 'double', 'suite')),
+    room_type VARCHAR(50) CHECK (room_type IN ('Standard Room', 'Mini Suite Room', 'Suite Room', 'Renovated Room')),
     capacity INTEGER NOT NULL,
     category_id INTEGER REFERENCES category_rules(category_id),
     has_ac BOOLEAN DEFAULT true,
@@ -181,6 +186,9 @@ CREATE TABLE guests (
     arrival_datetime TIMESTAMP WITH TIME ZONE,
     departure_datetime TIMESTAMP WITH TIME ZONE,
     pending_extension_datetime TIMESTAMP WITH TIME ZONE,
+    room_index INTEGER DEFAULT 0,
+    preferred_occupancy VARCHAR(50) DEFAULT 'single',
+    preferred_extra_bed BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE
@@ -384,6 +392,82 @@ CREATE TABLE audit_logs (
     remarks TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 20.1 GUEST ROOM STAYS
+CREATE TABLE guest_room_stays (
+    stay_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id UUID NOT NULL REFERENCES booking_requests(booking_id) ON DELETE CASCADE,
+    guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+    room_id UUID REFERENCES rooms(room_id) ON DELETE SET NULL,
+    checked_in_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    checked_out_at TIMESTAMP WITH TIME ZONE,
+    occupancy_type VARCHAR(50) CHECK (occupancy_type IN ('single', 'double')),
+    extra_bed BOOLEAN DEFAULT false,
+    operational_room_type VARCHAR(50),
+    operational_tariff NUMERIC,
+    stay_status VARCHAR(30) DEFAULT 'CHECKED_IN' CHECK (stay_status IN ('CHECKED_IN', 'CHECKED_OUT')),
+    checked_in_by UUID REFERENCES users(user_id),
+    checked_out_by UUID REFERENCES users(user_id),
+    operational_notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 20.2 OCCUPANCY HISTORY
+CREATE TABLE occupancy_history (
+    history_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id UUID NOT NULL REFERENCES booking_requests(booking_id) ON DELETE CASCADE,
+    guest_id UUID NOT NULL REFERENCES guests(guest_id) ON DELETE CASCADE,
+    room_id UUID REFERENCES rooms(room_id) ON DELETE SET NULL,
+    occupancy_date DATE NOT NULL,
+    occupancy_type VARCHAR(50),
+    guest_count INTEGER,
+    extra_bed_count INTEGER,
+    room_type VARCHAR(50),
+    tariff_amount NUMERIC NOT NULL,
+    generated_by UUID REFERENCES users(user_id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 20.3 ROOM STATUS HISTORY
+CREATE TABLE room_status_history (
+    status_history_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES rooms(room_id) ON DELETE CASCADE,
+    previous_status VARCHAR(30),
+    new_status VARCHAR(30),
+    changed_by UUID REFERENCES users(user_id),
+    remarks TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 20.4 BILLING OVERRIDE LOGS
+CREATE TABLE billing_override_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_request_id UUID NOT NULL REFERENCES booking_requests(booking_id) ON DELETE CASCADE,
+    guest_id UUID REFERENCES guests(guest_id) ON DELETE CASCADE,
+    previous_room_type VARCHAR(50),
+    new_room_type VARCHAR(50),
+    previous_occupancy VARCHAR(50),
+    new_occupancy VARCHAR(50),
+    previous_tariff NUMERIC,
+    new_tariff NUMERIC,
+    previous_extra_bed BOOLEAN,
+    new_extra_bed BOOLEAN,
+    override_reason TEXT NOT NULL,
+    overridden_by UUID REFERENCES users(user_id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 20.5 FINAL BILLS
+CREATE TABLE final_bills (
+    final_bill_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id UUID UNIQUE NOT NULL REFERENCES booking_requests(booking_id) ON DELETE CASCADE,
+    generated_json JSONB NOT NULL,
+    subtotal NUMERIC NOT NULL,
+    gst NUMERIC NOT NULL,
+    total NUMERIC NOT NULL,
+    generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    generated_by UUID REFERENCES users(user_id)
 );
 
 -- 21. INDEXING STRATEGY

@@ -6,6 +6,13 @@ import CategoryInfoModal from './CategoryInfoModal';
 export default function CategoryVisitSection({ formData, handleChange, setFormData }) {
   const [showCatInfo, setShowCatInfo] = useState(false);
 
+  // Cat-1 is always official — lock visit_type automatically
+  useEffect(() => {
+    if (formData.category_id === '1' && formData.visit_type !== 'official') {
+      setFormData(prev => ({ ...prev, visit_type: 'official' }));
+    }
+  }, [formData.category_id]);
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
@@ -80,7 +87,9 @@ export default function CategoryVisitSection({ formData, handleChange, setFormDa
             className="block w-full pl-11 pr-10 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer"
           >
             <option value="official">Official</option>
-            <option value="personal">Personal</option>
+            {formData.category_id !== '1' && (
+              <option value="personal">Personal</option>
+            )}
           </select>
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 pt-7 text-slate-500">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

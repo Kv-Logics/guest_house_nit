@@ -237,30 +237,38 @@ export default function PreviewPage() {
     setIsLoading(true);
     setError('');
     try {
-      const sanitizedGuests = flatGuests.map((g) => {
-        const guest = { ...g };
-        
-        // Force age to be a number, or 0 if missing to satisfy Zod
-        guest.age = guest.age ? parseInt(guest.age, 10) : 0;
+      const sanitizedGuests = [];
+      (formData.rooms || []).forEach((room, roomIdx) => {
+        room.guests.forEach((g, guestIdx) => {
+          const guest = { ...g };
+          
+          // Inject room preferences based on room config
+          guest.room_index = roomIdx;
+          guest.preferred_occupancy = room.guests.length === 1 ? 'single' : 'double';
+          guest.preferred_extra_bed = !!(room.extra_bed && guestIdx >= 2);
+          
+          // Force age to be a number, or 0 if missing to satisfy Zod
+          guest.age = guest.age ? parseInt(guest.age, 10) : 0;
 
-        // Keep empty strings as empty strings to satisfy Zod's z.string()
-        if (!guest.email) guest.email = "";
-        if (!guest.designation) guest.designation = "";
-        if (!guest.address) guest.address = "";
-        if (!guest.gender) guest.gender = "";
+          // Keep empty strings as empty strings to satisfy Zod's z.string()
+          if (!guest.email) guest.email = "";
+          if (!guest.designation) guest.designation = "";
+          if (!guest.address) guest.address = "";
+          if (!guest.gender) guest.gender = "";
 
-        if (guest.food_preferences && Array.isArray(guest.food_preferences)) {
-            guest.food_preferences = guest.food_preferences.map(f => ({
-                meal_date: f.date || f.meal_date,
-                date: f.date || f.meal_date, // Zod explicitly expects the 'date' key
-                breakfast: f.breakfast ? 1 : 0,
-                lunch: f.lunch ? 1 : 0,
-                dinner: f.dinner ? 1 : 0,
-                remarks: f.remarks?.trim() || ''
-            }));
-        }
+          if (guest.food_preferences && Array.isArray(guest.food_preferences)) {
+              guest.food_preferences = guest.food_preferences.map(f => ({
+                  meal_date: f.date || f.meal_date,
+                  date: f.date || f.meal_date, // Zod explicitly expects the 'date' key
+                  breakfast: f.breakfast ? 1 : 0,
+                  lunch: f.lunch ? 1 : 0,
+                  dinner: f.dinner ? 1 : 0,
+                  remarks: f.remarks?.trim() || ''
+              }));
+          }
 
-        return guest;
+          sanitizedGuests.push(guest);
+        });
       });
 
       const bookingData = {
@@ -624,42 +632,7 @@ export default function PreviewPage() {
                   )}
                 </div>
 
-                {/* Grid for all choices */}
-                <div className="border-t border-slate-100 pt-3">
-                  <p className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider mb-2">
-                    Estimated Totals (Click to inspect breakdown)
-                  </p>
-                  <div className="grid grid-cols-1 gap-2">
-                    {priorities.map((type, idx) => {
-                      const billing = calculateBillingForRoomType(type);
-                      const isSelected = type === selectedBillingRoomType;
-                      const isPrimary = type === formData.room_type;
-                      return (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setSelectedBillingRoomType(type)}
-                          className={`w-full flex justify-between items-center p-2.5 rounded-xl border text-xs text-left transition-all ${
-                            isSelected 
-                              ? 'bg-blue-50/70 border-blue-300 text-blue-900 font-bold ring-2 ring-blue-100' 
-                              : 'bg-white border-slate-100 hover:border-slate-200 text-slate-600 hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <span className={`w-4 h-4 rounded-full flex items-center justify-center font-black text-[9px] ${
-                              isSelected ? 'bg-blue-200 text-blue-800' : 'bg-slate-100 text-slate-500'
-                            }`}>{idx + 1}</span>
-                            {type}
-                            {isPrimary && (
-                              <span className="text-[8px] font-extrabold text-blue-600 bg-blue-100/60 px-1 py-0.5 rounded uppercase tracking-wider">Primary</span>
-                            )}
-                          </span>
-                          <span className="font-extrabold text-slate-800">₹{billing.total}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+
 
                 <div className="flex justify-between pt-2 border-t border-slate-50">
                   <span>Subtotal ({selectedBillingRoomType === formData.room_type ? 'Primary' : 'Alternative'})</span>

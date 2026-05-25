@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -45,6 +45,9 @@ export default function ApplicantDashboard() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('active');
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Admins and authorities may need to visit the dashboard to manage their own applications.
+    // Default redirects upon login are now handled in LoginPage.
 
     const cancelMutation = useMutation({
         mutationFn: (id) => bookingService.cancelBooking(id),
@@ -185,6 +188,38 @@ export default function ApplicantDashboard() {
                 </Link>
             </div>
 
+            {/* Manage Request Stats */}
+            {bookings.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                    {[
+                        { label: 'Pending — With Authority', count: bookings.filter(b => b.booking_state === 'PENDING_APPROVER').length, color: 'amber' },
+                        { label: 'Pending — With Admin', count: bookings.filter(b => b.booking_state === 'PENDING_ADMIN').length, color: 'blue' },
+                        { label: 'Approved / Ready', count: bookings.filter(b => ['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN'].includes(b.booking_state)).length, color: 'green' },
+                        { label: 'Rejected', count: bookings.filter(b => ['APPROVER_REJECTED', 'ADMIN_REJECTED'].includes(b.booking_state)).length, color: 'red' },
+                    ].map(({ label, count, color }) => (
+                        <div key={label} className={`rounded-2xl border px-4 py-3 shadow-sm flex flex-col gap-1 ${
+                            color === 'amber' ? 'bg-amber-50 border-amber-200' :
+                            color === 'blue'  ? 'bg-blue-50 border-blue-200' :
+                            color === 'green' ? 'bg-emerald-50 border-emerald-200' :
+                                                'bg-red-50 border-red-200'
+                        }`}>
+                            <span className={`text-2xl font-black ${
+                                color === 'amber' ? 'text-amber-700' :
+                                color === 'blue'  ? 'text-blue-700' :
+                                color === 'green' ? 'text-emerald-700' :
+                                                    'text-red-700'
+                            }`}>{count}</span>
+                            <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                                color === 'amber' ? 'text-amber-600' :
+                                color === 'blue'  ? 'text-blue-600' :
+                                color === 'green' ? 'text-emerald-600' :
+                                                    'text-red-600'
+                            }`}>{label}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
                 <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
                     <button onClick={() => setActiveTab('active')} className={`flex-1 sm:flex-none px-6 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'active' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -199,6 +234,13 @@ export default function ApplicantDashboard() {
                     <input type="text" placeholder="Search by ID or Guest Name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
             </div>
+
+            {activeBookings.some(b => b.booking_state === 'CHECKED_IN' && b.allocated_room_numbers) && (
+                <div className="bg-indigo-50 p-4 rounded-xl text-sm font-semibold text-indigo-900 leading-relaxed border border-indigo-200 flex items-start mb-4 shadow-sm">
+                    <Info className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-indigo-500" />
+                    <span className="text-left">Final charges are based on actual room usage assigned during your stay. Any receptionist overrides may affect the final invoice amount.</span>
+                </div>
+            )}
 
             {activeBookings.length > 0 && hasDepartureOverdue && (
                 <div className="bg-rose-50 p-4 rounded-xl text-sm font-semibold text-rose-900 leading-relaxed border border-rose-200 flex items-start mb-6 shadow-sm">
@@ -265,7 +307,14 @@ export default function ApplicantDashboard() {
                                     </td>
                                     <td className="p-4 text-sm font-medium text-slate-800">{new Date(b.arrival_datetime).toLocaleDateString()}</td>
                                     <td className="p-4 text-sm font-medium text-slate-800">{new Date(b.departure_datetime).toLocaleDateString()}</td>
-                                    <td className="p-4 text-sm font-medium text-slate-800">{b.rooms_required}</td>
+                                    <td className="p-4 text-sm font-medium text-slate-800">
+                                        <div>{b.rooms_required} Room{b.rooms_required > 1 ? 's' : ''}</div>
+                                        {b.allocated_room_numbers && (
+                                            <div className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 mt-1 inline-block">
+                                                {b.allocated_room_numbers}
+                                            </div>
+                                        )}
+                                    </td>
                                     <td className="p-4">
                                         <StatusBadge status={b.booking_state} />
                                         {extensionAwaitingApproval(b) && (
@@ -291,7 +340,7 @@ export default function ApplicantDashboard() {
                                         <button onClick={() => setPreviewId(b.booking_id)} className="inline-flex items-center px-3 py-1.5 bg-slate-50 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors shadow-sm">
                                             <Eye className="w-4 h-4 mr-1.5" /> Preview
                                         </button>
-                                        {['PENDING_APPROVER', 'PENDING_ADMIN', 'ADMIN_APPROVED'].includes(b.booking_state) && !(b.checked_in_at && b.pending_extension_datetime) && (
+                                        {['PENDING_APPROVER', 'PENDING_ADMIN'].includes(b.booking_state) && !(b.checked_in_at && b.pending_extension_datetime) && (
                                             <button
                                                 onClick={() => { if (window.confirm('Are you sure you want to withdraw this application?')) cancelMutation.mutate(b.booking_id); }}
                                                 disabled={cancelMutation.isPending}

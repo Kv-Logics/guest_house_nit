@@ -30,6 +30,9 @@ exports.createBookingSchema = z.object({
             address: z.string().optional(),
             id_proof_type: z.string().optional(),
             id_proof_number: z.string().optional(),
+            room_index: z.coerce.number().int().nonnegative().optional(),
+            preferred_occupancy: z.string().optional(),
+            preferred_extra_bed: z.boolean().optional(),
             food_preferences: z.array(z.object({
                 date: z.string(), breakfast: z.coerce.number().optional(), lunch: z.coerce.number().optional(), dinner: z.coerce.number().optional(), remarks: z.string().optional()
             })).optional()

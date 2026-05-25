@@ -60,10 +60,10 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
           <label className="block text-xs font-bold text-slate-600 mb-1">Full Name *</label>
           <input required type="text" value={guest.guest_name} onChange={(e) => updateGuest('guest_name', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" />
         </div>
-        {formData.category_id !== '2' && (
+        {!['1', '2'].includes(formData.category_id) && (
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1">Relation to Applicant *</label>
-            <input required={formData.category_id !== '2'} type="text" value={guest.relation_to_applicant || ''} onChange={(e) => updateGuest('relation_to_applicant', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="e.g. Parent, Colleague" />
+            <input required type="text" value={guest.relation_to_applicant || ''} onChange={(e) => updateGuest('relation_to_applicant', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="e.g. Parent, Colleague" />
           </div>
         )}
         <div>
@@ -119,6 +119,18 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Departure Time</label>
           <input type="time" required value={guest.departure_time || '11:00'} onChange={(e) => updateGuest('departure_time', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs bg-slate-50 focus:bg-white" />
         </div>
+        {/* Inline departure > arrival validation */}
+        {(() => {
+          if (!guest.arrival_date || !guest.departure_date) return null;
+          const arr = new Date(`${guest.arrival_date}T${guest.arrival_time || '12:00'}`);
+          const dep = new Date(`${guest.departure_date}T${guest.departure_time || '11:00'}`);
+          if (dep <= arr) return (
+            <div className="sm:col-span-4 flex items-center gap-2 text-xs font-bold text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <span>⚠️</span> Departure must be after arrival. Please fix the date or time.
+            </div>
+          );
+          return null;
+        })()}
       </div>
 
       {/* Food Requisition Matrix */}

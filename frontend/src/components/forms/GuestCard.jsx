@@ -45,10 +45,10 @@ export default function GuestCard({ guest, gIndex, guests, setFormData, formData
           <label className="block text-xs font-bold text-slate-600 mb-1">Full Name *</label>
           <input required type="text" value={guest.guest_name} onChange={(e) => updateGuest('guest_name', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500" />
         </div>
-        {formData.category_id !== '2' && (
+        {!['1', '2'].includes(formData.category_id) && (
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1">Relation to Applicant *</label>
-            <input required={formData.category_id !== '2'} type="text" value={guest.relation_to_applicant || ''} onChange={(e) => updateGuest('relation_to_applicant', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500" placeholder="e.g. Parent, Colleague" />
+            <input required type="text" value={guest.relation_to_applicant || ''} onChange={(e) => updateGuest('relation_to_applicant', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500" placeholder="e.g. Parent, Colleague" />
           </div>
         )}
         <div>
