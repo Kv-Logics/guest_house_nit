@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useQuery } from '@tanstack/react-query';
 import {
   LogOut,
   Menu,
@@ -12,40 +13,92 @@ import {
   FileText,
 } from 'lucide-react';
 import { ROLES } from '../../utils/constants';
+import { approvalService } from '../../services/approval.service';
+import api from '../../services/api';
 import nitLogo from '../../assets/images/nitlogo.png';
+
+// WhatsApp-style notification badge
+function NavBadge({ count }) {
+  if (!count || count <= 0) return null;
+  return (
+    <span className="ml-2 min-w-[18px] h-[18px] bg-green-500 text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 shadow-sm">
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const role = user?.role;
+
+  const isAuthority = [ROLES.REGISTRAR, ROLES.DEAN, ROLES.HOD, ROLES.FACULTY, ROLES.DIRECTOR].includes(role);
+  const isAdmin = [ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN].includes(role);
+
+  // Fetch pending count for authority (pending approvals waiting for them)
+  const { data: approvalData } = useQuery({
+    queryKey: ['pendingApprovals'],
+    queryFn: approvalService.getPendingApprovals,
+    enabled: isAuthority,
+    staleTime: 30000,
+    refetchInterval: 60000, // refresh every 60s
+  });
+
+  // Fetch pending count for admin (PENDING_ADMIN bookings)
+  const { data: adminData } = useQuery({
+    queryKey: ['adminPendingCount'],
+    queryFn: () => api.get('/bookings/admin/all'),
+    enabled: isAdmin,
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+
+  const authorityPendingCount = approvalData?.data?.length || 0;
+  const adminPendingCount = adminData?.data?.filter(b => b.booking_state === 'PENDING_ADMIN').length || 0;
+
   let primaryPath = '/dashboard';
-  if (user?.role === ROLES.RECEPTIONIST) primaryPath = '/reception/dashboard';
-  else if ([ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN].includes(user?.role))
-    primaryPath = '/admin/dashboard';
-  else if ([ROLES.REGISTRAR, ROLES.DEAN, ROLES.HOD, ROLES.FACULTY].includes(user?.role))
-    primaryPath = '/approvals/dashboard';
+  if (role === ROLES.RECEPTIONIST) primaryPath = '/reception/dashboard';
+  else if (role === ROLES.GH_COORDINATOR) primaryPath = '/coordinator/dashboard';
+  else if (isAdmin) primaryPath = '/admin/dashboard';
+  else if (isAuthority) primaryPath = '/approvals/dashboard';
 
   const dynamicNavLinks = [];
   if (user) {
-    const role = user.role;
-
-    if (role !== ROLES.RECEPTIONIST) {
-      dynamicNavLinks.push({ name: 'Applied Applications', path: '/dashboard', icon: FileText });
-      dynamicNavLinks.push({ name: 'Add Application', path: '/book', icon: PlusCircle });
-    }
-    if ([ROLES.REGISTRAR, ROLES.DEAN, ROLES.HOD, ROLES.FACULTY].includes(role)) {
+    if (role === ROLES.RECEPTIONIST) {
       dynamicNavLinks.push({
-        name: 'Review Applications',
+        name: 'Reception Dashboard',
+        path: '/reception/dashboard',
+        icon: ClipboardCheck,
+        count: 0,
+      });
+    } else if (role === ROLES.GH_COORDINATOR) {
+      dynamicNavLinks.push({
+        name: 'GHC Operations',
+        path: '/coordinator/dashboard',
+        icon: ShieldCheck,
+        count: 0,
+      });
+    } else {
+      dynamicNavLinks.push({ name: 'Applied Applications', path: '/dashboard', icon: FileText, count: 0 });
+      dynamicNavLinks.push({ name: 'Add Application', path: '/book', icon: PlusCircle, count: 0 });
+    }
+    if (isAuthority) {
+      dynamicNavLinks.push({
+        name: 'Manage Requests',
         path: '/approvals/dashboard',
         icon: ClipboardCheck,
+        count: authorityPendingCount,
       });
     }
-    if ([ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN].includes(role)) {
-      dynamicNavLinks.push({ name: 'Admin Console', path: '/admin/dashboard', icon: ShieldCheck });
-    }
-    if (role === ROLES.RECEPTIONIST) {
-      dynamicNavLinks.push({ name: 'Front Desk', path: '/reception/dashboard', icon: Key });
+    if (isAdmin) {
+      dynamicNavLinks.push({
+        name: 'Manage Requests',
+        path: '/admin/dashboard',
+        icon: ShieldCheck,
+        count: adminPendingCount,
+      });
     }
   }
 
@@ -70,12 +123,13 @@ export default function Navbar() {
                 const isActive = location.pathname === link.path;
                 return (
                   <Link
-                    key={link.name}
+                    key={link.path}
                     to={link.path}
-                    className={`inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${isActive ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                    className={`inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-bold transition-all relative ${isActive ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                   >
                     <Icon className="w-4 h-4 mr-2" />
                     {link.name}
+                    <NavBadge count={link.count} />
                   </Link>
                 );
               })}
@@ -130,13 +184,14 @@ export default function Navbar() {
               const isActive = location.pathname === link.path;
               return (
                 <Link
-                  key={link.name}
+                  key={link.path}
                   to={link.path}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className={`flex items-center px-4 py-3 rounded-xl text-base font-bold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                 >
                   <Icon className="w-5 h-5 mr-3" />
                   {link.name}
+                  <NavBadge count={link.count} />
                 </Link>
               );
             })}

@@ -15,6 +15,7 @@ const ApplicantDashboard = React.lazy(() => import('./pages/dashboard/ApplicantD
 const ApproverDashboard = React.lazy(() => import('./pages/dashboard/ApproverDashboard'));
 const AdminDashboard = React.lazy(() => import('./pages/dashboard/AdminDashboard'));
 const ReceptionDashboard = React.lazy(() => import('./pages/dashboard/ReceptionDashboard'));
+const GHCoordinatorDashboard = React.lazy(() => import('./pages/dashboard/GHCoordinatorDashboard'));
 
 function App() {
   return (
@@ -67,8 +68,25 @@ function App() {
                   </Route>
 
                   {/* Reception Protected Routes */}
-                  <Route element={<ProtectedRoute allowedRoles={[ROLES.RECEPTIONIST]} />}>
+                  <Route
+                    element={
+                      <ProtectedRoute
+                        allowedRoles={[ROLES.RECEPTIONIST, ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN]}
+                      />
+                    }
+                  >
                     <Route path="/reception/dashboard" element={<ReceptionDashboard />} />
+                  </Route>
+
+                  {/* GH Coordinator Protected Routes */}
+                  <Route
+                    element={
+                      <ProtectedRoute
+                        allowedRoles={[ROLES.GH_COORDINATOR, ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN]}
+                      />
+                    }
+                  >
+                    <Route path="/coordinator/dashboard" element={<GHCoordinatorDashboard />} />
                   </Route>
                 </Route>
               </Route>

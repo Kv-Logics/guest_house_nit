@@ -26,7 +26,7 @@ const ProtectedRoute = ({ allowedRoles = [] }) => {
       return <Navigate to="/admin/dashboard" replace />;
     if ([ROLES.RECEPTIONIST].includes(user.role))
       return <Navigate to="/reception/dashboard" replace />;
-    if ([ROLES.REGISTRAR, ROLES.DEAN, ROLES.HOD].includes(user.role))
+    if ([ROLES.REGISTRAR, ROLES.DEAN, ROLES.HOD, ROLES.DIRECTOR].includes(user.role))
       return <Navigate to="/approvals/dashboard" replace />;
     return <Navigate to="/dashboard" replace />;
   }
