@@ -7,7 +7,7 @@ import ApproverSelection from './ApproverSelection';
 import { AlertCircle, Eye, ShieldCheck } from 'lucide-react';
 
 // MAIN COMPONENT EXPORT
-export default function BookingForm({ formData, setFormData, user, authorities = [], tariffs = [] }) {
+export default function BookingForm({ formData, setFormData, user, authorities = [], tariffs = [], isEditMode = false }) {
   const navigate = useNavigate();
   const [localError, setLocalError] = useState('');
   const [undertakingAccepted, setUndertakingAccepted] = useState(false);
@@ -120,7 +120,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
     }
 
     // Proceed to preview page with form data
-    navigate('/preview', { state: { formData, user, authorities, tariffs } });
+    navigate('/preview', { state: { formData, user, authorities, tariffs, isEditMode } });
   };
 
   return (

@@ -471,7 +471,7 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null) => {
 
         // 1. Lock the booking request (Prevent concurrent checkouts - Soft Lock Rule 4)
         const bRes = await client.query(`
-            SELECT booking_id, booking_state, allocated_room_numbers, checked_in_at, category_id
+            SELECT booking_id, booking_state, allocated_room_numbers, checked_in_at, category_id, payment_state, payment_responsible
             FROM booking_requests
             WHERE booking_id = $1 FOR UPDATE
         `, [bookingId]);
@@ -483,6 +483,12 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null) => {
         const booking = bRes.rows[0];
         if (booking.booking_state === 'CHECKED_OUT') {
             throw new Error('Booking has already been checked out.');
+        }
+
+        if (['3', '4'].includes(String(booking.category_id)) || (String(booking.category_id) === '2' && booking.payment_responsible === 'guest')) {
+            if (booking.payment_state !== 'PAID' && booking.payment_state !== 'NOT_APPLICABLE') {
+                throw new Error('The bill must be settled before checkout for this category/payment responsibility.');
+            }
         }
 
         // 2. Fetch and lock active stays for this booking
@@ -617,10 +623,11 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null) => {
 
         // 1. Fetch and lock the stay
         const stayRes = await client.query(`
-            SELECT grs.*, r.room_number, r.current_status, g.guest_name
+            SELECT grs.*, r.room_number, r.current_status, g.guest_name, b.category_id, b.payment_state, b.payment_responsible
             FROM guest_room_stays grs
             JOIN rooms r ON grs.room_id = r.room_id
             JOIN guests g ON grs.guest_id = g.guest_id
+            JOIN booking_requests b ON grs.booking_id = b.booking_id
             WHERE grs.stay_id = $1 FOR UPDATE
         `, [stayId]);
 
@@ -631,6 +638,12 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null) => {
         const stay = stayRes.rows[0];
         if (stay.stay_status === 'CHECKED_OUT') {
             throw new Error('This guest has already been checked out.');
+        }
+
+        if (['3', '4'].includes(String(stay.category_id)) || (String(stay.category_id) === '2' && stay.payment_responsible === 'guest')) {
+            if (stay.payment_state !== 'PAID' && stay.payment_state !== 'NOT_APPLICABLE') {
+                throw new Error('The bill must be settled before checkout for this category/payment responsibility.');
+            }
         }
 
         const bookingId = stay.booking_id;

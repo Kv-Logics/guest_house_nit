@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Html5QrcodeScanner, Html5QrcodeScanType, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { X, AlertCircle } from 'lucide-react';
 
 export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
     const [error, setError] = useState('');
+    
+    // Generate a unique ID for this instance to prevent DOM conflicts between routes
+    const readerId = useMemo(() => `qr-reader-${Math.random().toString(36).substr(2, 9)}`, []);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -18,13 +21,12 @@ export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
                 rememberLastUsedCamera: true,
             };
 
-            scanner = new Html5QrcodeScanner('reader', config, false);
+            scanner = new Html5QrcodeScanner(readerId, config, false);
 
             scanner.render(
                 (decodedText) => {
-                    if (scanner) {
-                        scanner.clear().catch(console.error);
-                    }
+                    // Do NOT call scanner.clear() here. 
+                    // onScanSuccess sets isOpen to false in the parent, which triggers the useEffect cleanup.
                     onScanSuccess(decodedText);
                 },
                 (errorMessage) => {
@@ -35,8 +37,8 @@ export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
             );
         };
 
-        // Small timeout ensures the modal animation finishes and the #reader div is mounted
-        const timer = setTimeout(initScanner, 150);
+        // Timeout ensures the modal animation finishes and the div is mounted
+        const timer = setTimeout(initScanner, 300);
 
         return () => {
             clearTimeout(timer);
@@ -44,7 +46,7 @@ export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
                 scanner.clear().catch(console.error);
             }
         };
-    }, [isOpen, onScanSuccess]);
+    }, [isOpen, onScanSuccess, readerId]);
 
     if (!isOpen) return null;
 
@@ -72,8 +74,8 @@ export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
                         </div>
                     )}
 
-                    <div className="rounded-2xl overflow-hidden border-2 border-indigo-100 bg-slate-900">
-                        <div id="reader" className="w-full h-full"></div>
+                    <div className="rounded-2xl overflow-hidden border-2 border-indigo-100 bg-slate-900 min-h-[250px]">
+                        <div id={readerId} className="w-full h-full"></div>
                     </div>
                 </div>
             </div>

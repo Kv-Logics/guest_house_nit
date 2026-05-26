@@ -76,65 +76,9 @@ export default function ApplicantDashboard() {
         queryFn: bookingService.getMyBookings
     });
 
-    const handleReapply = async (bookingId) => {
-        try {
-            const response = await bookingService.getBookingById(bookingId);
-            const b = response.data;
-            const arrDate = new Date(b.arrival_datetime);
-            const depDate = new Date(b.departure_datetime);
-            const formattedGuests = b.guests ? b.guests.map(g => {
-                return {
-                    ...g,
-                    food_preferences: g.food_preferences ? g.food_preferences.map(f => {
-                        const mDate = new Date(f.meal_date || f.date);
-                        return {
-                            ...f,
-                            date: `${mDate.getFullYear()}-${String(mDate.getMonth() + 1).padStart(2, '0')}-${String(mDate.getDate()).padStart(2, '0')}`
-                        };
-                    }) : []
-                };
-            }) : [];
 
-            // Smart convert flat guests array back to structured rooms array
-            const roomsRequired = Math.max(1, b.rooms_required || 1);
-            const reconstructedRooms = Array.from({ length: roomsRequired }).map(() => ({
-                guests: [],
-                extra_bed: false
-            }));
-
-            let guestIdx = 0;
-            // Distribute first 2 guests per room
-            for (let i = 0; i < roomsRequired; i++) {
-                if (guestIdx < formattedGuests.length) reconstructedRooms[i].guests.push(formattedGuests[guestIdx++]);
-                if (guestIdx < formattedGuests.length) reconstructedRooms[i].guests.push(formattedGuests[guestIdx++]);
-            }
-            // Distribute remaining guests as extra beds (3rd guest)
-            for (let i = 0; i < roomsRequired && guestIdx < formattedGuests.length; i++) {
-                reconstructedRooms[i].guests.push(formattedGuests[guestIdx++]);
-                reconstructedRooms[i].extra_bed = true;
-            }
-            // Catch-all safety for any remaining guests
-            while (guestIdx < formattedGuests.length) {
-                if (reconstructedRooms.length > 0) {
-                    reconstructedRooms[reconstructedRooms.length - 1].guests.push(formattedGuests[guestIdx++]);
-                }
-            }
-
-            const formattedData = {
-                ...b,
-                category_id: String(b.category_id),
-                arrival_date: `${arrDate.getFullYear()}-${String(arrDate.getMonth() + 1).padStart(2, '0')}-${String(arrDate.getDate()).padStart(2, '0')}`,
-                arrival_time: `${String(arrDate.getHours()).padStart(2, '0')}:${String(arrDate.getMinutes()).padStart(2, '0')}`,
-                departure_date: `${depDate.getFullYear()}-${String(depDate.getMonth() + 1).padStart(2, '0')}-${String(depDate.getDate()).padStart(2, '0')}`,
-                departure_time: `${String(depDate.getHours()).padStart(2, '0')}:${String(depDate.getMinutes()).padStart(2, '0')}`,
-                rooms: reconstructedRooms,
-                document_1: null,
-                document_2: null
-            };
-            navigate('/book', { state: { formData: formattedData, isReapply: true } });
-        } catch (e) {
-            alert('Failed to load booking details for reapplication.');
-        }
+    const handleReapply = (bookingId) => {
+        navigate(`/booking?edit=${bookingId}`);
     };
 
     if (isLoading) return <div className="p-8 text-center text-slate-500 font-bold">Loading your applications...</div>;
@@ -358,11 +302,11 @@ export default function ApplicantDashboard() {
                                                 <CalendarClock className="w-4 h-4 mr-1.5" /> Extend stay
                                             </button>
                                         )}
-                                        {(b.booking_state.endsWith('REJECTED') || b.booking_state === 'CANCELLED') && (
+                                        {!['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED', 'CANCELLED'].includes(b.booking_state) && (
                                             <button
                                                 onClick={() => handleReapply(b.booking_id)}
                                                 className="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-bold rounded-lg hover:bg-amber-100 border border-amber-200 transition-colors shadow-sm ml-2">
-                                                <RefreshCw className="w-4 h-4 mr-1.5" /> Edit & Re-apply
+                                                <RefreshCw className="w-4 h-4 mr-1.5" /> Edit Application
                                             </button>
                                         )}
                                     </td>

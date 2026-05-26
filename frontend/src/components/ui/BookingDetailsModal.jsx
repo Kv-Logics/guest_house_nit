@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { bookingService } from '../../services/booking.service';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -68,11 +69,12 @@ const getActionStyle = (action) => {
 };
 
 export default function BookingDetailsModal({ bookingId, onClose }) {
+    const { user } = useAuth();
+    const navigate = useNavigate();
     const [showFood, setShowFood] = useState(false); // Default to hiding food
     const [showInvoice, setShowInvoice] = useState(false);
     const qrRef = useRef(null);
 
-    const { user } = useAuth();
     const isAuthorityOrAdmin = user && ['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin'].includes(user.role);
 
     const { data, isLoading } = useQuery({
@@ -133,7 +135,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
     };
 
     const renderTimeline = (booking) => {
-        const isSuiteRoom = booking.room_type === 'Suite Room' || booking.booking_state === 'PENDING_DIRECTOR' || booking.booking_state === 'DIRECTOR_REJECTED';
+        const isSuiteRoom = booking.room_type === 'Suite Room' || booking.room_type === 'Mini Suite Room' || booking.booking_state === 'PENDING_DIRECTOR' || booking.booking_state === 'DIRECTOR_REJECTED';
         const isApplicant = !user || !['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin'].includes(user.role);
 
         const steps = isSuiteRoom ? (
@@ -141,22 +143,26 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                 { id: 1, title: 'Submitted', description: 'Application Received' },
                 { id: 2, title: 'HOD / Dean', description: 'Authority Review' },
                 { id: 3, title: 'Director', description: 'Director Review' },
-                { id: 4, title: 'Guest House Manager', description: 'Verification & Payment' }
+                { id: 4, title: 'GH Manager', description: 'Room & Payment' },
+                { id: 5, title: 'Reception', description: 'Check-In' }
             ] : [
                 { id: 1, title: 'Submitted', description: 'Application Received' },
                 { id: 2, title: 'HOD / Dean', description: getApproverDesignation(booking) },
                 { id: 3, title: 'Director', description: 'Director Review' },
-                { id: 4, title: 'Admin / Recpt', description: 'Verification & Payment' }
+                { id: 4, title: 'Admin', description: 'Room Allocation' },
+                { id: 5, title: 'Reception', description: 'Check-In' }
             ]
         ) : (
             isApplicant ? [
                 { id: 1, title: 'Submitted', description: 'Application Received' },
                 { id: 2, title: 'Authority', description: 'Authority Review' },
-                { id: 3, title: 'Guest House Manager', description: 'Verification & Payment' }
+                { id: 3, title: 'GH Manager', description: 'Room & Payment' },
+                { id: 4, title: 'Reception', description: 'Check-In' }
             ] : [
                 { id: 1, title: 'Submitted', description: 'Application Received' },
                 { id: 2, title: 'Authority', description: getApproverDesignation(booking) },
-                { id: 3, title: 'Admin', description: 'Verification & Payment' }
+                { id: 3, title: 'Admin', description: 'Room Allocation' },
+                { id: 4, title: 'Reception', description: 'Check-In' }
             ]
         );
 
@@ -171,14 +177,16 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
             else if (state === 'DIRECTOR_REJECTED') { currentStep = 3; isRejected = true; }
             else if (state === 'PENDING_ADMIN') currentStep = 4;
             else if (state === 'ADMIN_REJECTED') { currentStep = 4; isRejected = true; }
-            else if (['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(state)) currentStep = 5;
+            else if (['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CONFIRMED'].includes(state)) currentStep = 5;
+            else if (['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(state)) currentStep = 6;
             else if (state === 'CANCELLED') { currentStep = 1; isRejected = true; }
         } else {
             if (state === 'PENDING_APPROVER') currentStep = 2;
             else if (state === 'APPROVER_REJECTED') { currentStep = 2; isRejected = true; }
             else if (state === 'PENDING_ADMIN') currentStep = 3;
             else if (state === 'ADMIN_REJECTED') { currentStep = 3; isRejected = true; }
-            else if (['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(state)) currentStep = 4;
+            else if (['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CONFIRMED'].includes(state)) currentStep = 4;
+            else if (['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED'].includes(state)) currentStep = 5;
             else if (state === 'CANCELLED') { currentStep = 1; isRejected = true; }
         }
 
@@ -408,6 +416,11 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        {user && (user.role === 'super_admin' || user.role === 'guest_house_admin' || user.role === 'gh_coordinator' || (booking?.user_id === user.user_id && !['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED', 'CANCELLED'].includes(booking?.booking_state))) && (
+                            <button onClick={() => { onClose(); navigate('/booking?edit=' + bookingId); }} className="flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 font-bold rounded-xl border border-indigo-200 hover:bg-indigo-100 transition-colors shadow-sm mr-2">
+                                <FileText className="w-4 h-4 mr-2" /> Edit Application
+                            </button>
+                        )}
                         {booking && (booking.payment_state === 'PAID' || booking.booking_state === 'CHECKED_OUT') && (
                             <button onClick={() => setShowInvoice(true)} className="flex items-center px-4 py-2 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm mr-2">
                                 <Receipt className="w-4 h-4 mr-2" /> Receipt
@@ -470,7 +483,16 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                         {booking.checked_out_at && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Checked Out At</p><p className="text-slate-800 font-semibold">{new Date(booking.checked_out_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>}
                                         <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Payment</p><p className="text-slate-800 font-semibold capitalize">{booking.payment_responsible}</p></div>
                                         {booking.project_code && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Project Code</p><p className="text-slate-800 font-semibold">{booking.project_code}</p></div>}
-                                        <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Rooms</p><p className="text-slate-800 font-semibold">{booking.rooms_required} x {booking.room_type || 'Standard Room'}</p>{booking.extra_beds > 0 && <p className="text-xs text-slate-500">+{booking.extra_beds} Extra Bed In Same Room </p>}</div>
+                                        <div>
+                                            <p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Rooms</p>
+                                            <p className="text-slate-800 font-semibold">{booking.rooms_required} x {booking.room_type || 'Standard Room'}</p>
+                                            {booking.extra_beds > 0 && <p className="text-xs text-slate-500">+{booking.extra_beds} Extra Bed In Same Room </p>}
+                                            {(booking.room_type === 'Suite Room' || booking.room_type === 'Mini Suite Room') && (
+                                                <div className="mt-1 flex items-center gap-1 text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-flex">
+                                                    <span>⚠️ Requires Director Approval</span>
+                                                </div>
+                                            )}
+                                        </div>
                                         {booking.allocated_room_numbers && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Allocated Room(s)</p><p className="text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-100 inline-block">{booking.allocated_room_numbers}</p></div>}
                                         <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Est. Amount</p><p className="text-emerald-700 font-bold">₹{booking.total_estimated_amount || booking.estimated_amount || 0}</p></div>
                                         {booking.room_priority && (
@@ -502,7 +524,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                     <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-6 flex flex-col md:flex-row items-center gap-6 shadow-sm">
                                         <div className="flex flex-col items-center gap-3 shrink-0">
                                             <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-100" ref={qrRef}>
-                                                <QRCodeCanvas value={booking.booking_id} size={120} level="M" />
+                                                <QRCodeCanvas value={booking.booking_id} size={120} level="M" includeMargin={true} />
                                             </div>
                                             <button 
                                                 onClick={downloadQRCode}
@@ -536,52 +558,81 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                             <Utensils className="w-3 h-3 mr-1.5" /> {showFood ? 'Hide Food' : 'Show Food'}
                                         </button>
                                     </div>
-                                    {booking.guests && booking.guests.filter(Boolean).length > 0 ? (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                                            {booking.guests.filter(Boolean).map((guest, idx) => (
-                                                <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm transition-all">
-                                                    <p className="font-bold text-slate-800">{guest.guest_name}</p>
-                                                    <p className="text-xs font-medium text-slate-500 mt-1 uppercase tracking-wider">{guest.relation_to_applicant || 'Guest'}</p>
-                                                    <div className="mt-2 space-y-1 text-slate-600 text-xs">
-                                                        {guest.phone && <p>📞 {guest.phone}</p>}
-                                                        {guest.email && <p>✉️ {guest.email}</p>}
-                                                        {(guest.arrival_datetime || guest.arrival_date) && (guest.departure_datetime || guest.departure_date) && (
-                                                            <div className="mt-2 pt-2 border-t border-slate-200/50">
-                                                                <p className="font-bold text-slate-700 text-[10px] uppercase tracking-wider mb-0.5">Stay Timeline</p>
-                                                                <p className="text-[11px] text-slate-500 font-medium">
-                                                                    {new Date(guest.arrival_datetime || guest.arrival_date).toLocaleDateString()} ({guest.arrival_time || '12:00'}) to {new Date(guest.departure_datetime || guest.departure_date).toLocaleDateString()} ({guest.departure_time || '11:00'})
-                                                                </p>
-                                                                <p className="mt-1.5">
-                                                                    <span className="text-[9px] font-extrabold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100/50 uppercase tracking-wider inline-flex items-center shadow-xs">
-                                                                        ⏱️ Duration: {calculateDuration(guest.arrival_datetime || `${guest.arrival_date}T${guest.arrival_time || '12:00'}`, guest.departure_datetime || `${guest.departure_date}T${guest.departure_time || '11:00'}`)}
-                                                                    </span>
-                                                                </p>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {showFood && (
-                                                        <div className="mt-3 pt-3 border-t border-slate-200 animate-fade-in">
-                                                            <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider flex items-center">
-                                                                <Utensils className="w-3 h-3 mr-1" /> Meal Requests
-                                                            </p>
-                                                            {guest.food_preferences && guest.food_preferences.filter(Boolean).length > 0 ? (
-                                                                <div className="space-y-1">
-                                                                    {guest.food_preferences.filter(Boolean).map((meal, mIdx) => (
-                                                                        <div key={mIdx} className="text-xs bg-white p-2 rounded-lg border border-slate-100 grid grid-cols-4 gap-1 text-center shadow-sm">
-                                                                            <span className="font-semibold text-slate-700 text-left">{new Date(meal.meal_date || meal.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-                                                                            <span className="text-slate-600 font-medium" title="Breakfast">B: <span className={meal.breakfast > 0 ? 'text-green-600 font-extrabold text-sm' : 'text-slate-300'}>{meal.breakfast > 0 ? '✓' : '—'}</span></span>
-                                                                            <span className="text-slate-600 font-medium" title="Lunch">L: <span className={meal.lunch > 0 ? 'text-green-600 font-extrabold text-sm' : 'text-slate-300'}>{meal.lunch > 0 ? '✓' : '—'}</span></span>
-                                                                            <span className="text-slate-600 font-medium" title="Dinner">D: <span className={meal.dinner > 0 ? 'text-green-600 font-extrabold text-sm' : 'text-slate-300'}>{meal.dinner > 0 ? '✓' : '—'}</span></span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            ) : <p className="text-xs text-slate-400 italic">No food requested.</p>}
+                                {booking.guests && booking.guests.filter(Boolean).length > 0 ? (
+                                    <div className="space-y-4">
+                                        {(() => {
+                                            const roomsMap = {};
+                                            booking.guests.filter(Boolean).forEach((guest) => {
+                                                const rIdx = guest.room_index || 0;
+                                                if (!roomsMap[rIdx]) roomsMap[rIdx] = [];
+                                                roomsMap[rIdx].push(guest);
+                                            });
+
+                                            return Object.entries(roomsMap).map(([rIdxStr, guestsInRoom]) => {
+                                                const rIdx = parseInt(rIdxStr);
+                                                const count = guestsInRoom.length;
+                                                let occLabel = 'Single';
+                                                if (count === 2) occLabel = 'Double';
+                                                if (count >= 3) occLabel = 'Double + Extra Bed';
+
+                                                return (
+                                                    <div key={rIdx} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                                        <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
+                                                            <span className="font-black text-slate-700 text-sm">Room {rIdx + 1}</span>
+                                                            <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">{occLabel}</span>
                                                         </div>
-                                                    )}
-                                                </div>
-                                            ))}
+                                                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                            {guestsInRoom.map((guest, idx) => (
+                                                                <div key={idx} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-sm transition-all hover:shadow-md ring-1 ring-slate-200/50">
+                                                                    <p className="font-bold text-slate-800">{guest.guest_name}</p>
+                                                                    <p className="text-xs font-medium text-slate-500 mt-1 uppercase tracking-wider">{guest.relation_to_applicant || 'Guest'}</p>
+                                                                    <div className="mt-2 space-y-1 text-slate-600 text-xs">
+                                                                        {guest.phone && <p>📞 {guest.phone}</p>}
+                                                                        {guest.email && <p>✉️ {guest.email}</p>}
+                                                                        {(guest.arrival_datetime || guest.arrival_date) && (guest.departure_datetime || guest.departure_date) && (
+                                                                            <div className="mt-2 pt-2 border-t border-slate-100">
+                                                                                <p className="font-bold text-slate-700 text-[10px] uppercase tracking-wider mb-0.5">Stay Timeline</p>
+                                                                                <p className="text-[11px] text-slate-500 font-medium">
+                                                                                    {new Date(guest.arrival_datetime || guest.arrival_date).toLocaleDateString()} ({guest.arrival_time || '12:00'}) to {new Date(guest.departure_datetime || guest.departure_date).toLocaleDateString()} ({guest.departure_time || '11:00'})
+                                                                                </p>
+                                                                                <p className="mt-1.5">
+                                                                                    <span className="text-[9px] font-extrabold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100/50 uppercase tracking-wider inline-flex items-center shadow-xs">
+                                                                                        ⏱️ Duration: {calculateDuration(guest.arrival_datetime || `${guest.arrival_date}T${guest.arrival_time || '12:00'}`, guest.departure_datetime || `${guest.departure_date}T${guest.departure_time || '11:00'}`)}
+                                                                                    </span>
+                                                                                </p>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    {showFood && (
+                                                                        <div className="mt-3 pt-3 border-t border-slate-100 animate-fade-in">
+                                                                            <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider flex items-center">
+                                                                                <Utensils className="w-3 h-3 mr-1" /> Meal Requests
+                                                                            </p>
+                                                                            {guest.food_preferences && guest.food_preferences.filter(Boolean).length > 0 ? (
+                                                                                <div className="space-y-1">
+                                                                                    {guest.food_preferences.filter(Boolean).map((meal, mIdx) => (
+                                                                                        <div key={mIdx} className="text-xs bg-slate-50 p-2 rounded-lg border border-slate-100 grid grid-cols-4 gap-1 text-center shadow-xs">
+                                                                                            <span className="font-semibold text-slate-700 text-left">{new Date(meal.meal_date || meal.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                                                                                            <span className="text-slate-600 font-medium" title="Breakfast">B: <span className={meal.breakfast > 0 ? 'text-green-600 font-extrabold text-sm' : 'text-slate-300'}>{meal.breakfast > 0 ? '✓' : '—'}</span></span>
+                                                                                            <span className="text-slate-600 font-medium" title="Lunch">L: <span className={meal.lunch > 0 ? 'text-green-600 font-extrabold text-sm' : 'text-slate-300'}>{meal.lunch > 0 ? '✓' : '—'}</span></span>
+                                                                                            <span className="text-slate-600 font-medium" title="Dinner">D: <span className={meal.dinner > 0 ? 'text-green-600 font-extrabold text-sm' : 'text-slate-300'}>{meal.dinner > 0 ? '✓' : '—'}</span></span>
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            ) : <p className="text-xs text-slate-400 italic">No food requested.</p>}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                });
+                                            })()}
                                         </div>
-                                    ) : <p className="text-sm text-slate-500 italic bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">No guests listed.</p>}
+                                    ) : (
+                                        <p className="text-sm text-slate-500 italic p-4 bg-slate-50 rounded-xl border border-slate-200">No guest details provided.</p>
+                                    )}
                                 </div>
 
                                 {/* Documents */}

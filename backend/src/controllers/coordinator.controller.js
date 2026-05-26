@@ -3,12 +3,17 @@ const coordinatorService = require('../services/coordinator.service');
 const getBookingForOverride = async (req, res) => {
     try {
         const { bookingId } = req.params;
+        require('fs').appendFileSync('ghc-debug.log', `\n[GET /bookings/${bookingId}] req.user: ${JSON.stringify(req.user)}`);
+        
         const booking = await coordinatorService.getBookingFullDetails(bookingId);
         if (!booking) {
+            require('fs').appendFileSync('ghc-debug.log', `\n-> 404 NOT FOUND`);
             return res.status(404).json({ error: 'Booking not found' });
         }
+        require('fs').appendFileSync('ghc-debug.log', `\n-> SUCCESS!`);
         res.json({ success: true, data: booking });
     } catch (err) {
+        require('fs').appendFileSync('ghc-debug.log', `\n-> ERROR: ${err.message}`);
         console.error('Coordinator getBooking error:', err);
         res.status(500).json({ error: 'Failed to fetch booking details', details: err.message });
     }
@@ -16,9 +21,12 @@ const getBookingForOverride = async (req, res) => {
 
 const getModifiableBookings = async (req, res) => {
     try {
+        require('fs').appendFileSync('ghc-debug.log', `\n[GET /bookings LIST] req.user: ${JSON.stringify(req.user)}`);
         const bookings = await coordinatorService.getModifiableBookings();
+        require('fs').appendFileSync('ghc-debug.log', `\n-> LIST SUCCESS, count: ${bookings.length}`);
         res.json({ success: true, data: bookings });
     } catch (err) {
+        require('fs').appendFileSync('ghc-debug.log', `\n-> LIST ERROR: ${err.message}`);
         console.error('Coordinator get bookings error:', err);
         res.status(500).json({ error: 'Failed to fetch modifiable bookings', details: err.message });
     }

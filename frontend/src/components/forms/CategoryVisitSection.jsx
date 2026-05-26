@@ -6,9 +6,9 @@ import CategoryInfoModal from './CategoryInfoModal';
 export default function CategoryVisitSection({ formData, handleChange, setFormData }) {
   const [showCatInfo, setShowCatInfo] = useState(false);
 
-  // Cat-1 is always official — lock visit_type automatically
+  // Cat-1 and Cat-2 are always official — lock visit_type automatically
   useEffect(() => {
-    if (formData.category_id === '1' && formData.visit_type !== 'official') {
+    if ((formData.category_id === '1' || formData.category_id === '2') && formData.visit_type !== 'official') {
       setFormData(prev => ({ ...prev, visit_type: 'official' }));
     }
   }, [formData.category_id]);
@@ -61,10 +61,10 @@ export default function CategoryVisitSection({ formData, handleChange, setFormDa
             onChange={handleChange}
             className="block w-full pl-11 pr-10 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer"
           >
-            <option value="1">CAT I (Institute Guests - Academic/Admin)</option>
-            <option value="2">CAT II (Project / Consultancy / Conference)</option>
-            <option value="3">CAT III (Staff Guests / Parents / Alumni)</option>
-            <option value="4">CAT IV (Personal Uncategorized)</option>
+            <option value="1">CAT I</option>
+            <option value="2">CAT II</option>
+            <option value="3">CAT III</option>
+            <option value="4">CAT IV</option>
           </select>
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 pt-7 text-slate-500">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,7 +87,7 @@ export default function CategoryVisitSection({ formData, handleChange, setFormDa
             className="block w-full pl-11 pr-10 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer"
           >
             <option value="official">Official</option>
-            {formData.category_id !== '1' && (
+            {(formData.category_id !== '1' && formData.category_id !== '2') && (
               <option value="personal">Personal</option>
             )}
           </select>
@@ -118,21 +118,16 @@ export default function CategoryVisitSection({ formData, handleChange, setFormDa
             >
               <option value="guest">Guest</option>
               <option value="coordinator">Coordinator</option>
-              <option value="department">Department</option>
-              <option value="project">Project Account</option>
             </select>
           </div>
         </div>
       )}
 
-      {(formData.category_id === '3' || formData.category_id === '4') && (
+      {(formData.category_id === '3' || formData.category_id === '4' || (formData.category_id === '2' && formData.payment_responsibility === 'guest')) && (
         <div className="mb-6 bg-amber-50 p-4 rounded-xl border border-amber-200 text-sm font-semibold text-amber-800 flex items-start">
           <Info className="w-5 h-5 flex-shrink-0 mr-2 text-amber-600" />
           <div>
-            Bill must be settled before checkout. <br />
-            <span className="font-normal text-xs mt-1 block">
-              Subject to strict room availability. CAT-I & II hold priority override rights.
-            </span>
+            Bill must be settled before checkout.
           </div>
         </div>
       )}

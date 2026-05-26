@@ -95,3 +95,16 @@ exports.getAuthorities = async (req, res, next) => {
         next(error);
     }
 };
+
+exports.editBooking = async (req, res, next) => {
+    try {
+        req.body.user_id = req.user.user_id || req.user.id;
+        req.body.role = req.user.role;
+        req.body.files = req.files;
+        req.body.booking_id = req.params.id;
+        const data = await bookingService.editBookingRequest(req.body);
+        return sendSuccess(res, 'Booking updated successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};

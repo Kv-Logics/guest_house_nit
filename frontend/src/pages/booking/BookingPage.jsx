@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import BookingForm from '../../components/forms/BookingForm';
 import { useAuth } from '../../context/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 export default function BookingPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const editBookingId = searchParams.get('edit');
   const { user } = useAuth();
   const [tariffs, setTariffs] = useState([]);
   const [authorities, setAuthorities] = useState([]);
+  const [isLoadingEdit, setIsLoadingEdit] = useState(!!editBookingId);
 
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -43,6 +47,61 @@ export default function BookingPage() {
       ]
     }
   );
+
+  useEffect(() => {
+    if (!user) return;
+    if (editBookingId) {
+      const fetchBooking = async () => {
+        try {
+          const res = await api.get(`/bookings/${editBookingId}`);
+          if (res.success && res.data) {
+            const b = res.data;
+            const rooms = Array.from({ length: b.rooms_required || 1 }).map((_, i) => {
+                const roomGuests = (b.guests || []).filter(g => g.room_index === i);
+                return {
+                    guests: roomGuests.length > 0 ? roomGuests.map(g => {
+                        const arr = new Date(g.arrival_datetime);
+                        const dep = new Date(g.departure_datetime);
+                        return {
+                            ...g,
+                            id_proof_type: g.identity_proof_type,
+                            id_proof_number: g.identity_proof_number,
+                            arrival_date: arr.toISOString().split('T')[0],
+                            arrival_time: arr.toTimeString().substring(0, 5),
+                            departure_date: dep.toISOString().split('T')[0],
+                            departure_time: dep.toTimeString().substring(0, 5),
+                        }
+                    }) : [{
+                        guest_name: '', designation: '', relation_to_applicant: '', phone: '', email: '',
+                        gender: 'Male', age: '', address: '', id_proof_type: '', id_proof_number: '',
+                        arrival_date: todayStr, arrival_time: '12:00', departure_date: tomorrowStr, departure_time: '11:00', food_preferences: []
+                    }],
+                    extra_bed: roomGuests.some(g => g.preferred_extra_bed)
+                };
+            });
+
+            setFormData({
+              booking_id: b.booking_id,
+              purpose_of_visit: b.purpose_of_visit || '',
+              room_type: b.room_type || 'Standard Room',
+              total_estimated_amount: b.total_estimated_amount || 0,
+              category_id: String(b.category_id || '1'),
+              visit_type: b.visit_type || 'official',
+              project_code: b.project_code || '',
+              payment_responsibility: b.payment_responsible || 'guest',
+              assigned_approver_id: String(b.assigned_approver_id || ''),
+              rooms: rooms
+            });
+          }
+        } catch (e) {
+          console.error('Failed to fetch booking for editing', e);
+        } finally {
+          setIsLoadingEdit(false);
+        }
+      };
+      fetchBooking();
+    }
+  }, [editBookingId, user]);
 
   useEffect(() => {
     if (!user) {
@@ -172,6 +231,15 @@ export default function BookingPage() {
     tariffs,
   ]);
 
+  if (isLoadingEdit) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mb-4" />
+        <p className="text-slate-600 font-medium">Loading Application Details...</p>
+      </div>
+    );
+  }
+
   if (!user) return null;
 
   return (
@@ -182,6 +250,7 @@ export default function BookingPage() {
         user={user}
         authorities={authorities}
         tariffs={tariffs}
+        isEditMode={!!editBookingId}
       />
     </div>
   );

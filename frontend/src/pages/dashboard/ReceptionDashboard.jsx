@@ -283,7 +283,35 @@ export default function ReceptionDashboard() {
     // --- DYNAMIC OCCUPANCY & BILLING ENGINE ---
     const calculateRoomTimeline = (room) => {
         if (!room) return { timeline: [], totalBill: 0 };
-        const pricing = PRICING_CONFIG[room.roomType] || PRICING_CONFIG["Standard Room"];
+        
+        let category = 'I';
+        if (room.active_booking && room.active_booking.category_id) {
+            category = room.active_booking.category_id;
+        } else if (room.active_booking && room.active_booking.category_code) {
+            category = room.active_booking.category_code.replace('CAT-', '');
+        }
+
+        const roomType = room.roomType || "Standard Room";
+
+        const getTariff = (cat, type, occ) => {
+            if (type === "Suite Room") return 5500;
+            if (type === "Mini Suite Room") return 4000;
+            
+            const standardRates = {
+                '1': { single: 1000, double: 1600 },
+                'I': { single: 1000, double: 1600 },
+                '2': { single: 1100, double: 1800 },
+                'II': { single: 1100, double: 1800 },
+                '3': { single: 1200, double: 2000 },
+                'III': { single: 1200, double: 2000 },
+                '4': { single: 2600, double: 2600 },
+                'IV': { single: 2600, double: 2600 }
+            };
+
+            const rates = standardRates[cat] || standardRates['I'];
+            return occ === 'single' ? rates.single : rates.double;
+        };
+
         const dateMap = {};
 
         // Only include guests who have actually checked in or out
@@ -336,15 +364,15 @@ export default function ReceptionDashboard() {
 
             if (count === 1) {
                 occupancy = 'Single';
-                roomFare = pricing.single;
+                roomFare = getTariff(category, roomType, 'single');
             } else if (count === 2) {
                 occupancy = 'Double';
-                roomFare = pricing.double;
+                roomFare = getTariff(category, roomType, 'double');
             } else if (count > 2) {
                 occupancy = 'Double';
-                roomFare = pricing.double;
+                roomFare = getTariff(category, roomType, 'double');
                 extraBeds = count - 2;
-                extraBedCharge = extraBeds * pricing.extraBed;
+                extraBedCharge = extraBeds * 400; // Extra bed rate
             }
 
             const dailyCharge = roomFare + extraBedCharge;
@@ -650,7 +678,7 @@ export default function ReceptionDashboard() {
                 onScanSuccess={(decodedText) => {
                     setIsQRScannerOpen(false);
                     // Search in arrivals
-                    const arrival = bookingData.arrivals.find(a => a.booking_id === decodedText || a.booking_id.split('-')[0] === decodedText);
+                    const arrival = bookingData.arrivals.find(a => a.bookingId === decodedText || a.bookingId.split('-')[0] === decodedText);
                     if (arrival) {
                         setActiveTab('arrivals');
                         setPreviewArrival(arrival);

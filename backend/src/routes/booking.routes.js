@@ -42,6 +42,13 @@ router.post('/', upload.fields([{ name: 'document_1', maxCount: 1 }, { name: 'do
 
 router.get('/my', bookingController.getMyBookings);
 router.get('/:id', bookingController.getBookingById);
+router.put('/:id', upload.fields([{ name: 'document_1', maxCount: 1 }, { name: 'document_2', maxCount: 1 }]), (req, res, next) => {
+    if (req.body.payload) {
+        try { req.body = JSON.parse(req.body.payload); } 
+        catch (e) { return res.status(400).json({ success: false, message: 'Invalid JSON payload' }); }
+    }
+    next();
+}, bookingController.editBooking);
 router.post('/:id/pay', bookingController.mockPayment);
 router.patch('/:id/cancel', bookingController.cancelBooking);
 router.post('/:id/stay-extension', validate(stayExtensionSchema), bookingController.requestStayExtension);

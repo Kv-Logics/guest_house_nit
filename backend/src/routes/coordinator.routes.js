@@ -4,9 +4,9 @@ const coordinatorController = require('../controllers/coordinator.controller');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/role.middleware');
 
-// Protect all routes: must be logged in, and must be either GH_COORDINATOR or SUPER_ADMIN
+// Protect all routes: must be logged in, and must be either GH_COORDINATOR, ADMIN, SUPER_ADMIN, or GUEST_HOUSE_ADMIN
 router.use(requireAuth);
-router.use(requireRole(['gh_coordinator', 'super_admin', 'guest_house_admin']));
+router.use(requireRole(['gh_coordinator', 'admin', 'super_admin', 'guest_house_admin']));
 
 // Fetch a specific booking by ID (full details for override UI)
 router.get('/bookings/:bookingId', coordinatorController.getBookingForOverride);

@@ -53,7 +53,7 @@ exports.getModifiableBookings = async () => {
                u.full_name as applicant_name
         FROM booking_requests br
         LEFT JOIN users u ON br.user_id = u.user_id
-        WHERE br.booking_state IN ('PENDING_ADMIN', 'READY_FOR_CHECKIN', 'CHECKED_IN', 'CHECKED_OUT')
+        WHERE br.booking_state IN ('PENDING_ADMIN', 'ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN', 'CHECKED_OUT')
         ORDER BY br.arrival_datetime DESC
     `);
     return res.rows;
@@ -93,9 +93,10 @@ exports.processOverride = async (bookingId, payload, userId) => {
                         UPDATE guests 
                         SET departure_datetime = COALESCE($1, departure_datetime),
                             preferred_occupancy = COALESCE($2, preferred_occupancy),
-                            preferred_extra_bed = COALESCE($3, preferred_extra_bed)
+                            preferred_extra_bed = COALESCE($3, preferred_extra_bed),
+                            room_index = COALESCE($6, room_index)
                         WHERE guest_id = $4 AND booking_id = $5
-                    `, [g.departure_datetime, g.preferred_occupancy, g.preferred_extra_bed, g.guest_id, bookingId]);
+                    `, [g.departure_datetime, g.preferred_occupancy, g.preferred_extra_bed, g.guest_id, bookingId, g.room_index]);
 
                     await client.query(`
                         UPDATE guest_room_stays

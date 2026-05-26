@@ -301,7 +301,12 @@ export default function PreviewPage() {
       if (formData.document_1) formDataToSend.append('document_1', formData.document_1);
       if (formData.document_2) formDataToSend.append('document_2', formData.document_2);
 
-      const response = await api.post('/bookings', formDataToSend);
+      let response;
+      if (location.state?.isEditMode && formData.booking_id) {
+        response = await api.put(`/bookings/${formData.booking_id}`, formDataToSend);
+      } else {
+        response = await api.post('/bookings', formDataToSend);
+      }
 
       localStorage.removeItem('nitt_booking_draft');
       navigate('/success', { state: { bookingId: response.data.booking_id } });

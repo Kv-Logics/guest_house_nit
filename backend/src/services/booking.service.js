@@ -651,3 +651,137 @@ exports.getBookingHistory = async (bookingId) => {
     const result = await db.query('SELECT a.*, u.full_name as approver_name FROM approval_logs a LEFT JOIN users u ON a.approver_id = u.user_id WHERE a.booking_id = $1 ORDER BY a.created_at DESC', [bookingId]);
     return result.rows;
 };
+
+exports.editBookingRequest = async (data) => {
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+        
+        const existingRes = await client.query('SELECT * FROM booking_requests WHERE booking_id = $1 FOR UPDATE', [data.booking_id]);
+        if (!existingRes.rows.length) throw new Error('Booking not found');
+        const existing = existingRes.rows[0];
+
+        const userRole = String(data.role).toLowerCase();
+        const isAdmin = ['super_admin', 'guest_house_admin', 'gh_coordinator'].includes(userRole);
+        const isApplicant = existing.user_id === data.user_id;
+
+        if (!isAdmin && !isApplicant) {
+            throw new Error('Unauthorized to edit this booking.');
+        }
+
+        if (isApplicant && !isAdmin && ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED', 'CANCELLED'].includes(existing.booking_state)) {
+            throw new Error('This booking is in a state that cannot be revised by the applicant.');
+        }
+
+        // Calculate min arrival and max departure dates from guest list
+        let minArrival = null;
+        let maxDeparture = null;
+        if (data.guests && data.guests.length > 0) {
+            for (const guest of data.guests) {
+                const arr = new Date(guest.arrival_datetime || `${guest.arrival_date} ${guest.arrival_time || '12:00'}:00`);
+                const dep = new Date(guest.departure_datetime || `${guest.departure_date} ${guest.departure_time || '12:00'}:00`);
+                if (!minArrival || arr < minArrival) minArrival = arr;
+                if (!maxDeparture || dep > maxDeparture) maxDeparture = dep;
+            }
+        }
+        const arrivalDatetime = minArrival ? minArrival.toISOString() : (data.arrival_datetime || `${data.arrival_date} ${data.arrival_time}:00`);
+        const departureDatetime = maxDeparture ? maxDeparture.toISOString() : (data.departure_datetime || `${data.departure_date} ${data.departure_time}:00`);
+
+        let newState = existing.booking_state;
+        let actionStr = 'ADMIN_CORRECTION';
+        let logMessage = 'Admin corrected booking fields.';
+
+        if (!isAdmin && isApplicant) {
+            newState = BOOKING_STATUS.PENDING_APPROVER;
+            actionStr = 'APPLICANT_REVISION';
+            logMessage = 'Applicant revised booking, reverting state for re-approval.';
+            
+            // Delete room stays since they might be invalid now
+            await client.query('DELETE FROM guest_room_stays WHERE booking_id = $1 AND stay_status != $2', [data.booking_id, 'CHECKED_IN']);
+        }
+
+        const catRes = await client.query('SELECT * FROM category_rules WHERE category_id = $1', [data.category_id || existing.category_id]);
+        const category = catRes.rows[0];
+        const paymentResponsible = data.payment_responsibility || existing.payment_responsible;
+
+        // Build diff
+        let diffs = [];
+        if (existing.room_type !== data.room_type) diffs.push(`Room Type: ${data.room_type}`);
+        if (existing.rooms_required !== parseInt(data.rooms_required)) diffs.push(`Rooms: ${data.rooms_required}`);
+        
+        const finalLogMessage = diffs.length > 0 ? `${logMessage} Updates: ${diffs.join(', ')}` : logMessage;
+
+        await client.query(`
+            UPDATE booking_requests SET 
+                category_id = $1, purpose_of_visit = $2, visit_type = $3, room_priority = $4,
+                arrival_datetime = $5, departure_datetime = $6, rooms_required = $7,
+                booking_state = $8, room_type = $9, extra_beds = $10,
+            assigned_approver_id = $11, payment_responsible = $12, version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE booking_id = $13
+        `, [
+            data.category_id || existing.category_id, data.purpose_of_visit || existing.purpose_of_visit, 
+            data.visit_type || existing.visit_type, data.room_priority || data.room_type || existing.room_priority,
+            arrivalDatetime, departureDatetime, data.rooms_required || existing.rooms_required,
+            newState, data.room_type || existing.room_type, data.extra_beds || existing.extra_beds,
+            data.assigned_approver_id || existing.assigned_approver_id, paymentResponsible, data.booking_id
+        ]);
+        
+        await client.query('DELETE FROM guests WHERE booking_id = $1', [data.booking_id]);
+        if (data.guests && data.guests.length > 0) {
+            for (const guest of data.guests) {
+                const guestArrival = guest.arrival_datetime || `${guest.arrival_date} ${guest.arrival_time || '12:00'}:00`;
+                const guestDeparture = guest.departure_datetime || `${guest.departure_date} ${guest.departure_time || '12:00'}:00`;
+
+                const gRes = await client.query(`
+                    INSERT INTO guests (booking_id, guest_name, designation, relation_to_applicant, phone, email, gender, age, address, identity_proof_type, identity_proof_number, arrival_datetime, departure_datetime, room_index, preferred_occupancy, preferred_extra_bed)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING guest_id
+                `, [
+                    data.booking_id, guest.guest_name, guest.designation, guest.relation_to_applicant, guest.phone, guest.email, guest.gender, guest.age, guest.address, guest.id_proof_type || guest.identity_proof_type, guest.id_proof_number || guest.identity_proof_number, guestArrival, guestDeparture,
+                    guest.room_index !== undefined ? guest.room_index : 0,
+                    guest.preferred_occupancy || 'single',
+                    guest.preferred_extra_bed !== undefined ? guest.preferred_extra_bed : false
+                ]);
+                
+                const newGuestId = gRes.rows[0].guest_id;
+                if (guest.food_preferences && guest.food_preferences.length > 0) {
+                    for (const meal of guest.food_preferences) {
+                        await client.query('INSERT INTO guest_food_preferences (guest_id, meal_date, breakfast, lunch, dinner, remarks) VALUES ($1, $2, $3, $4, $5, $6)', [newGuestId, meal.meal_date || meal.date, meal.breakfast || 0, meal.lunch || 0, meal.dinner || 0, meal.remarks]);
+                    }
+                }
+            }
+        }
+
+        const tariffsRes = await client.query('SELECT * FROM room_tariffs');
+        const calculatedTotal = estimateBookingTotalFromTariffs({
+            category_id: data.category_id || existing.category_id,
+            room_type: data.room_type || existing.room_type,
+            rooms_required: data.rooms_required || existing.rooms_required,
+            extra_beds: data.extra_beds || existing.extra_beds
+        }, tariffsRes.rows, data.guests);
+
+        await client.query(
+            `UPDATE booking_requests SET total_estimated_amount = $1 WHERE booking_id = $2`,
+            [calculatedTotal, data.booking_id]
+        );
+
+        if (data.files && (data.files.document_1 || data.files.document_2)) {
+            const filesToInsert = [];
+            if (data.files.document_1 && data.files.document_1[0]) filesToInsert.push({ doc: data.files.document_1[0], type: 'Primary Document' });
+            if (data.files.document_2 && data.files.document_2[0]) filesToInsert.push({ doc: data.files.document_2[0], type: 'Additional Document' });
+            for (const f of filesToInsert) {
+                const filePath = `uploads/documents/${f.doc.filename}`;
+                await client.query('INSERT INTO booking_documents (booking_id, uploaded_by_user_id, document_type, file_name, file_path, mime_type, file_size_bytes) VALUES ($1, $2, $3, $4, $5, $6, $7)', [data.booking_id, data.user_id, f.type, f.doc.originalname, filePath, f.doc.mimetype, f.doc.size]);
+            }
+        }
+
+        await client.query('INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)', [data.booking_id, data.user_id, actionStr, finalLogMessage]);
+        
+        await client.query('COMMIT');
+        return { booking_id: data.booking_id, status: newState };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+};

@@ -54,7 +54,9 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
         } else {
             // Standard Authority (HOD / Dean / Registrar / Faculty)
             if (action === 'APPROVED') {
-                const requestedSuite = (booking.room_type === 'Suite Room') || (booking.room_priority && booking.room_priority.startsWith('Suite Room'));
+                const requestedSuite = 
+                    (booking.room_type === 'Suite Room' || booking.room_type === 'Mini Suite Room') || 
+                    (booking.room_priority && (booking.room_priority.startsWith('Suite Room') || booking.room_priority.startsWith('Mini Suite Room')));
                 if (requestedSuite) {
                     newState = BOOKING_STATUS.PENDING_DIRECTOR;
                 } else {
