@@ -67,6 +67,14 @@ exports.assignRooms = async (bookingId, allocatedRoomsStr, assignedBy) => {
             DELETE FROM booking_rooms WHERE booking_id = $1
         `, [bookingId]);
 
+        /*
+         * PRODUCTION RESERVATION ENGINE LOGIC:
+         * Note that `rooms.current_status` tracks only the physical, real-time status of the room 
+         * (e.g., 'available', 'occupied', 'cleaning', 'maintenance' right now).
+         * Scheduling and future reservation overlaps are handled dynamically via the `booking_rooms` 
+         * table using PostgreSQL `tsrange` exclusion constraints. Therefore, the room does not need 
+         * to be set to a physical 'reserved' status inside the `rooms` table to prevent future conflicts.
+         */
         // 4. Validate room availability in booking_rooms for this booking's date range
         for (const room of allocatedRooms) {
             const overlapRes = await client.query(`
@@ -927,18 +935,22 @@ exports.calculateBookingBilling = async (bookingId, client, overrideNow = null) 
         }
     }
 
-    const gst = Math.round(subtotal * 0.12);
-    const total = subtotal + gst;
+    const cgst = Math.round(subtotal * 0.06);
+    const sgst = Math.round(subtotal * 0.06);
+    const total = subtotal + cgst + sgst;
 
     return {
         subtotal,
-        gst,
+        gst: cgst + sgst,
+        cgst,
+        sgst,
         total,
         isFinal: false,
         breakdown: {
             roomDaysBreakdown,
             subtotal,
-            gst,
+            cgst,
+            sgst,
             total
         }
     };
@@ -1195,4 +1207,164 @@ exports.overrideStayBilling = async (overrideData) => {
 
 exports.getBillingOverrideLogsByBooking = async (bookingId) => {
     return await receptionRepository.getBillingOverrideLogsByBooking(bookingId);
+};
+
+exports.getRoomHistory = async (roomNumber, page = 1, limit = 20) => {
+    return await receptionRepository.getRoomHistory(roomNumber, page, limit);
+};
+
+// --- NEW POS / BILLING & BULK ROOM LOGIC ---
+
+exports.getInstitutionConfig = async () => {
+    const client = await db.getClient();
+    try {
+        return await receptionRepository.getInstitutionConfig(client);
+    } finally {
+        client.release();
+    }
+};
+
+exports.updateInstitutionConfig = async (payload) => {
+    return await receptionRepository.updateInstitutionConfig(payload);
+};
+
+exports.getPendingPayments = async () => {
+    return await receptionRepository.getPendingPayments();
+};
+
+exports.confirmPayment = async (bookingId, paymentData, userId) => {
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+        
+        // 1. Fetch booking to get CategoryCode and ShortBookingId
+        const bRes = await client.query(`SELECT booking_state, category_id FROM booking_requests WHERE booking_id = $1`, [bookingId]);
+        if (bRes.rows.length === 0) throw new Error('Booking not found');
+        const booking = bRes.rows[0];
+        
+        // Ensure checked out
+        if (booking.booking_state !== 'CHECKED_OUT') {
+            throw new Error('Booking must be fully checked out before confirming final payment.');
+        }
+
+        // Generate Invoice Number suffix
+        const config = await receptionRepository.getInstitutionConfig(client);
+        const prefix = config ? config.invoice_prefix : 'NITTGH/25-26/';
+        
+        // Next sequence
+        const seq = await receptionRepository.getLatestInvoiceSequence(prefix, client);
+        const nextSeq = String(seq + 1).padStart(4, '0');
+        
+        // Formatting: NITTGH/CAT-{CategoryCode}/{ShortBookingId}
+        const shortBookingId = bookingId.split('-')[0].toUpperCase();
+        let catCode = 'I';
+        if (booking.category_id == 2) catCode = 'II';
+        if (booking.category_id == 3) catCode = 'III';
+        if (booking.category_id == 4) catCode = 'IV';
+        
+        // Use standard booking invoice format (room number suffix not strictly required unless per-room splitting is requested later)
+        const invoiceNumber = `${prefix}CAT-${catCode}/${shortBookingId}/${nextSeq}`;
+        
+        paymentData.invoice_number = invoiceNumber;
+        paymentData.received_by = userId;
+        
+        const updatedBill = await receptionRepository.confirmPayment(bookingId, paymentData, client);
+        
+        // Update payment state
+        const modeLabel = paymentData.payment_mode === 'Cash' ? 'PAID via Cash' : 'PAID via POS';
+        await client.query(`UPDATE booking_requests SET payment_state = 'PAID', updated_at = CURRENT_TIMESTAMP WHERE booking_id = $1`, [bookingId]);
+        
+        // Log audit
+        await client.query(`INSERT INTO audit_logs (user_id, action, target_entity, target_id, new_value, remarks) VALUES ($1, 'CONFIRM_PAYMENT', 'final_bills', $2, $3, $4)`, 
+            [userId, bookingId, JSON.stringify(paymentData), modeLabel]);
+
+        await client.query('COMMIT');
+        return updatedBill;
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+};
+
+exports.getActiveBulkBlocks = async () => {
+    return await receptionRepository.getActiveBulkBlocks();
+};
+
+exports.createBulkBlock = async (payload, userId) => {
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+        
+        // Insert booking request
+        const bRes = await client.query(`
+            INSERT INTO booking_requests (
+                user_id, category_id, purpose_of_visit, visit_type, arrival_datetime, departure_datetime,
+                rooms_required, room_type, undertaking_accepted, booking_state, is_bulk, total_estimated_amount
+            ) VALUES (
+                $1, 1, $2, 'official', $3, $4, $5, 'Standard Room', true, 'CHECKED_IN', true, 0
+            ) RETURNING booking_id
+        `, [userId, payload.purpose_of_visit || 'Bulk Block', payload.arrival_datetime, payload.departure_datetime, payload.room_ids.length]);
+        
+        const bookingId = bRes.rows[0].booking_id;
+        
+        // Insert booking rooms
+        for (const roomId of payload.room_ids) {
+            await client.query(`
+                INSERT INTO booking_rooms (booking_id, room_id, allocated_from, allocated_to, allocation_status)
+                VALUES ($1, $2, $3, $4, 'reserved')
+            `, [bookingId, roomId, payload.arrival_datetime, payload.departure_datetime]);
+            
+            // Note: We don't mark rooms as OCCUPIED here, they remain AVAILABLE but we will display them as BULK_BLOCKED in UI based on booking_rooms join
+        }
+        
+        await client.query('COMMIT');
+        return bookingId;
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+};
+
+exports.checkInBulkGuest = async (bookingId, roomId, guestData, userId) => {
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+        
+        // 1. Insert Guest
+        const gRes = await client.query(`
+            INSERT INTO guests (
+                booking_id, guest_name, email, phone, gender, age, identity_proof_type, identity_proof_number,
+                arrival_datetime, departure_datetime, preferred_occupancy, preferred_extra_bed
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, $9, 'single', false)
+            RETURNING guest_id
+        `, [
+            bookingId, guestData.guest_name, guestData.email, guestData.phone, guestData.gender, guestData.age,
+            guestData.identity_proof_type, guestData.identity_proof_number, guestData.departure_datetime
+        ]);
+        const guestId = gRes.rows[0].guest_id;
+        
+        // 2. Insert Stay
+        const sRes = await client.query(`
+            INSERT INTO guest_room_stays (
+                booking_id, guest_id, room_id, checked_in_at, occupancy_type, extra_bed,
+                operational_room_type, operational_tariff, checked_in_by, stay_status
+            ) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, 'single', false, 'Standard Room', 800, $4, 'CHECKED_IN')
+            RETURNING *
+        `, [bookingId, guestId, roomId, userId]);
+        
+        // 3. Mark room as occupied
+        await client.query(`UPDATE rooms SET current_status = 'occupied' WHERE room_id = $1`, [roomId]);
+        
+        await client.query('COMMIT');
+        return sRes.rows[0];
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
 };
