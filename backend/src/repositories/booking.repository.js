@@ -49,13 +49,13 @@ exports.getAllBookingsWithDetails = async () => {
 };
 
 exports.getAllTariffs = async () => {
-    const result = await db.query("SELECT * FROM room_tariffs WHERE room_type != 'Renovated Room'");
+    const result = await db.query("SELECT * FROM room_tariffs");
     return result.rows;
 };
 
-exports.updatePaymentState = async (bookingId, bookingState) => {
-    const query = `UPDATE booking_requests SET booking_state = $1, payment_state = 'PAID', updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`;
-    const result = await db.query(query, [bookingState, bookingId]);
+exports.updatePaymentState = async (bookingId, paymentState) => {
+    const query = `UPDATE booking_requests SET payment_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`;
+    const result = await db.query(query, [paymentState, bookingId]);
     return result.rows[0];
 };
 
@@ -100,7 +100,10 @@ exports.cancelBookingByUser = async (bookingId, userId, cancelState) => {
     return result.rows[0];
 };
 
-exports.getAuthoritiesByCategoryId = async (categoryId) => {
+exports.getAuthoritiesByCategoryId = async (categoryId, applicantRole) => {
+    const isStudent = String(applicantRole).toLowerCase() === 'student';
+    const cat3Roles = isStudent ? "'hod'" : "'faculty', 'staff', 'hod'";
+
     const query = `
         SELECT u.user_id, u.full_name, u.department, r.role_name as role
         FROM users u
@@ -109,7 +112,7 @@ exports.getAuthoritiesByCategoryId = async (categoryId) => {
         WHERE 
             ($1 = 1 AND r.role_name IN ('director', 'registrar', 'dean', 'hod')) OR
             ($1 = 2 AND r.role_name IN ('dean', 'hod')) OR
-            ($1 = 3 AND r.role_name IN ('faculty', 'staff')) OR
+            ($1 = 3 AND r.role_name IN (${cat3Roles})) OR
             ($1 = 4 AND r.role_name IN ('registrar', 'hod', 'faculty'))
         ORDER BY r.role_id ASC, u.full_name ASC
     `;

@@ -1,5 +1,5 @@
 const db = require('../db/db');
-const { PAYMENT_STATUS } = require('../utils/constants');
+const { PAYMENT_STATUS, BOOKING_STATUS } = require('../utils/constants');
 const notificationService = require('./notification.service');
 
 exports.uploadProof = async (bookingId, userId, file, remarks) => {
@@ -54,12 +54,18 @@ exports.verifyPayment = async (bookingId, adminId, action, reason) => {
         if (action === 'APPROVED') {
             newState = PAYMENT_STATUS.PAID;
             await client.query(`UPDATE payment_proofs SET status = 'APPROVED', reviewed_by_user_id = $1, reviewed_at = CURRENT_TIMESTAMP WHERE proof_id = $2`, [adminId, proofId]);
+            await client.query(`
+                UPDATE booking_requests 
+                SET booking_state = CASE WHEN booking_state = $1 THEN $2 ELSE booking_state END,
+                    payment_state = $3,
+                    updated_at = CURRENT_TIMESTAMP 
+                WHERE booking_id = $4
+            `, [BOOKING_STATUS.ADMIN_APPROVED, BOOKING_STATUS.READY_FOR_CHECKIN, newState, bookingId]);
         } else if (action === 'REJECTED') {
             newState = PAYMENT_STATUS.REJECTED;
             await client.query(`UPDATE payment_proofs SET status = 'REJECTED', rejection_reason = $1, reviewed_by_user_id = $2, reviewed_at = CURRENT_TIMESTAMP WHERE proof_id = $3`, [reason, adminId, proofId]);
+            await client.query(`UPDATE booking_requests SET payment_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2`, [newState, bookingId]);
         }
-
-        await client.query(`UPDATE booking_requests SET payment_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2`, [newState, bookingId]);
         await client.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, 
             [bookingId, adminId, `PAYMENT_${action}`, action === 'APPROVED' ? 'Payment proof verified and approved.' : `Payment rejected: ${reason}`]);
 
@@ -106,7 +112,13 @@ exports.posComplete = async (bookingId, adminId) => {
     const client = await db.getClient();
     try {
         await client.query('BEGIN');
-        await client.query(`UPDATE booking_requests SET payment_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2`, [PAYMENT_STATUS.PAID, bookingId]);
+        await client.query(`
+            UPDATE booking_requests 
+            SET booking_state = CASE WHEN booking_state = $1 THEN $2 ELSE booking_state END,
+                payment_state = $3, 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE booking_id = $4
+        `, [BOOKING_STATUS.ADMIN_APPROVED, BOOKING_STATUS.READY_FOR_CHECKIN, PAYMENT_STATUS.PAID, bookingId]);
         await client.query(`INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`, [bookingId, adminId, 'PAYMENT_APPROVED', 'Payment completed natively via POS machine at Front Desk.']);
         await client.query('COMMIT');
         

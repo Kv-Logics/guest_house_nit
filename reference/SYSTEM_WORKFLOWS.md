@@ -679,28 +679,29 @@ erDiagram
 
 ### 🔴 Critical Bugs
 
-| # | Issue | Location | Impact |
-|---|---|---|---|
-| 1 | **Pricing mismatch**: `PRICING_CONFIG` in ReceptionDashboard was hardcoded with wrong rates (₹2000/₹3500 for Standard) instead of category-based rates. **FIXED** in latest session. | [ReceptionDashboard.jsx](file:///c:/Users/keert/GuestHouse/guesthouse/frontend/src/pages/dashboard/ReceptionDashboard.jsx) L9-14 | Bills calculated incorrectly |
-| 2 | **GHC Live Preview ignores DB tariffs**: The `useEffect` billing calculation in GHCoordinatorDashboard uses hardcoded fallback rates (₹800/₹1000) instead of querying `room_tariffs`. | [GHCoordinatorDashboard.jsx](file:///c:/Users/keert/GuestHouse/guesthouse/frontend/src/pages/dashboard/GHCoordinatorDashboard.jsx) L57-120 | GHC sees wrong preview amounts |
-| 3 | **`mockPayment` sets `READY_FOR_CHECKIN` as payment_state**: Uses `BOOKING_STATUS.READY_FOR_CHECKIN` for `payment_state` instead of `PAYMENT_STATUS.PAID`. | [booking.service.js](file:///c:/Users/keert/GuestHouse/guesthouse/backend/src/services/booking.service.js) L450-454 | Payment state is incorrect after mock pay |
-| 4 | **Debug file logging in production**: Coordinator controller writes to `ghc-debug.log` via `fs.appendFileSync`. | coordinator.controller.js | Disk fills up, potential info leak |
+| # | Issue | Location | Impact | Fix Applied / Action Taken |
+|---|---|---|---|---|
+| 1 | **Pricing mismatch**: `PRICING_CONFIG` in ReceptionDashboard was hardcoded with wrong rates (₹2000/₹3500 for Standard) instead of category-based rates. **FIXED** in latest session. | [ReceptionDashboard.jsx](file:///c:/Users/keert/GuestHouse/guesthouse/frontend/src/pages/dashboard/ReceptionDashboard.jsx) L9-14 | Bills calculated incorrectly | Updated hardcoded config rates to standard rates in a previous session, now replaced with dynamic lookup. |
+| 2 | **GHC Live Preview ignores DB tariffs**: The `useEffect` billing calculation in GHCoordinatorDashboard uses hardcoded fallback rates (₹800/₹1000) instead of querying `room_tariffs`. | [GHCoordinatorDashboard.jsx](file:///c:/Users/keert/GuestHouse/guesthouse/frontend/src/pages/dashboard/GHCoordinatorDashboard.jsx) L57-120 | GHC sees wrong preview amounts | *Ignored (GHC coordinator bug).* |
+| 3 | **`mockPayment` sets `READY_FOR_CHECKIN` as payment_state**: Uses `BOOKING_STATUS.READY_FOR_CHECKIN` for `payment_state` instead of `PAYMENT_STATUS.PAID`. | [booking.service.js](file:///c:/Users/keert/GuestHouse/guesthouse/backend/src/services/booking.service.js) L450-454 | Payment state is incorrect after mock pay | Refactored `mockPayment` to update `payment_state` to `PAID` via the repository and transition `booking_state` to `READY_FOR_CHECKIN` if it is currently `ADMIN_APPROVED`. |
+| 4 | **Debug file logging in production**: Coordinator controller writes to `ghc-debug.log` via `fs.appendFileSync`. | coordinator.controller.js | Disk fills up, potential info leak | *Ignored (GHC coordinator bug).* |
 
 ### 🟡 Logical Gaps
 
-| # | Issue | Location | Recommendation |
-|---|---|---|---|
-| 5 | **No `READY_FOR_CHECKIN` transition from payment**: When payment becomes `PAID`, there's no automatic transition of `booking_state` from `ADMIN_APPROVED` to `READY_FOR_CHECKIN`. Room assignment does this instead. | payment.service.js | Consider auto-transition when payment is verified |
-| 6 | **`DRAFT` state exists in DB CHECK but not in constants.js**: Schema allows `DRAFT` but it's never used in code. | schema.sql vs constants.js | Remove from CHECK or implement |
-| 7 | **`NOT_APPLICABLE` payment state in DB but not in constants.js**: Exists as a valid DB value but not exported. | schema.sql vs constants.js | Add to constants.js |
-| 8 | **`gh_coordinator` role not in constants.js ROLES**: Exists in seed.js (role_id=11) and route middleware but missing from the app-level constants. | constants.js | Add `GH_COORDINATOR: 'gh_coordinator'` |
-| 9 | **`staff` role (role_id=8) not in constants.js ROLES**: Seeded but missing from constants. | constants.js / seed.js | Add to constants |
-| 10 | **Renovated Room tariffs exist but no physical rooms seeded with that type**: `room_tariffs` has pricing for Renovated Room but no room in `rooms` table has `room_type = 'Renovated Room'`. | seed.js / GH-Rooms.csv | Either add Renovated rooms or remove tariffs |
-| 11 | **3 inline route handlers bypass controller pattern**: `admin-status`, `reapply`, and `history` routes in booking.routes.js import the service directly instead of going through a controller. | [booking.routes.js](file:///c:/Users/keert/GuestHouse/guesthouse/backend/src/routes/booking.routes.js) | Refactor to use controller |
-| 12 | **Auth refresh endpoint is a stub**: `POST /auth/refresh` just returns the existing cookie — no actual token refresh logic. | auth routes | Implement proper refresh tokens |
-| 13 | **Reception pricing doesn't use `room_tariffs` table**: Live billing uses a frontend-only hardcoded lookup instead of fetching from the `room_tariffs` database table. | ReceptionDashboard.jsx | Fetch tariffs from backend and use them |
-| 14 | **`booking_rooms` overlap check uses `tsrange` but `rooms` table has no `reserved` status in use**: The schema supports overlap prevention but the app never sets rooms to `reserved` status. | reception.service.js / rooms table | Clarify if `reserved` should be used |
-| 15 | **Final bill blocks room transfer and billing override, but GHC can still regenerate**: `reception.service.js` checks for final_bills and blocks operations, but `coordinator.service.js` can freely overwrite via UPSERT. | coordinator.service.js vs reception.service.js | Decide on consistent locking policy |
+| # | Issue | Location | Recommendation | Fix Applied / Action Taken |
+|---|---|---|---|---|
+| 5 | **No `READY_FOR_CHECKIN` transition from payment**: When payment becomes `PAID`, there's no automatic transition of `booking_state` from `ADMIN_APPROVED` to `READY_FOR_CHECKIN`. Room assignment does this instead. | payment.service.js | Consider auto-transition when payment is verified | Modified `verifyPayment` and `posComplete` to auto-transition the booking state from `ADMIN_APPROVED` to `READY_FOR_CHECKIN` when payment is verified or completed. |
+| 6 | **`DRAFT` state exists in DB CHECK but not in constants.js**: Schema allows `DRAFT` but it's never used in code. | schema.sql vs constants.js | Remove from CHECK or implement | Added `DRAFT` status to the `BOOKING_STATUS` constant in both backend and frontend `constants.js` files. |
+| 7 | **`NOT_APPLICABLE` payment state in DB but not in constants.js**: Exists as a valid DB value but not exported. | schema.sql vs constants.js | Add to constants.js | Added `NOT_APPLICABLE` to the `PAYMENT_STATUS` constant in backend `constants.js`. |
+| 8 | **`gh_coordinator` role not in constants.js ROLES**: Exists in seed.js (role_id=11) and route middleware but missing from the app-level constants. | constants.js | Add `GH_COORDINATOR: 'gh_coordinator'` | *Ignored (GHC role bug).* |
+| 9 | **`staff` role (role_id=8) not in constants.js ROLES**: Seeded but missing from constants. | constants.js / seed.js | Add to constants | Added `STAFF: 'staff'` to user role constants in backend and frontend. |
+| 10 | **Renovated Room tariffs exist but no physical rooms seeded with that type**: `room_tariffs` has pricing for Renovated Room but no room in `rooms` table has `room_type = 'Renovated Room'`. | seed.js / GH-Rooms.csv | Either add Renovated rooms or remove tariffs | Removed Renovated Room tariffs from `seed.js` and removed the query filter excluding it in `booking.repository.js`. |
+| 11 | **3 inline route handlers bypass controller pattern**: `admin-status`, `reapply`, and `history` routes in booking.routes.js import the service directly instead of going through a controller. | [booking.routes.js](file:///c:/Users/keert/GuestHouse/guesthouse/backend/src/routes/booking.routes.js) | Refactor to use controller | Refactored the route mapping to invoke custom controller functions in `booking.controller.js` instead of importing service functions inline. |
+| 12 | **Auth refresh endpoint is a stub**: `POST /auth/refresh` just returns the existing cookie — no actual token refresh logic. | auth routes | Implement proper refresh tokens | Replaced refresh endpoint stub with active JWT validation and re-signing logic with 7 days expiration in `auth.controller.js`. |
+| 13 | **Reception pricing doesn't use `room_tariffs` table**: Live billing uses a frontend-only hardcoded lookup instead of fetching from the `room_tariffs` database table. | ReceptionDashboard.jsx | Fetch tariffs from backend and use them | Updated ReceptionDashboard to fetch room tariffs dynamically on mount and look them up dynamically in `calculateRoomTimeline`. |
+| 14 | **`booking_rooms` overlap check uses `tsrange` but `rooms` table has no `reserved` status in use**: The schema supports overlap prevention but the app never sets rooms to `reserved` status. | reception.service.js / rooms table | Clarify if `reserved` should be used | Added extensive inline code comments in `reception.service.js` to clarify that reservations are managed dynamically through `booking_rooms` rather than physical state flags. |
+| 15 | **Final bill blocks room transfer and billing override, but GHC can still regenerate**: `reception.service.js` checks for final_bills and blocks operations, but `coordinator.service.js` can freely overwrite via UPSERT. | coordinator.service.js vs reception.service.js | Decide on consistent locking policy | *Ignored (GHC coordinator bug).* |
+
 
 ### 🟢 Unused/Planned Tables (Schema exists but no service code)
 
@@ -785,3 +786,16 @@ graph TD
 ---
 
 *Generated: 2026-05-26 | Source: Full codebase analysis of `c:\Users\keert\GuestHouse\guesthouse\`*
+
+
+## LATEST UPDATES:
+- CAT-3: Students can now only select HOD as the Approval Authority.
+- CAT-3: Faculties are now self-approved (the authority dropdown is hidden and the system auto-approves their request directly to PENDING_ADMIN).
+
+
+
+- EDIT RULE: Applicants can only edit their applications while they are in PENDING_APPROVER, APPROVER_REJECTED, ADMIN_REJECTED, or DRAFT states. Once approved by the authority (or auto-approved) and progressed to PENDING_ADMIN or beyond, editing is completely disabled.
+
+
+  - *Exception*: For CAT-III (Self-Approved), Faculty applicants are allowed to edit their applications while in the PENDING_ADMIN state.
+

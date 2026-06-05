@@ -34,7 +34,7 @@ export default function Navbar() {
 
   const role = user?.role;
 
-  const isAuthority = [ROLES.REGISTRAR, ROLES.DEAN, ROLES.HOD, ROLES.FACULTY, ROLES.DIRECTOR].includes(role);
+  const isAuthority = [ROLES.REGISTRAR, ROLES.DEAN, ROLES.HOD, ROLES.DIRECTOR].includes(role);
   const isAdmin = [ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN].includes(role);
 
   // Fetch pending count for authority (pending approvals waiting for them)
@@ -104,7 +104,7 @@ export default function Navbar() {
 
   return (
     <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full mx-auto px-4 sm:px-6 lg:px-10">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link

@@ -49,13 +49,28 @@ export default function ApproverDashboard() {
 
     return (
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 animate-fade-in">
-            <div className="flex items-center gap-4 mb-8 border-b border-slate-100 pb-6">
-                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl shadow-sm border border-indigo-100">
-                    <ClipboardCheck className="w-6 h-6" />
+            <div className="flex items-center justify-between gap-4 mb-8 border-b border-slate-100 pb-6">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl shadow-sm border border-indigo-100">
+                        <ClipboardCheck className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Approval Queue</h2>
+                        <p className="text-slate-500 font-medium">Pending requests awaiting your review</p>
+                    </div>
                 </div>
-                <div>
-                    <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Approval Queue</h2>
-                    <p className="text-slate-500 font-medium">Pending requests awaiting your review</p>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sort by:</span>
+                    <select 
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="app_desc">Application Date (Newest)</option>
+                        <option value="app_asc">Application Date (Oldest)</option>
+                        <option value="arr_asc">Arrival Date (Soonest)</option>
+                        <option value="arr_desc">Arrival Date (Latest)</option>
+                    </select>
                 </div>
             </div>
 
@@ -77,7 +92,7 @@ export default function ApproverDashboard() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {approvals.map(b => (
+                            {sortedApprovals.map(b => (
                                 <tr key={b.booking_id} className="hover:bg-slate-50 transition-colors">
                                     <td className="p-4">
                                         <p className="font-bold text-slate-800">{b.applicant_name}</p>

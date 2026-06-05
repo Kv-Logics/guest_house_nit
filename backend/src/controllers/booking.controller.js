@@ -51,8 +51,8 @@ exports.mockPayment = async (req, res, next) => {
 
 exports.updateAdminStatus = async (req, res, next) => {
     try {
-        const { status } = req.body;
-        const data = await bookingService.updateAdminStatus(req.params.id, status);
+        const { status, remarks } = req.body;
+        const data = await bookingService.updateAdminStatus(req.params.id, status, remarks, req.user.user_id);
         return sendSuccess(res, `Booking transitioned to ${data.booking_state}`, data);
     } catch (error) {
         next(error);
@@ -89,7 +89,7 @@ exports.requestStayExtension = async (req, res, next) => {
 
 exports.getAuthorities = async (req, res, next) => {
     try {
-        const data = await bookingService.getAuthorities(req.query.category_id);
+        const data = await bookingService.getAuthorities(req.query.category_id, req.user.role);
         return sendSuccess(res, 'Authorities retrieved successfully', data);
     } catch (error) {
         next(error);
@@ -104,6 +104,27 @@ exports.editBooking = async (req, res, next) => {
         req.body.booking_id = req.params.id;
         const data = await bookingService.editBookingRequest(req.body);
         return sendSuccess(res, 'Booking updated successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.reapplyBooking = async (req, res, next) => {
+    try {
+        req.body.user_id = req.user.user_id;
+        req.body.files = req.files;
+        req.body.booking_id = req.params.id;
+        const data = await bookingService.reapplyBookingRequest(req.body);
+        return sendSuccess(res, 'Booking reapplied successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.getBookingHistory = async (req, res, next) => {
+    try {
+        const data = await bookingService.getBookingHistory(req.params.id);
+        return sendSuccess(res, 'Booking history retrieved successfully', data);
     } catch (error) {
         next(error);
     }

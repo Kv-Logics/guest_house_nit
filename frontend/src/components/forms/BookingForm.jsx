@@ -113,7 +113,9 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       return;
     }
 
-    if ((!isAdmin || formData.category_id === '2') && !formData.assigned_approver_id) {
+    const isSelfApprovedCat3 = String(formData.category_id) === '3' && user?.role !== 'student' && user?.role !== 'STUDENT';
+
+    if ((!isAdmin || formData.category_id === '2') && !isSelfApprovedCat3 && !formData.assigned_approver_id) {
       setLocalError('You must select an Approval Authority to route your application.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -143,90 +145,52 @@ export default function BookingForm({ formData, setFormData, user, authorities =
         )}
 
         <form onSubmit={handleSubmit} className="relative z-10 flex flex-col space-y-10">
-          <div className="bg-white p-6 sm:p-10 rounded-3xl border border-slate-200 shadow-sm">
-            <h4 className="text-lg font-bold text-slate-800 mb-6 flex items-center border-b border-slate-100 pb-4">
-              <ShieldCheck className="w-6 h-6 mr-2 text-emerald-500" /> Undertaking by Applicant
+          <div className="bg-[#f8fafb] p-6 sm:px-10 sm:pb-8 sm:pt-6 rounded-3xl border border-slate-200 shadow-sm">
+            <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center border-b border-slate-200 pb-3">
+              <ShieldCheck className="w-5 h-5 mr-2 text-emerald-500" /> Undertaking by Applicant
             </h4>
 
-            <div className="text-sm text-slate-600 space-y-4 leading-relaxed font-medium mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">
-              <p>
-                a. Certified that the visit of the guest(s) is related to the activities of
+            <ol className="list-decimal list-outside ml-4 pl-4 text-sm text-slate-600 space-y-3 leading-relaxed mb-6 border-l-2 border-emerald-400">
+              <li>
+                Certified that the visit of the guest(s) is related to the activities of
                 official/personal. I take responsibility for the payment of bills including food charges
                 (if any) of the Guest House.
-              </p>
-              <p>
-                b. The guest(s) is (are) personally known to me and I am responsible for his/her
+              </li>
+              <li>
+                The guest(s) is (are) personally known to me and I am responsible for his/her
                 conduct.
-              </p>
-              <p>
-                c. I hereby undertake to vacate the room in the Guest House, if allotted, on the expiry
+              </li>
+              <li>
+                I hereby undertake to vacate the room in the Guest House, if allotted, on the expiry
                 of the sanctioned period. In case I fail to do so, I will be liable to be charged penal
                 rent (if any).
-              </p>
-              <p>d. I have read the NITT Guest house terms & conditions and these are acceptable.</p>
-            </div>
+              </li>
+              <li>I have read the NITT Guest house terms & conditions and these are acceptable.</li>
+            </ol>
 
-            <label className="flex items-center cursor-pointer group bg-white hover:bg-slate-50 p-4 rounded-xl border border-slate-200 transition-colors shadow-sm">
+            <label className="inline-flex items-center cursor-pointer group">
               <input
                 type="checkbox"
                 checked={undertakingAccepted}
                 onChange={(e) => setUndertakingAccepted(e.target.checked)}
-                className="w-6 h-6 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 transition-colors cursor-pointer"
+                className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 transition-colors cursor-pointer"
               />
-              <span className="ml-4 text-base font-bold text-slate-700 group-hover:text-slate-900 transition-colors select-none">
-                I agree to the above undertaking conditions. <span className="text-red-500">*</span>
+              <span className="ml-3 text-sm font-medium text-slate-700 group-hover:text-slate-900 transition-colors select-none">
+                I have read and agree to all conditions above <span className="text-red-500">*</span>
               </span>
             </label>
           </div>
 
           <div
-            className={`transition-all duration-500 space-y-10 ${undertakingAccepted ? 'opacity-100 translate-y-0' : 'opacity-40 grayscale-[30%] pointer-events-none translate-y-2'}`}
+            className={`transition-[opacity,transform] duration-500 space-y-10 ${undertakingAccepted ? 'opacity-100 translate-y-0' : 'opacity-40 pointer-events-none translate-y-2'}`}
           >
-            {/* Dynamic Route Map */}
-            {(() => {
-              const isSuiteRoom = formData.room_type === 'Suite Room';
-              const isStudent = user?.role === 'student' || user?.role === 'STUDENT';
-              const isPersonal = ['3', '4'].includes(String(formData.category_id)) && !isStudent;
 
-              const routeInfo = isPersonal ? {
-                steps: ['Submitted', 'GH Manager']
-              } : isSuiteRoom ? {
-                steps: ['Submitted', 'HOD / Dean', 'Director', 'GH Manager']
-              } : {
-                steps: ['Submitted', 'Authority', 'GH Manager']
-              };
-
-              return (
-                <div className="bg-slate-50/50 border border-slate-200/60 rounded-2xl p-4 animate-fade-in text-left">
-                  <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 select-none">
-                    Application Route
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {routeInfo.steps.map((step, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <div className="inline-flex items-center bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
-                          <span className="w-4 h-4 rounded-full bg-blue-50 text-blue-600 font-extrabold text-[9px] flex items-center justify-center mr-2">
-                            {idx + 1}
-                          </span>
-                          <span className="text-xs font-bold text-slate-700">{step}</span>
-                        </div>
-
-                        {idx < routeInfo.steps.length - 1 && (
-                          <span className="text-slate-300 font-bold text-sm select-none">→</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
 
             <CategoryVisitSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
             <MultiGuestSection formData={formData} setFormData={setFormData} />
             <StayDetailsSection formData={formData} handleChange={handleChange} setFormData={setFormData} tariffs={tariffs} />
 
-            {(!isAdmin || formData.category_id === '2') && (
+            {(!isAdmin || formData.category_id === '2') && !(String(formData.category_id) === '3' && user?.role !== 'student' && user?.role !== 'STUDENT') && (
               <ApproverSelection approverSearch={approverSearch} setApproverSearch={setApproverSearch} isOpen={isApproverDropdownOpen} setIsOpen={setIsApproverDropdownOpen} authorities={authorities} setFormData={setFormData} />
             )}
           </div>

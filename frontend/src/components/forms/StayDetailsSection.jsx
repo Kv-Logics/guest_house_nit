@@ -82,7 +82,7 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
     }
   };
 
-  const isSuiteRoom = formData.room_type === 'Suite Room';
+  const isSuiteRoom = formData.room_type === 'Suite Room' || formData.room_type === 'Mini Suite Room';
   const currentCategoryId = formData.category_id || '1';
 
   return (
@@ -152,7 +152,7 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
             <span className="text-base flex-shrink-0">⚠️</span>
             <div>
               <p className="font-extrabold text-amber-900 uppercase tracking-wider text-[10px] mb-1">HOD Review &amp; Director Approval Required</p>
-              <p className="leading-relaxed">Choosing a <strong>Suite Room</strong> initiates an advanced 5-stage approval workflow. Your Departmental Authority (HOD / Dean) must first endorse the booking, after which it will automatically route to the <strong>Director</strong> for executive authorization before reaching Admin.</p>
+              <p className="leading-relaxed">Choosing a <strong>Suite / Mini Suite Room</strong> initiates an advanced 5-stage approval workflow. Your Departmental Authority (HOD / Dean) must first endorse the booking, after which it will automatically route to the <strong>Director</strong> for executive authorization before reaching Admin.</p>
             </div>
           </div>
         )}

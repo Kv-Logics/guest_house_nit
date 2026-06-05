@@ -11,6 +11,8 @@ const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1)
 // EXTRACTED SUB-COMPONENT: Keeps the main section highly readable!
 // ---------------------------------------------------------------------------
 const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, removeGuest }) => {
+  const enableAutofill = import.meta.env.VITE_ENABLE_AUTOFILL === 'true';
+
   const updateGuest = (field, value) => {
     setFormData((prev) => {
       const newRooms = [...prev.rooms];
@@ -25,7 +27,7 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
     setFormData((prev) => {
       const newRooms = [...prev.rooms];
       const newGuests = [...newRooms[rIndex].guests];
-      const newFood = [...newGuests[gIndex].food_preferences, { date: guest.arrival_date || todayStr, breakfast: 0, lunch: 0, dinner: 0, remarks: '' }];
+      const newFood = [...(newGuests[gIndex].food_preferences || []), { date: guest.arrival_date || todayStr, breakfast: 0, lunch: 0, dinner: 0, remarks: '' }];
       newGuests[gIndex] = { ...newGuests[gIndex], food_preferences: newFood };
       newRooms[rIndex] = { ...newRooms[rIndex], guests: newGuests };
       return { ...prev, rooms: newRooms };
@@ -36,7 +38,7 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
     setFormData((prev) => {
       const newRooms = [...prev.rooms];
       const newGuests = [...newRooms[rIndex].guests];
-      newGuests[gIndex] = { ...newGuests[gIndex], food_preferences: newGuests[gIndex].food_preferences.filter((_, i) => i !== foodIndex) };
+      newGuests[gIndex] = { ...newGuests[gIndex], food_preferences: (newGuests[gIndex].food_preferences || []).filter((_, i) => i !== foodIndex) };
       newRooms[rIndex] = { ...newRooms[rIndex], guests: newGuests };
       return { ...prev, rooms: newRooms };
     });
@@ -58,7 +60,7 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">Full Name *</label>
-          <input required type="text" value={guest.guest_name} onChange={(e) => updateGuest('guest_name', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" />
+          <input required type="text" autoComplete={enableAutofill ? "name" : "off"} value={guest.guest_name || ''} onChange={(e) => updateGuest('guest_name', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" />
         </div>
         {!['1', '2'].includes(formData.category_id) && (
           <div>
@@ -68,20 +70,20 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
         )}
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">Email Address</label>
-          <input type="email" value={guest.email} onChange={(e) => updateGuest('email', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="guest@institute.edu" />
+          <input type="email" autoComplete={enableAutofill ? "email" : "off"} value={guest.email || ''} onChange={(e) => updateGuest('email', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="guest@institute.edu" />
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">Age & Gender</label>
           <div className="flex gap-2">
-            <input required type="number" value={guest.age} onChange={(e) => updateGuest('age', e.target.value)} className="w-16 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="Age" />
-            <select value={guest.gender} onChange={(e) => updateGuest('gender', e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors">
+            <input required type="number" value={guest.age || ''} onChange={(e) => updateGuest('age', e.target.value)} className="w-16 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="Age" />
+            <select value={guest.gender || 'Male'} onChange={(e) => updateGuest('gender', e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors">
               <option>Male</option><option>Female</option><option>Other</option>
             </select>
           </div>
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">Phone Number *</label>
-          <input required type="tel" value={guest.phone} onChange={(e) => updateGuest('phone', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" />
+          <input required type="tel" autoComplete={enableAutofill ? "tel" : "off"} value={guest.phone || ''} onChange={(e) => updateGuest('phone', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" />
         </div>
         <div className="md:col-span-2">
           <label className="block text-xs font-bold text-slate-600 mb-1">ID Proof (Type & Number) *</label>
@@ -141,7 +143,7 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
           </span>
           <button type="button" onClick={addFoodDay} className="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg hover:bg-orange-100 border border-orange-200 shadow-sm transition-colors">+ Add Meal Day</button>
         </div>
-        {guest.food_preferences.map((meal, fIndex) => (
+        {(guest.food_preferences || []).map((meal, fIndex) => (
           <div key={fIndex} className="flex gap-3 mb-2 items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-sm">
             <input type="date" min={guest.arrival_date || ''} max={guest.departure_date || ''} value={meal.date} onChange={(e) => { const ng = [...rooms[rIndex].guests]; ng[gIndex].food_preferences[fIndex].date = e.target.value; const nr = [...rooms]; nr[rIndex].guests = ng; setFormData({ ...formData, rooms: nr }); }} className="w-36 text-xs border border-slate-300 rounded-md p-1.5 text-slate-700 outline-none focus:ring-1 focus:ring-orange-500" />
             <label className="text-xs flex items-center cursor-pointer bg-white px-2 py-1.5 border border-slate-200 rounded-md hover:bg-slate-100 transition-colors">

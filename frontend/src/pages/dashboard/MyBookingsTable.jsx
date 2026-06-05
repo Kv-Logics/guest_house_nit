@@ -49,7 +49,7 @@ export default function MyBookingsTable({ bookings, handleOpenPayment, handleDel
                               onClick={() => handleOpenPayment(booking)}
                               className={`inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-colors mr-2 ${booking.payment_state === 'PAID' ? 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-200' : booking.payment_state.includes('PROOF') || booking.payment_state === 'UNDER_REVIEW' ? 'bg-amber-500 text-white hover:bg-amber-600' : booking.payment_state === 'REJECTED' || booking.payment_state.includes('WARNING') ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
                           >
-                              {booking.payment_state === 'PAID' ? 'View Payment' : booking.payment_state.includes('PROOF') || booking.payment_state === 'UNDER_REVIEW' ? 'Proof Under Review' : 'Pay / Upload Proof'}
+                              {booking.payment_state === 'PAID' ? 'View Payment' : booking.payment_state.includes('PROOF') || booking.payment_state === 'UNDER_REVIEW' ? 'Proof Under Review' : 'Upload Payment Proof'}
                           </button>
                       )}
                       {['PENDING_APPROVER', 'PENDING_ADMIN', 'ADMIN_APPROVED'].includes(booking.booking_state) && (

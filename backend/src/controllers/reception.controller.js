@@ -144,3 +144,84 @@ exports.extendStay = async (req, res, next) => {
         next(error);
     }
 };
+
+exports.getRoomHistory = async (req, res, next) => {
+    try {
+        const { roomNumber } = req.params;
+        const page = parseInt(req.query.page, 10) || 1;
+        const limit = parseInt(req.query.limit, 10) || 20;
+        const data = await receptionService.getRoomHistory(roomNumber, page, limit);
+        return sendSuccess(res, 'Room history retrieved successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+// --- NEW POS / BILLING & BULK ROOM LOGIC ---
+
+exports.getInstitutionConfig = async (req, res, next) => {
+    try {
+        const data = await receptionService.getInstitutionConfig();
+        return sendSuccess(res, 'Institution config retrieved successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.updateInstitutionConfig = async (req, res, next) => {
+    try {
+        const data = await receptionService.updateInstitutionConfig(req.body);
+        return sendSuccess(res, 'Institution config updated successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.getPendingPayments = async (req, res, next) => {
+    try {
+        const data = await receptionService.getPendingPayments();
+        return sendSuccess(res, 'Pending payments retrieved successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.confirmPayment = async (req, res, next) => {
+    try {
+        const userId = req.user?.user_id || req.user?.id;
+        const data = await receptionService.confirmPayment(req.params.bookingId, req.body, userId);
+        return sendSuccess(res, 'Payment confirmed successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.getActiveBulkBlocks = async (req, res, next) => {
+    try {
+        const data = await receptionService.getActiveBulkBlocks();
+        return sendSuccess(res, 'Active bulk blocks retrieved successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.createBulkBlock = async (req, res, next) => {
+    try {
+        const userId = req.user?.user_id || req.user?.id;
+        const data = await receptionService.createBulkBlock(req.body, userId);
+        return sendSuccess(res, 'Bulk block created successfully', { booking_id: data });
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.checkInBulkGuest = async (req, res, next) => {
+    try {
+        const userId = req.user?.user_id || req.user?.id;
+        const { bookingId, roomId } = req.params;
+        const data = await receptionService.checkInBulkGuest(bookingId, roomId, req.body, userId);
+        return sendSuccess(res, 'Bulk guest checked in successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};

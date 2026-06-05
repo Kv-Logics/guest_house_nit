@@ -9,9 +9,11 @@ export const ROLES = {
   RECEPTIONIST: 'reception_staff',
   DIRECTOR: 'director',
   GH_COORDINATOR: 'gh_coordinator',
+  STAFF: 'staff',
 };
 
 export const BOOKING_STATUS = {
+  DRAFT: 'DRAFT',
   PENDING_APPROVER: 'PENDING_APPROVER',
   PENDING_DIRECTOR: 'PENDING_DIRECTOR',
   DIRECTOR_REJECTED: 'DIRECTOR_REJECTED',
@@ -24,4 +26,5 @@ export const BOOKING_STATUS = {
   CHECKED_IN: 'CHECKED_IN',
   CHECKED_OUT: 'CHECKED_OUT',
   NO_SHOW: 'NO_SHOW',
+  CANCELLED: 'CANCELLED',
 };

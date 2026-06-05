@@ -140,7 +140,7 @@ exports.getRoomsWithStays = async (overrideNow = null) => {
         WHERE b.booking_state IN ('CHECKED_IN', 'PENDING_APPROVER', 'PENDING_ADMIN')
           AND b.checked_in_at IS NOT NULL
           AND b.checked_out_at IS NULL
-          AND grs.stay_status IN ('CHECKED_IN', 'CHECKED_OUT')
+          AND grs.stay_status = 'CHECKED_IN'
     `);
     const activeStays = activeStaysRes.rows;
 
@@ -532,5 +532,126 @@ exports.getBillingOverrideLogsByBooking = async (bookingId) => {
         ORDER BY bol.created_at DESC
     `;
     const result = await db.query(sql, [bookingId]);
+    return result.rows;
+};
+
+exports.getRoomHistory = async (roomNumber, page, limit) => {
+    const offset = (page - 1) * limit;
+    const sql = `
+        SELECT grs.stay_id, grs.booking_id, grs.guest_id, grs.room_id, grs.checked_in_at, grs.checked_out_at, grs.stay_status,
+               grs.occupancy_type, grs.extra_bed, grs.operational_room_type, grs.operational_tariff, grs.operational_notes,
+               g.guest_name, g.relation_to_applicant, g.arrival_datetime AS guest_arrival_datetime, g.departure_datetime AS guest_departure_datetime,
+               u.full_name AS applicant_name, b.arrival_datetime, b.departure_datetime AS booking_departure_datetime, b.booking_state
+        FROM guest_room_stays grs
+        JOIN guests g ON grs.guest_id = g.guest_id
+        JOIN booking_requests b ON grs.booking_id = b.booking_id
+        JOIN users u ON b.user_id = u.user_id
+        JOIN rooms r ON grs.room_id = r.room_id
+        WHERE r.room_number = $1
+          AND grs.stay_status = 'CHECKED_OUT'
+        ORDER BY grs.checked_out_at DESC
+        LIMIT $2 OFFSET $3
+    `;
+    const result = await db.query(sql, [roomNumber, limit, offset]);
+    return result.rows;
+};
+
+// --- NEW POS / BILLING & BULK ROOM LOGIC ---
+
+exports.getInstitutionConfig = async (client) => {
+    const sql = `SELECT * FROM institution_configs WHERE config_id = 1`;
+    const result = await runQuery(client, sql, []);
+    return result.rows[0];
+};
+
+exports.updateInstitutionConfig = async (payload, client = null) => {
+    const sql = `
+        UPDATE institution_configs
+        SET legal_name = COALESCE($1, legal_name),
+            gstin = COALESCE($2, gstin),
+            pan = COALESCE($3, pan),
+            address = COALESCE($4, address),
+            signatory_name = COALESCE($5, signatory_name),
+            signatory_designation = COALESCE($6, signatory_designation),
+            invoice_prefix = COALESCE($7, invoice_prefix),
+            sac_code = COALESCE($8, sac_code),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE config_id = 1
+        RETURNING *
+    `;
+    const params = [
+        payload.legal_name, payload.gstin, payload.pan, payload.address,
+        payload.signatory_name, payload.signatory_designation, payload.invoice_prefix, payload.sac_code
+    ];
+    const result = await db.query(sql, params);
+    return result.rows[0];
+};
+
+exports.getLatestInvoiceSequence = async (prefix, client) => {
+    const sql = `
+        SELECT invoice_number 
+        FROM final_bills 
+        WHERE invoice_number LIKE $1 
+        ORDER BY invoice_number DESC 
+        LIMIT 1
+    `;
+    const result = await runQuery(client, sql, [prefix + '%']);
+    if (result.rows.length === 0) return 0;
+    
+    // Extract the sequence part assuming format PrefixXXXX
+    const lastInvoice = result.rows[0].invoice_number;
+    const seqStr = lastInvoice.replace(prefix, '');
+    const seq = parseInt(seqStr, 10);
+    return isNaN(seq) ? 0 : seq;
+};
+
+exports.confirmPayment = async (bookingId, paymentData, client) => {
+    const sql = `
+        UPDATE final_bills
+        SET payment_mode = $1,
+            amount_received = $2,
+            transaction_ref = $3,
+            received_by = $4,
+            invoice_number = $5
+        WHERE booking_id = $6
+        RETURNING *
+    `;
+    const params = [
+        paymentData.payment_mode, paymentData.amount_received, paymentData.transaction_ref,
+        paymentData.received_by, paymentData.invoice_number, bookingId
+    ];
+    const result = await runQuery(client, sql, params);
+    return result.rows[0];
+};
+
+exports.getPendingPayments = async () => {
+    const sql = `
+        SELECT br.booking_id, br.arrival_datetime, br.departure_datetime, br.booking_state, 
+               br.rooms_required, br.room_type, br.total_estimated_amount, br.category_id, br.payment_responsible,
+               u.full_name as applicant_name,
+               fb.subtotal, fb.gst, fb.total, fb.invoice_number, fb.payment_mode
+        FROM booking_requests br
+        JOIN final_bills fb ON br.booking_id = fb.booking_id
+        LEFT JOIN users u ON br.user_id = u.user_id
+        WHERE br.booking_state = 'CHECKED_OUT' AND br.payment_state != 'PAID'
+        ORDER BY br.checked_out_at DESC
+    `;
+    const result = await db.query(sql);
+    return result.rows;
+};
+
+exports.getActiveBulkBlocks = async () => {
+    const sql = `
+        SELECT br.booking_id, br.arrival_datetime, br.departure_datetime, br.rooms_required, br.allocated_room_numbers,
+               (
+                   SELECT json_agg(row_to_json(r))
+                   FROM booking_rooms br2
+                   JOIN rooms r ON br2.room_id = r.room_id
+                   WHERE br2.booking_id = br.booking_id
+               ) as allocated_rooms
+        FROM booking_requests br
+        WHERE br.is_bulk = true AND br.booking_state NOT IN ('CHECKED_OUT', 'CANCELLED', 'NO_SHOW')
+    `;
+    const result = await db.query(sql);
     return result.rows;
 };

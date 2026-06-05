@@ -1,6 +1,6 @@
 const db = require('../db/db');
 const bookingRepository = require('../repositories/booking.repository');
-const { BOOKING_STATUS } = require('../utils/constants');
+const { BOOKING_STATUS, PAYMENT_STATUS } = require('../utils/constants');
 
 const MAX_STAY_EXTENSION_DAYS = 60;
 
@@ -206,9 +206,10 @@ exports.submitBookingRequest = async (data) => {
                 initialState = BOOKING_STATUS.ADMIN_APPROVED;
                 autoApproveLog = 'Auto-approved as Admin booking.';
             }
-        } else if (data.assigned_approver_id === data.user_id) {
+        } else if (data.assigned_approver_id === data.user_id || (String(data.category_id) === '3' && userRole !== 'student')) {
             initialState = BOOKING_STATUS.PENDING_ADMIN;
             autoApproveLog = 'Auto-approved by applicant (Self-Approval).';
+            data.assigned_approver_id = data.user_id;
         }
 
         // 7. Insert Booking Request
@@ -350,9 +351,10 @@ exports.reapplyBookingRequest = async (data) => {
                 newState = BOOKING_STATUS.ADMIN_APPROVED;
                 autoApproveLog = 'Auto-approved as Admin booking upon reapplication.';
             }
-        } else if (data.assigned_approver_id === data.user_id) {
+        } else if (data.assigned_approver_id === data.user_id || (String(data.category_id) === '3' && userRole !== 'student')) {
             newState = BOOKING_STATUS.PENDING_ADMIN;
             autoApproveLog = 'Auto-approved by applicant (Self-Approval) upon reapplication.';
+            data.assigned_approver_id = data.user_id;
         }
 
         const paymentResponsible = data.payment_responsibility || (category.payment_modes && category.payment_modes.length > 0 
@@ -448,9 +450,28 @@ exports.getTariffs = async () => {
 };
 
 exports.mockPayment = async (bookingId) => {
-    const booking = await bookingRepository.updatePaymentState(bookingId, BOOKING_STATUS.READY_FOR_CHECKIN);
-    if (!booking) throw new Error('Booking not found');
-    return booking;
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+        const bRes = await client.query('SELECT booking_state FROM booking_requests WHERE booking_id = $1 FOR UPDATE', [bookingId]);
+        if (bRes.rows.length === 0) throw new Error('Booking not found');
+        const currentBookingState = bRes.rows[0].booking_state;
+        const newBookingState = currentBookingState === BOOKING_STATUS.ADMIN_APPROVED ? BOOKING_STATUS.READY_FOR_CHECKIN : currentBookingState;
+
+        const result = await client.query(
+            `UPDATE booking_requests 
+             SET payment_state = $1, booking_state = $2, updated_at = CURRENT_TIMESTAMP 
+             WHERE booking_id = $3 RETURNING *`,
+            [PAYMENT_STATUS.PAID, newBookingState, bookingId]
+        );
+        await client.query('COMMIT');
+        return result.rows[0];
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
 };
 
 exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
@@ -643,8 +664,8 @@ exports.cancelBooking = async (bookingId, user) => {
     }
 };
 
-exports.getAuthorities = async (categoryId) => {
-    return await bookingRepository.getAuthoritiesByCategoryId(categoryId);
+exports.getAuthorities = async (categoryId, applicantRole) => {
+    return await bookingRepository.getAuthoritiesByCategoryId(categoryId, applicantRole);
 };
 
 exports.getBookingHistory = async (bookingId) => {
@@ -669,8 +690,13 @@ exports.editBookingRequest = async (data) => {
             throw new Error('Unauthorized to edit this booking.');
         }
 
-        if (isApplicant && !isAdmin && ['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED', 'CANCELLED'].includes(existing.booking_state)) {
-            throw new Error('This booking is in a state that cannot be revised by the applicant.');
+        const allowedEditStates = ['PENDING_APPROVER', 'APPROVER_REJECTED', 'ADMIN_REJECTED', 'DRAFT'];
+        if (String(existing.category_id) === '3' && isApplicant && userRole === 'faculty') {
+            allowedEditStates.push('PENDING_ADMIN');
+        }
+
+        if (isApplicant && !isAdmin && !allowedEditStates.includes(existing.booking_state)) {
+            throw new Error('This booking has progressed beyond the stage where it can be revised.');
         }
 
         // Calculate min arrival and max departure dates from guest list

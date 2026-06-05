@@ -78,7 +78,7 @@ export default function ApplicantDashboard() {
 
 
     const handleReapply = (bookingId) => {
-        navigate(`/booking?edit=${bookingId}`);
+        navigate(`/book?edit=${bookingId}`);
     };
 
     if (isLoading) return <div className="p-8 text-center text-slate-500 font-bold">Loading your applications...</div>;
@@ -277,7 +277,7 @@ export default function ApplicantDashboard() {
                                                     onClick={() => setPaymentModalBooking(b)}
                                                     className={`inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-colors ${b.payment_state === 'PAID' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-200' : b.payment_state.includes('PROOF') || b.payment_state === 'UNDER_REVIEW' ? 'bg-blue-600 text-white hover:bg-blue-700' : b.payment_state === 'REJECTED' || b.payment_state.includes('WARNING') ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
                                                 >
-                                                    {b.payment_state === 'PAID' ? 'View Payment' : b.payment_state.includes('PROOF') || b.payment_state === 'UNDER_REVIEW' ? 'Proof Under Review' : 'Pay / Upload Proof'}
+                                                    {b.payment_state === 'PAID' ? 'View Payment' : b.payment_state.includes('PROOF') || b.payment_state === 'UNDER_REVIEW' ? 'Proof Under Review' : 'Upload Payment Proof'}
                                                 </button>
                                             );
                                         })()}
@@ -302,7 +302,7 @@ export default function ApplicantDashboard() {
                                                 <CalendarClock className="w-4 h-4 mr-1.5" /> Extend stay
                                             </button>
                                         )}
-                                        {!['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED', 'CANCELLED'].includes(b.booking_state) && (
+                                        {((['PENDING_APPROVER', 'APPROVER_REJECTED', 'ADMIN_REJECTED', 'DRAFT'].includes(b.booking_state)) || (b.booking_state === 'PENDING_ADMIN' && String(b.category_id) === '3' && user?.role === 'faculty')) && (
                                             <button
                                                 onClick={() => handleReapply(b.booking_id)}
                                                 className="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-bold rounded-lg hover:bg-amber-100 border border-amber-200 transition-colors shadow-sm ml-2">

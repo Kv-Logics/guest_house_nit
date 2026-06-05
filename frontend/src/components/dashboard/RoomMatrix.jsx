@@ -73,9 +73,9 @@ export default function RoomMatrix({
                                             <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border-2 border-white shadow-sm" title="Guest Overstaying!" />
                                         )}
                                         <span className="font-bold text-sm tracking-tight">{room.roomId}</span>
-                                        {room.roomType.includes('Suite') && (
+                                        {room.roomType && room.roomType.includes('Suite') && (
                                             <span className={`text-[7px] font-bold px-1 py-0.5 mt-0.5 rounded leading-none uppercase tracking-wider ${isSelected ? 'bg-slate-700 text-slate-200' : 'bg-black/10'}`}>
-                                                Suite
+                                                {room.roomType.replace(' Room', '')}
                                             </span>
                                         )}
 

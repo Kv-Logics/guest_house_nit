@@ -4,6 +4,7 @@ import { Search, Loader2, Save, Printer, ShieldCheck, AlertCircle, Users, BedDou
 import api from '../../services/api';
 import QRScannerModal from '../../components/ui/QRScannerModal';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
+import InstitutionConfigForm from '../../components/reception/InstitutionConfigForm';
 
 export default function GHCoordinatorDashboard() {
     const { user } = useAuth();
@@ -14,11 +15,11 @@ export default function GHCoordinatorDashboard() {
     const [loadingDetails, setLoadingDetails] = useState(false);
     const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
-    // Override State
     const [overridePayload, setOverridePayload] = useState(null);
     const [saving, setSaving] = useState(false);
     const [liveTotals, setLiveTotals] = useState({ rooms: 0, extraBeds: 0, food: 0, total: 0 });
     const [showDemoBill, setShowDemoBill] = useState(false);
+    const [sortBy, setSortBy] = useState('app_desc');
 
     useEffect(() => {
         fetchModifiableBookings();
@@ -35,6 +36,8 @@ export default function GHCoordinatorDashboard() {
             setLoading(false);
         }
     };
+
+    // ... (rest of the functions remain the same up to render)
 
     const fetchBookingDetails = async (id) => {
         setLoadingDetails(true);
@@ -203,6 +206,8 @@ export default function GHCoordinatorDashboard() {
         }
     };
 
+    const [activeTab, setActiveTab] = useState('operations'); // 'operations' | 'config'
+
     if (loading) {
         return (
             <div className="flex justify-center items-center h-64">
@@ -210,6 +215,21 @@ export default function GHCoordinatorDashboard() {
             </div>
         );
     }
+
+    const sortedBookings = [...bookings].sort((a, b) => {
+        const aArr = new Date(a.arrival_datetime || 0).getTime();
+        const bArr = new Date(b.arrival_datetime || 0).getTime();
+        const aApp = new Date(a.created_at || 0).getTime();
+        const bApp = new Date(b.created_at || 0).getTime();
+
+        switch (sortBy) {
+            case 'app_desc': return aApp !== bApp ? bApp - aApp : String(b.booking_id).localeCompare(String(a.booking_id));
+            case 'app_asc': return aApp !== bApp ? aApp - bApp : String(a.booking_id).localeCompare(String(b.booking_id));
+            case 'arr_asc': return aArr - bArr;
+            case 'arr_desc': return bArr - aArr;
+            default: return bApp - aApp;
+        }
+    });
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
@@ -224,6 +244,30 @@ export default function GHCoordinatorDashboard() {
                 </p>
             </div>
 
+            {/* Navigation Tabs */}
+            <div className="flex gap-2 border-b border-slate-200 pb-2">
+                <button
+                    onClick={() => setActiveTab('operations')}
+                    className={`px-5 py-2.5 rounded-xl font-bold transition-all ${
+                        activeTab === 'operations' 
+                            ? 'bg-indigo-600 text-white shadow-md' 
+                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                >
+                    <ShieldCheck className="w-4 h-4 inline-block mr-2" /> Operations
+                </button>
+                <button
+                    onClick={() => setActiveTab('config')}
+                    className={`px-5 py-2.5 rounded-xl font-bold transition-all ${
+                        activeTab === 'config' 
+                            ? 'bg-indigo-600 text-white shadow-md' 
+                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                >
+                    <Save className="w-4 h-4 inline-block mr-2" /> Billing Config
+                </button>
+            </div>
+
             <QRScannerModal 
                 isOpen={isQRScannerOpen}
                 onClose={() => setIsQRScannerOpen(false)}
@@ -234,6 +278,11 @@ export default function GHCoordinatorDashboard() {
                 }}
             />
 
+            {activeTab === 'config' && (
+                <InstitutionConfigForm />
+            )}
+
+            {activeTab === 'operations' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column: Search & List */}
                 <div className="lg:col-span-1 space-y-6">
@@ -264,11 +313,23 @@ export default function GHCoordinatorDashboard() {
                     </div>
 
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 h-[600px] flex flex-col">
-                        <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <AlertCircle className="w-5 h-5 text-amber-500" /> Active Operations ({bookings.length})
-                        </h2>
+                        <div className="flex justify-between items-center mb-4 gap-2">
+                            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <AlertCircle className="w-5 h-5 text-amber-500" /> Ops ({bookings.length})
+                            </h2>
+                            <select 
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500 shrink-0"
+                            >
+                                <option value="app_desc">App Date (New)</option>
+                                <option value="app_asc">App Date (Old)</option>
+                                <option value="arr_asc">Arrival (Soon)</option>
+                                <option value="arr_desc">Arrival (Late)</option>
+                            </select>
+                        </div>
                         <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2">
-                            {bookings.map(b => (
+                            {sortedBookings.map(b => (
                                 <div 
                                     key={b.booking_id}
                                     onClick={() => fetchBookingDetails(b.booking_id)}
@@ -536,6 +597,8 @@ export default function GHCoordinatorDashboard() {
                     )}
                 </div>
             </div>
+            )}
+            
             
             {showDemoBill && (
                 <GSTInvoiceModal 

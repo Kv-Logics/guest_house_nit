@@ -6,7 +6,8 @@ exports.ROLES = {
     REGISTRAR: 'registrar',
     ADMIN: 'super_admin',
     GUEST_HOUSE_ADMIN: 'guest_house_admin',
-    RECEPTIONIST: 'reception_staff'
+    RECEPTIONIST: 'reception_staff',
+    STAFF: 'staff'
 };
 
 exports.BOOKING_STATUS = {

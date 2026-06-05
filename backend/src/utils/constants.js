@@ -7,10 +7,12 @@ exports.ROLES = {
     ADMIN: 'super_admin',
     GUEST_HOUSE_ADMIN: 'guest_house_admin',
     RECEPTIONIST: 'reception_staff',
-    DIRECTOR: 'director'
+    DIRECTOR: 'director',
+    STAFF: 'staff'
 };
 
 exports.BOOKING_STATUS = {
+    DRAFT: 'DRAFT',
     PENDING_APPROVER: 'PENDING_APPROVER',
     PENDING_DIRECTOR: 'PENDING_DIRECTOR',
     DIRECTOR_REJECTED: 'DIRECTOR_REJECTED',
@@ -27,6 +29,7 @@ exports.BOOKING_STATUS = {
 };
 
 exports.PAYMENT_STATUS = {
+    NOT_APPLICABLE: 'NOT_APPLICABLE',
     PENDING: 'PENDING',
     PROOF_SUBMITTED: 'PAYMENT_PROOF_SUBMITTED',
     PROOF_RESUBMITTED: 'PAYMENT_PROOF_RESUBMITTED',

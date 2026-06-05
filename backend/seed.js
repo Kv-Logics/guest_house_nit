@@ -380,12 +380,7 @@ async function seedDatabase() {
             (1, 'Standard Room', 1000, 1600, 400),
             (2, 'Standard Room', 1100, 1800, 400),
             (3, 'Standard Room', 1200, 2000, 400),
-            (4, 'Standard Room', 2600, 2600, 400),
-
-            (1, 'Renovated Room', 1400, 2200, 400),
-            (2, 'Renovated Room', 1500, 2400, 400),
-            (3, 'Renovated Room', 1600, 2600, 400),
-            (4, 'Renovated Room', 3000, 3000, 400)
+            (4, 'Standard Room', 2600, 2600, 400)
         `);
 
     // 4. Insert Sample Bookings for Admin Dashboard Testing

@@ -53,43 +53,16 @@ router.post('/:id/pay', bookingController.mockPayment);
 router.patch('/:id/cancel', bookingController.cancelBooking);
 router.post('/:id/stay-extension', validate(stayExtensionSchema), bookingController.requestStayExtension);
 
-router.patch('/:id/admin-status', async (req, res) => {
-    const { status, remarks } = req.body;
-    const { id } = req.params;
-    try {
-        const bookingService = require('../services/booking.service');
-        const result = await bookingService.updateAdminStatus(id, status, remarks, req.user.user_id);
-        res.json({ success: true, data: result });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
+router.patch('/:id/admin-status', bookingController.updateAdminStatus);
 
-router.post('/:id/reapply', upload.fields([{ name: 'document_1', maxCount: 1 }, { name: 'document_2', maxCount: 1 }]), async (req, res) => {
+router.post('/:id/reapply', upload.fields([{ name: 'document_1', maxCount: 1 }, { name: 'document_2', maxCount: 1 }]), (req, res, next) => {
     if (req.body.payload) {
         try { req.body = JSON.parse(req.body.payload); } 
         catch (e) { return res.status(400).json({ success: false, message: 'Invalid JSON payload' }); }
     }
-    try {
-        const bookingService = require('../services/booking.service');
-        req.body.user_id = req.user.user_id;
-        req.body.files = req.files;
-        req.body.booking_id = req.params.id;
-        const result = await bookingService.reapplyBookingRequest(req.body);
-        res.json({ success: true, data: result });
-    } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
-    }
-});
+    next();
+}, bookingController.reapplyBooking);
 
-router.get('/:id/history', async (req, res) => {
-    try {
-        const bookingService = require('../services/booking.service');
-        const result = await bookingService.getBookingHistory(req.params.id);
-        res.json({ success: true, data: result });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+router.get('/:id/history', bookingController.getBookingHistory);
 
 module.exports = router;

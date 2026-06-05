@@ -1,6 +1,7 @@
 import api from './api';
 
 export const receptionService = {
+  getTariffs: async () => api.get('/bookings/tariffs'),
   getTodayArrivals: async () => api.get('/reception/arrivals'),
   getRooms: async () => api.get('/reception/rooms'),
   updateRoomStatus: async (roomNumber, status) => api.post(`/reception/rooms/${roomNumber}/status`, { status }),
@@ -22,4 +23,19 @@ export const receptionService = {
     api.post('/reception/rooms/override', payload),
   getBillingLogs: async (bookingId) =>
     api.get(`/reception/bookings/${bookingId}/override-logs`),
+  getRoomHistory: async (roomNumber, page = 1, limit = 20) =>
+    api.get(`/reception/rooms/${roomNumber}/history?page=${page}&limit=${limit}`),
+    
+  // POS & Billing
+  getPendingPayments: async () => api.get('/reception/pending-payments'),
+  confirmPayment: async (bookingId, payload) => api.post(`/reception/bookings/${bookingId}/confirm-payment`, payload),
+  
+  // Institution Config
+  getInstitutionConfig: async () => api.get('/reception/institution-config'),
+  updateInstitutionConfig: async (payload) => api.post('/reception/institution-config', payload),
+  
+  // Bulk Rooms
+  getActiveBulkBlocks: async () => api.get('/reception/bulk-blocks'),
+  createBulkBlock: async (payload) => api.post('/reception/bulk-blocks', payload),
+  checkInBulkGuest: async (bookingId, roomId, payload) => api.post(`/reception/bulk-blocks/${bookingId}/rooms/${roomId}/check-in`, payload)
 };

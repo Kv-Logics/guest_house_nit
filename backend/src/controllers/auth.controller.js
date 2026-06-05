@@ -1,6 +1,7 @@
 const authService = require('../services/auth.service');
 const { sendSuccess, sendError } = require('../utils/response');
 const logger = require('../utils/logger');
+const jwt = require('jsonwebtoken');
 
 exports.requestOtp = async (req, res, next) => {
     try {
@@ -67,8 +68,42 @@ exports.getProfile = async (req, res, next) => {
 
 exports.refresh = async (req, res, next) => {
     try {
-        // Extensible for future refresh-token implementations
-        return sendSuccess(res, 'Token refreshed', { token: req.cookies?.token || null });
+        let token = req.cookies?.token;
+        if (!token) {
+            const authHeader = req.headers.authorization;
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                token = authHeader.split(' ')[1];
+            }
+        }
+        
+        if (!token) {
+            return sendError(res, 'Unauthorized access. Token missing.', 401);
+        }
+
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const freshToken = jwt.sign(
+                { 
+                    id: decoded.id,          
+                    user_id: decoded.user_id,
+                    email: decoded.email, 
+                    role: decoded.role 
+                }, 
+                process.env.JWT_SECRET,
+                { expiresIn: '7d' }
+            );
+
+            res.cookie('token', freshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                maxAge: 7 * 24 * 60 * 60 * 1000
+            });
+
+            return sendSuccess(res, 'Token refreshed successfully', { token: freshToken });
+        } catch (err) {
+            return sendError(res, 'Invalid or expired token.', 401);
+        }
     } catch (error) {
         next(error);
     }

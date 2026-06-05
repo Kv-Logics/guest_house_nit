@@ -29,6 +29,7 @@ export default function AdminDashboard() {
   const [verificationModalBooking, setVerificationModalBooking] = useState(null);
   const [actionModal, setActionModal] = useState({ isOpen: false, id: null, action: null });
   const [remarks, setRemarks] = useState('');
+  const [sortBy, setSortBy] = useState('app_desc');
   const navigate = useNavigate();
 
   const userRole = String(user?.role || '').trim().toLowerCase();
@@ -124,13 +125,28 @@ export default function AdminDashboard() {
   if (!user) return null;
 
 
-  const adminPending = approvalBookings.filter(
+  const sortedApprovalBookings = [...approvalBookings].sort((a, b) => {
+      const aArr = new Date(a.arrival_datetime || 0).getTime();
+      const bArr = new Date(b.arrival_datetime || 0).getTime();
+      const aApp = new Date(a.created_at || 0).getTime();
+      const bApp = new Date(b.created_at || 0).getTime();
+
+      switch (sortBy) {
+          case 'app_desc': return aApp !== bApp ? bApp - aApp : String(b.booking_id).localeCompare(String(a.booking_id));
+          case 'app_asc': return aApp !== bApp ? aApp - bApp : String(a.booking_id).localeCompare(String(b.booking_id));
+          case 'arr_asc': return aArr - bArr;
+          case 'arr_desc': return bArr - aArr;
+          default: return bApp - aApp;
+      }
+  });
+
+  const adminPending = sortedApprovalBookings.filter(
     (b) => b.booking_state === 'PENDING_ADMIN'
   );
-  const adminApproved = approvalBookings.filter(
+  const adminApproved = sortedApprovalBookings.filter(
     (b) => b.booking_state && ['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN', 'CHECKED_OUT', 'CONFIRMED'].includes(b.booking_state)
   );
-  const adminRejected = approvalBookings.filter(
+  const adminRejected = sortedApprovalBookings.filter(
     (b) => b.booking_state && ['ADMIN_REJECTED', 'REJECTED'].includes(b.booking_state)
   );
 
@@ -149,6 +165,19 @@ export default function AdminDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 shadow-sm">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-2">Sort:</span>
+            <select 
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="bg-transparent text-slate-700 text-sm font-bold outline-none focus:ring-0 py-1"
+            >
+                <option value="app_desc">App Date (New)</option>
+                <option value="app_asc">App Date (Old)</option>
+                <option value="arr_asc">Arrival (Soon)</option>
+                <option value="arr_desc">Arrival (Late)</option>
+            </select>
+          </div>
           <button
             onClick={() => navigate('/book')}
             className="hidden sm:flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
