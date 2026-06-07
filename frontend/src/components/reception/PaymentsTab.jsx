@@ -161,7 +161,7 @@ const PaymentsTab = ({ onBillGenerated }) => {
                         <thead>
                             <tr className="bg-gray-50 border-b">
                                 <th className="px-6 py-4 text-sm font-medium text-gray-500">Booking ID</th>
-                                <th className="px-6 py-4 text-sm font-medium text-gray-500">Applicant</th>
+                                <th className="px-6 py-4 text-sm font-medium text-gray-500">Applicant / Guest</th>
                                 <th className="px-6 py-4 text-sm font-medium text-gray-500">Rooms</th>
                                 <th className="px-6 py-4 text-sm font-medium text-gray-500">Dates</th>
                                 <th className="px-6 py-4 text-sm font-medium text-gray-500">Total Due</th>
@@ -174,12 +174,21 @@ const PaymentsTab = ({ onBillGenerated }) => {
                             ) : filteredPending.map(p => (
                                 <tr key={p.booking_id} className="hover:bg-slate-50">
                                     <td className="px-6 py-4">
-                                        <span className="font-mono text-sm font-bold text-slate-700">{getFormattedBookingId(p)}</span>
+                                        <span className="inline-block font-mono text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 break-all leading-snug">
+                                            {getFormattedBookingId(p)}
+                                        </span>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex items-center text-slate-700 font-medium">
-                                            <User className="h-4 w-4 mr-2 text-slate-400" />
-                                            {p.applicant_name || 'N/A'}
+                                        <div className="flex items-start gap-2">
+                                            <User className="h-4 w-4 mt-0.5 text-slate-400 shrink-0" />
+                                            <div>
+                                                <p className="text-slate-700 font-medium text-sm">{p.applicant_name || 'N/A'}</p>
+                                                {p.primary_guest_name && p.primary_guest_name !== p.applicant_name && (
+                                                    <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                                                        Guest: {p.primary_guest_name}
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-slate-600 font-medium">{p.rooms_required} ({p.room_type})</td>
@@ -276,7 +285,13 @@ const PaymentsTab = ({ onBillGenerated }) => {
                         <div className="p-6 border-b flex justify-between items-center bg-gray-50">
                             <div>
                                 <h3 className="text-xl font-bold text-gray-900">Settle Payment</h3>
-                                <p className="text-sm text-gray-500 font-mono mt-1">{getFormattedBookingId(selectedBooking)}</p>
+                                <span className="inline-block font-mono text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-0.5 break-all mt-1">
+                                    {getFormattedBookingId(selectedBooking)}
+                                </span>
+                                <p className="text-sm font-semibold text-slate-700 mt-1">{selectedBooking.applicant_name}</p>
+                                {selectedBooking.primary_guest_name && selectedBooking.primary_guest_name !== selectedBooking.applicant_name && (
+                                    <p className="text-xs text-slate-500 font-medium">Guest: {selectedBooking.primary_guest_name}</p>
+                                )}
                             </div>
                             <button onClick={() => setSelectedBooking(null)} className="text-gray-400 hover:text-gray-600">✕</button>
                         </div>

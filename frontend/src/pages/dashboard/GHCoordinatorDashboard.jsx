@@ -336,8 +336,10 @@ export default function GHCoordinatorDashboard() {
                                     onClick={() => fetchBookingDetails(b.booking_id)}
                                     className={`p-3 rounded-xl border cursor-pointer transition-all ${selectedBooking?.booking_id === b.booking_id ? 'bg-indigo-50 border-indigo-300 ring-1 ring-indigo-200' : 'bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-white'}`}
                                 >
-                                    <div className="flex justify-between items-start mb-1">
-                                        <span className="font-bold text-sm text-slate-800">{getFormattedBookingId(b)}</span>
+                                    <div className="flex justify-between items-start mb-1 gap-2">
+                                        <span className="font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 break-all leading-snug">
+                                            {getFormattedBookingId(b)}
+                                        </span>
                                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${b.booking_state === 'CHECKED_IN' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                             {b.booking_state}
                                         </span>
@@ -362,7 +364,9 @@ export default function GHCoordinatorDashboard() {
                             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
                                 <div>
                                     <h2 className="text-2xl font-black text-slate-800 mb-1 flex items-center gap-3">
-                                        App {getFormattedBookingId(selectedBooking)}
+                                        <span className="font-mono text-sm font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1 break-all">
+                                            {getFormattedBookingId(selectedBooking)}
+                                        </span>
                                         {selectedBooking.final_bill && (
                                             <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-md border border-emerald-200 flex items-center gap-1 shadow-sm">
                                                 <ShieldCheck className="w-3 h-3" /> BILL LOCKED

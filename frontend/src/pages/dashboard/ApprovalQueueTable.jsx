@@ -42,7 +42,9 @@ export default function ApprovalQueueTable({
             <React.Fragment key={booking.booking_id}>
               <tr className="hover:bg-slate-50 transition-colors">
                 <td className="p-4">
-                  <span className="font-bold text-slate-700">{getFormattedBookingId(booking)}</span>
+                  <span className="inline-block font-mono text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 break-all leading-snug">
+                    {getFormattedBookingId(booking)}
+                  </span>
                 </td>
                 <td className="p-4">
                   <p className="font-bold text-slate-800">{booking.applicant_name}</p>

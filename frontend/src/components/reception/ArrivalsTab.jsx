@@ -64,7 +64,7 @@ export default function ArrivalsTab({
                             <div key={arr.bookingId} className="border border-slate-200 rounded-xl p-5 hover:shadow-md transition-shadow bg-white">
                                 <div className="flex justify-between items-start mb-3">
                                     <div>
-                                        <span className="text-xs font-mono font-bold text-slate-400 block">
+                                        <span className="inline-block font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 break-all mb-1">
                                             {getFormattedBookingId(arr)}
                                         </span>
                                         <h3 className="font-bold text-lg text-slate-800">{arr.applicant}</h3>
@@ -107,7 +107,7 @@ export default function ArrivalsTab({
                                     onClick={() => setExpandedArrivals(prev => ({ ...prev, [arr.bookingId]: !prev[arr.bookingId] }))}
                                 >
                                     <div>
-                                        <span className="text-xs font-mono font-bold text-slate-400 block group-hover:text-indigo-500 transition-colors">
+                                        <span className="inline-block font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 break-all mb-1 group-hover:border-indigo-300 transition-colors">
                                             {getFormattedBookingId(arr)}
                                         </span>
                                         <h3 className="font-bold text-lg text-slate-800">{arr.applicant}</h3>

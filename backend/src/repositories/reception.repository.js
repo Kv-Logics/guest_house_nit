@@ -641,6 +641,12 @@ exports.getPendingPayments = async (limit = 50, offset = 0, searchQuery = null, 
         SELECT br.booking_id, br.formatted_id, br.booking_seq, br.arrival_datetime, br.departure_datetime, br.booking_state,
                br.rooms_required, br.room_type, br.total_estimated_amount, br.category_id, br.payment_responsible,
                u.full_name as applicant_name,
+               (
+                   SELECT g.guest_name FROM guests g
+                   WHERE g.booking_id = br.booking_id
+                   ORDER BY g.created_at ASC
+                   LIMIT 1
+               ) AS primary_guest_name,
                fb.subtotal, fb.gst,
                COALESCE(fb.total, br.total_estimated_amount) AS total,
                fb.invoice_number, fb.payment_mode, fb.generated_json,
