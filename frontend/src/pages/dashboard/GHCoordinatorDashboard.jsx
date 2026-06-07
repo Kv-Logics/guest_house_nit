@@ -19,7 +19,7 @@ export default function GHCoordinatorDashboard() {
 
     const [overridePayload, setOverridePayload] = useState(null);
     const [saving, setSaving] = useState(false);
-    const [liveTotals, setLiveTotals] = useState({ rooms: 0, extraBeds: 0, food: 0, total: 0 });
+    const [liveTotals, setLiveTotals] = useState({ rooms: 0, extraBeds: 0, total: 0 });
     const [showDemoBill, setShowDemoBill] = useState(false);
     const [sortBy, setSortBy] = useState('app_desc');
 
@@ -73,7 +73,6 @@ export default function GHCoordinatorDashboard() {
 
         let roomsCost = 0;
         let extraBedsCost = 0;
-        let foodCost = 0;
 
         const roomsMap = {};
         overridePayload.guestsToUpdate.forEach(g => {
@@ -112,16 +111,8 @@ export default function GHCoordinatorDashboard() {
             }
         });
 
-        if (selectedBooking.food_preferences) {
-            selectedBooking.food_preferences.forEach(fp => {
-                if (fp.breakfast > 0) foodCost += 50 * fp.breakfast;
-                if (fp.lunch > 0) foodCost += 100 * fp.lunch;
-                if (fp.dinner > 0) foodCost += 100 * fp.dinner;
-            });
-        }
-
-        const total = roomsCost + extraBedsCost + foodCost;
-        setLiveTotals({ rooms: roomsCost, extraBeds: extraBedsCost, food: foodCost, total });
+        const total = roomsCost + extraBedsCost;
+        setLiveTotals({ rooms: roomsCost, extraBeds: extraBedsCost, total });
         
         // Auto update total amount field if not manually tampered (optional, let's keep it in sync for simplicity)
         setOverridePayload(prev => ({ ...prev, newTotalAmount: total }));
@@ -555,10 +546,7 @@ export default function GHCoordinatorDashboard() {
                                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Extra Beds</p>
                                             <p className="text-base font-black text-indigo-700">₹{liveTotals.extraBeds.toFixed(2)}</p>
                                         </div>
-                                        <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-sm text-center">
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Food Total</p>
-                                            <p className="text-base font-black text-indigo-700">₹{liveTotals.food.toFixed(2)}</p>
-                                        </div>
+
                                         <div className="bg-indigo-600 p-3 rounded-xl border border-indigo-500 shadow-md text-center">
                                             <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-wider mb-1">Live Subtotal</p>
                                             <p className="text-lg font-black text-white">₹{liveTotals.total.toFixed(2)}</p>
