@@ -486,7 +486,7 @@ export default function ReceptionDashboard() {
                     setLoading(true);
                     const res = await receptionService.checkOutStay(g.stay_id || g.guestId);
                     await loadDashboardData();
-                    if (booking.payment_state !== 'PAID') {
+                    if (res.data?.bookingFinished && booking.payment_state !== 'PAID') {
                         setActiveTab('payments');
                     } else if (res?.data?.bookingFinished && res?.data?.booking?.booking_id) {
                         setInvoiceBookingId(res.data.booking.booking_id); // Auto-open GST Invoice
