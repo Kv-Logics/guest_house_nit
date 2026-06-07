@@ -519,34 +519,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                     </div>
                                 </div>
 
-                                {/* QR Code Application Pass */}
-                                {['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN'].includes(booking.booking_state) && (
-                                    <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-6 flex flex-col md:flex-row items-center gap-6 shadow-sm">
-                                        <div className="flex flex-col items-center gap-3 shrink-0">
-                                            <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-100" ref={qrRef}>
-                                                <QRCodeCanvas value={getFormattedBookingId(booking)} size={120} level="M" includeMargin={true} />
-                                            </div>
-                                            <button 
-                                                onClick={downloadQRCode}
-                                                className="text-xs font-bold bg-indigo-600 text-white px-3 py-1.5 rounded-lg shadow-sm hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
-                                            >
-                                                <Download className="w-3.5 h-3.5" /> Download Pass
-                                            </button>
-                                        </div>
-                                        <div>
-                                            <h4 className="text-lg font-black text-slate-800 mb-1 flex items-center gap-2">
-                                                Application QR Pass
-                                            </h4>
-                                            <p className="text-sm text-slate-600 font-medium mb-3">
-                                                Share this QR code with your guests. They can show it at Reception or to the Guest House Coordinator for instant check-in.
-                                            </p>
-                                            <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 inline-flex items-center gap-3 font-mono text-sm shadow-sm">
-                                                <span className="text-slate-400 font-bold">ID:</span>
-                                                <span className="font-bold text-slate-800">{getFormattedBookingId(booking)}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+
 
                                 {/* Guest Details */}
                                 <div>

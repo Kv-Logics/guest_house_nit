@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
 import StatusBadge from '../../components/ui/StatusBadge';
-import { LayoutDashboard, FileText, PlusCircle, Eye, Trash2, Info, RefreshCw, AlertTriangle, CalendarClock, Search } from 'lucide-react';
+import { LayoutDashboard, FileText, PlusCircle, Eye, Trash2, Info, RefreshCw, AlertTriangle, CalendarClock, Search, Download } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { QRCodeCanvas } from 'qrcode.react';
 import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
 import PaymentProofModal from '../../components/ui/PaymentProofModal';
 import { useAuth } from '../../context/AuthContext';
@@ -41,6 +42,7 @@ export default function ApplicantDashboard() {
     const [extendModalId, setExtendModalId] = useState(null);
     const [extendDatetime, setExtendDatetime] = useState('');
     const [paymentModalBooking, setPaymentModalBooking] = useState(null);
+    const [qrModalBooking, setQrModalBooking] = useState(null);
     const { user } = useAuth();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
@@ -274,7 +276,12 @@ export default function ApplicantDashboard() {
                                                 </button>
                                             );
                                         })()}
-                                        <button onClick={() => setPreviewId(b.booking_id)} className="inline-flex items-center px-3 py-1.5 bg-slate-50 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors shadow-sm">
+                                        {['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN'].includes(b.booking_state) && (
+                                            <button onClick={() => setQrModalBooking(b)} className="inline-flex items-center px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100 border border-indigo-200 transition-colors shadow-sm ml-2">
+                                                <Download className="w-4 h-4 mr-1.5" /> QR Pass
+                                            </button>
+                                        )}
+                                        <button onClick={() => setPreviewId(b.booking_id)} className="inline-flex items-center px-3 py-1.5 bg-slate-50 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors shadow-sm ml-2">
                                             <Eye className="w-4 h-4 mr-1.5" /> Preview
                                         </button>
                                         {['PENDING_APPROVER', 'PENDING_ADMIN'].includes(b.booking_state) && !(b.checked_in_at && b.pending_extension_datetime) && (
@@ -348,6 +355,48 @@ export default function ApplicantDashboard() {
                                 {extendMutation.isPending ? 'Submitting…' : 'Submit for approval'}
                             </button>
                         </div>
+                    </div>
+                </div>
+            {qrModalBooking && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="qr-pass-title">
+                    <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-sm w-full p-8 animate-fade-in text-center">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 id="qr-pass-title" className="text-xl font-black text-slate-800 tracking-tight">Application QR Pass</h3>
+                            <button onClick={() => setQrModalBooking(null)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                                <span className="sr-only">Close</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-6 flex flex-col items-center gap-6 shadow-inner mb-6">
+                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                                <QRCodeCanvas id="qr-pass-canvas" value={getFormattedBookingId(qrModalBooking)} size={160} level="M" includeMargin={true} />
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-600 font-medium mb-3">
+                                    Share this QR code with your guests. They can show it at Reception or to the Guest House Coordinator for instant check-in.
+                                </p>
+                                <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 inline-flex items-center gap-3 font-mono text-sm shadow-sm">
+                                    <span className="text-slate-400 font-bold">ID:</span>
+                                    <span className="font-bold text-slate-800">{getFormattedBookingId(qrModalBooking)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const canvas = document.getElementById('qr-pass-canvas');
+                                if (canvas) {
+                                    const url = canvas.toDataURL('image/png');
+                                    const link = document.createElement('a');
+                                    link.download = `QR_Pass_${getFormattedBookingId(qrModalBooking).replace(/\//g, '_')}.png`;
+                                    link.href = url;
+                                    link.click();
+                                }
+                            }}
+                            className="w-full py-3 text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md transition-all flex justify-center items-center gap-2"
+                        >
+                            <Download className="w-5 h-5" /> Download Pass
+                        </button>
                     </div>
                 </div>
             )}
