@@ -645,14 +645,14 @@ exports.getPendingPayments = async (limit = 50, offset = 0, searchQuery = null, 
         FROM booking_requests br
         LEFT JOIN final_bills fb ON br.booking_id = fb.booking_id
         LEFT JOIN users u ON br.user_id = u.user_id
-        WHERE br.booking_state = 'CHECKED_OUT' AND br.payment_state != 'PAID'
+        WHERE ((br.booking_state = 'CHECKED_OUT') OR (br.booking_state = 'CHECKED_IN' AND fb.booking_id IS NOT NULL)) AND br.payment_state != 'PAID'
     `;
     let countSql = `
         SELECT COUNT(*) as total_count
         FROM booking_requests br
         LEFT JOIN final_bills fb ON br.booking_id = fb.booking_id
         LEFT JOIN users u ON br.user_id = u.user_id
-        WHERE br.booking_state = 'CHECKED_OUT' AND br.payment_state != 'PAID'
+        WHERE ((br.booking_state = 'CHECKED_OUT') OR (br.booking_state = 'CHECKED_IN' AND fb.booking_id IS NOT NULL)) AND br.payment_state != 'PAID'
     `;
     const params = [];
     let paramCount = 1;

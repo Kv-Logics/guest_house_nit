@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const reportsController = require('../controllers/reports.controller');
-const { verifyToken, checkRole } = require('../middleware/auth.middleware');
-const { ROLES } = require('../utils/roles');
+const { requireAuth } = require('../middlewares/auth.middleware');
+const { requireRole } = require('../middlewares/role.middleware');
+const { ROLES } = require('../utils/constants');
 
-router.use(verifyToken);
-router.use(checkRole([ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN, ROLES.GH_COORDINATOR]));
+router.use(requireAuth);
+router.use(requireRole([ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN, ROLES.GH_COORDINATOR]));
 
 router.get('/revenue', reportsController.getMonthlyRevenue);
 

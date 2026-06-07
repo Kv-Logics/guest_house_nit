@@ -46,10 +46,22 @@ exports.checkIn = async (req, res, next) => {
 exports.checkOut = async (req, res, next) => {
     try {
         const userId = req.user?.user_id || req.user?.id;
+        const userRole = req.user?.role;
         const overrideNow = req.headers['x-mock-date'] || req.body?.overrideNow || null;
-        const data = await receptionService.checkOut(req.params.id, userId, overrideNow);
+        
+        const payload = {
+            force: req.body?.force === true,
+            forceReason: req.body?.forceReason || '',
+            userRole,
+            userId
+        };
+
+        const data = await receptionService.checkOut(req.params.id, userId, overrideNow, payload);
         return sendSuccess(res, 'Guest checked out successfully', data);
     } catch (error) {
+        if (error.status === 402 || error.message === 'PAYMENT_REQUIRED') {
+            return res.status(402).json({ success: false, message: 'PAYMENT_REQUIRED' });
+        }
         next(error);
     }
 };
@@ -57,10 +69,22 @@ exports.checkOut = async (req, res, next) => {
 exports.checkOutStay = async (req, res, next) => {
     try {
         const userId = req.user?.user_id || req.user?.id;
+        const userRole = req.user?.role;
         const overrideNow = req.headers['x-mock-date'] || req.body?.overrideNow || null;
-        const data = await receptionService.checkOutStay(req.params.stayId, userId, overrideNow);
+        
+        const payload = {
+            force: req.body?.force === true,
+            forceReason: req.body?.forceReason || '',
+            userRole,
+            userId
+        };
+
+        const data = await receptionService.checkOutStay(req.params.stayId, userId, overrideNow, payload);
         return sendSuccess(res, 'Guest stay checked out successfully', data);
     } catch (error) {
+        if (error.status === 402 || error.message === 'PAYMENT_REQUIRED') {
+            return res.status(402).json({ success: false, message: 'PAYMENT_REQUIRED' });
+        }
         next(error);
     }
 };

@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const billingController = require('../controllers/billing.controller');
-const { verifyToken, checkRole } = require('../middleware/auth.middleware');
-const { ROLES } = require('../utils/roles');
+const { requireAuth } = require('../middlewares/auth.middleware');
+const { requireRole } = require('../middlewares/role.middleware');
+const { ROLES } = require('../utils/constants');
 
 // Billing oversight requires admin level privileges
-router.use(verifyToken);
-router.use(checkRole([ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN, ROLES.GH_COORDINATOR]));
+router.use(requireAuth);
+router.use(requireRole([ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN, ROLES.GH_COORDINATOR]));
 
 // Override a finalized bill
 router.post('/:id/override', billingController.overrideBill);

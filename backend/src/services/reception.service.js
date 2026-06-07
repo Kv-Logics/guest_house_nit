@@ -483,7 +483,26 @@ exports.checkIn = async (bookingId, allocatedRoomsStr, checkedInBy, overrideNow 
     }
 };
 
-exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null) => {
+exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload = null) => {
+    // 0. Pre-check and generate bill if guest-responsible and bill not present
+    const stayInfo = await db.query(
+        `SELECT payment_responsible FROM booking_requests WHERE booking_id = $1`,
+        [bookingId]
+    );
+    if (stayInfo.rows.length > 0) {
+        const paymentResponsible = stayInfo.rows[0].payment_responsible;
+        if (paymentResponsible === 'guest') {
+            const billCheck = await db.query('SELECT * FROM final_bills WHERE booking_id = $1', [bookingId]);
+            if (billCheck.rows.length === 0) {
+                const billing = await exports.calculateBookingBilling(bookingId, null, overrideNow);
+                await db.query(`
+                    INSERT INTO final_bills (booking_id, generated_json, subtotal, gst, total, generated_by)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                `, [bookingId, JSON.stringify(billing.breakdown), billing.subtotal, billing.gst, billing.total, checkedOutBy]);
+            }
+        }
+    }
+
     const client = await db.getClient();
     try {
         await client.query('BEGIN');
@@ -504,7 +523,34 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null) => {
             throw new Error('Booking has already been checked out.');
         }
 
-        // Payment block removed: Guest should be able to checkout, which generates the bill, and then they pay in the pending payments tab.
+        // --- PAYMENT GATE ENFORCEMENT ---
+        const ADMIN_ROLES = ['super_admin', 'guest_house_admin'];
+        const isForceCheckout = payload?.force === true && ADMIN_ROLES.includes(payload?.userRole);
+
+        if (booking.payment_responsible === 'guest' && !isForceCheckout) {
+            const billRes = await client.query(`SELECT * FROM final_bills WHERE booking_id = $1`, [bookingId]);
+            const bill = billRes.rows[0];
+            
+            if (!bill || bill.payment_mode === null) {
+                const error = new Error('PAYMENT_REQUIRED');
+                error.status = 402;
+                throw error;
+            }
+        }
+
+        // If force checkout by admin — write override log entry
+        if (isForceCheckout) {
+            await client.query(
+                `INSERT INTO billing_override_logs 
+                  (booking_request_id, override_reason, overridden_by)
+                 VALUES ($1, $2, $3)`,
+                [
+                    bookingId,
+                    `FORCE CHECKOUT: ${payload.forceReason || 'No reason provided'}`,
+                    payload.userId || checkedOutBy
+                ]
+            );
+        }
 
         // 2. Fetch and lock active stays for this booking
         const staysRes = await client.query(`
@@ -631,7 +677,30 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null) => {
     }
 };
 
-exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null) => {
+exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload = null) => {
+    // 0. Precheck and generate bill if guest-responsible and bill not present
+    const stayInfo = await db.query(
+        `SELECT b.booking_id, b.payment_responsible, b.payment_state
+         FROM guest_room_stays grs
+         JOIN booking_requests b ON grs.booking_id = b.booking_id
+         WHERE grs.stay_id = $1`,
+        [stayId]
+    );
+    if (stayInfo.rows.length > 0) {
+        const bookingId = stayInfo.rows[0].booking_id;
+        const paymentResponsible = stayInfo.rows[0].payment_responsible;
+        if (paymentResponsible === 'guest') {
+            const billCheck = await db.query('SELECT * FROM final_bills WHERE booking_id = $1', [bookingId]);
+            if (billCheck.rows.length === 0) {
+                const billing = await exports.calculateBookingBilling(bookingId, null, overrideNow);
+                await db.query(`
+                    INSERT INTO final_bills (booking_id, generated_json, subtotal, gst, total, generated_by)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                `, [bookingId, JSON.stringify(billing.breakdown), billing.subtotal, billing.gst, billing.total, checkedOutBy]);
+            }
+        }
+    }
+
     const client = await db.getClient();
     try {
         await client.query('BEGIN');
@@ -655,14 +724,42 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null) => {
             throw new Error('This guest has already been checked out.');
         }
 
-        // Payment block removed: Guest should be able to checkout, which generates the bill, and then they pay in the pending payments tab.
-
+        // --- PAYMENT GATE ENFORCEMENT ---
+        const ADMIN_ROLES = ['super_admin', 'guest_house_admin'];
+        const isForceCheckout = payload?.force === true && ADMIN_ROLES.includes(payload?.userRole);
         const bookingId = stay.booking_id;
+
+        if (stay.payment_responsible === 'guest' && !isForceCheckout) {
+            const billRes = await client.query(`SELECT * FROM final_bills WHERE booking_id = $1`, [bookingId]);
+            const bill = billRes.rows[0];
+            
+            if (!bill || bill.payment_mode === null) {
+                const error = new Error('PAYMENT_REQUIRED');
+                error.status = 402;
+                throw error;
+            }
+        }
+
+        // If force checkout by admin — write override log entry
+        if (isForceCheckout) {
+            await client.query(
+                `INSERT INTO billing_override_logs 
+                  (booking_request_id, override_reason, overridden_by)
+                 VALUES ($1, $2, $3)`,
+                [
+                    bookingId,
+                    `FORCE CHECKOUT: ${payload.forceReason || 'No reason provided'}`,
+                    payload.userId || checkedOutBy
+                ]
+            );
+        }
 
         // 2. Rule 7: check if final bill exists
         const finalBill = await receptionRepository.getFinalBillByBooking(bookingId, client);
-        if (finalBill) {
-            throw new Error('This stay cannot be checked out because the final bill for the booking has already been generated.');
+        if (finalBill && !isForceCheckout) {
+            if (finalBill.payment_mode === null && stay.payment_responsible === 'guest') {
+                throw new Error('This stay cannot be checked out because the final bill has been generated but is unpaid.');
+            }
         }
 
         const now = overrideNow ? new Date(overrideNow) : new Date();
@@ -1249,9 +1346,20 @@ exports.confirmPayment = async (bookingId, paymentData, userId) => {
         if (bRes.rows.length === 0) throw new Error('Booking not found');
         const booking = bRes.rows[0];
         
-        // Ensure checked out
-        if (booking.booking_state !== 'CHECKED_OUT') {
-            throw new Error('Booking must be fully checked out before confirming final payment.');
+        // Ensure checked out or checked in
+        if (booking.booking_state !== 'CHECKED_OUT' && booking.booking_state !== 'CHECKED_IN') {
+            throw new Error('Booking must be checked in or checked out before confirming final payment.');
+        }
+
+        // If the booking is still CHECKED_IN, we must ensure a final bill exists.
+        // If it doesn't, we pre-generate/calculate it dynamically up to current time and save it so we can confirm payment.
+        const billCheck = await client.query(`SELECT * FROM final_bills WHERE booking_id = $1`, [bookingId]);
+        if (billCheck.rows.length === 0) {
+            const billing = await exports.calculateBookingBilling(bookingId, client);
+            await client.query(`
+                INSERT INTO final_bills (booking_id, generated_json, subtotal, gst, total, generated_by)
+                VALUES ($1, $2, $3, $4, $5, $6)
+            `, [bookingId, JSON.stringify(billing.breakdown), billing.subtotal, billing.gst, billing.total, userId]);
         }
 
         // Generate Invoice Number suffix
