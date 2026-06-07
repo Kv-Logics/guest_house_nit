@@ -497,7 +497,7 @@ exports.mockPayment = async (bookingId) => {
     }
 };
 
-exports.updateAdminStatus = async (bookingId, action, remarks, approverId, financialYear = '25-26') => {
+exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
     const client = await db.getClient();
     try {
         await client.query('BEGIN');

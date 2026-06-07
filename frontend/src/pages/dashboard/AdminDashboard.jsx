@@ -132,8 +132,7 @@ export default function AdminDashboard() {
     try {
       await api.patch(`/bookings/${actionModal.id}/admin-status`, { 
         status: actionModal.action, 
-        remarks,
-        financialYear
+        remarks
       });
       setActionModal({ isOpen: false, id: null, action: null });
       setRemarks('');
@@ -347,21 +346,9 @@ export default function AdminDashboard() {
             </div>
             <p className="text-sm text-slate-500 mb-4 font-medium">
               {actionModal.action === 'APPROVED' 
-                ? 'Please confirm the Financial Year for the formatted Booking ID before approving:' 
+                ? 'Optional remarks for this approval:' 
                 : 'Please provide a brief reason for rejecting this request:'}
             </p>
-            {actionModal.action === 'APPROVED' && (
-              <div className="mb-4">
-                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Financial Year</label>
-                <input 
-                  type="text" 
-                  value={financialYear}
-                  onChange={(e) => setFinancialYear(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
-                  placeholder="e.g. 25-26"
-                />
-              </div>
-            )}
             <textarea
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}

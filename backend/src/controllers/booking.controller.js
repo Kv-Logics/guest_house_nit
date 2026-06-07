@@ -55,8 +55,8 @@ exports.mockPayment = async (req, res, next) => {
 
 exports.updateAdminStatus = async (req, res, next) => {
     try {
-        const { status, remarks, financialYear } = req.body;
-        const data = await bookingService.updateAdminStatus(req.params.id, status, remarks, req.user.user_id, financialYear);
+        const { status, remarks } = req.body;
+        const data = await bookingService.updateAdminStatus(req.params.id, status, remarks, req.user.user_id);
         return sendSuccess(res, `Booking transitioned to ${data.booking_state}`, data);
     } catch (error) {
         next(error);

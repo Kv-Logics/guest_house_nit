@@ -101,14 +101,14 @@ exports.assignRooms = async (bookingId, allocatedRoomsStr, assignedBy) => {
 
             await client.query(`
                 UPDATE rooms
-                SET current_status = 'booked', updated_at = CURRENT_TIMESTAMP
+                SET current_status = 'reserved', updated_at = CURRENT_TIMESTAMP
                 WHERE room_id = $1
             `, [room.room_id]);
 
             await client.query(`
                 INSERT INTO room_status_history (room_id, previous_status, new_status, changed_by, remarks)
                 VALUES ($1, $2, $3, $4, $5)
-            `, [room.room_id, room.current_status, 'booked', assignedBy || null, `Room assigned to booking ${bookingId.split('-')[0].toUpperCase()}`]);
+            `, [room.room_id, room.current_status, 'reserved', assignedBy || null, `Room assigned to booking ${bookingId.split('-')[0].toUpperCase()}`]);
         }
 
         // 6. Update booking request state and allocated_room_numbers
