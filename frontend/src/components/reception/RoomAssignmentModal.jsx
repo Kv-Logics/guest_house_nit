@@ -68,7 +68,7 @@ export default function RoomAssignmentModal({
                                             className="p-1.5 text-xs rounded border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700 bg-white"
                                         >
                                             <option value="">Select a physical room...</option>
-                                            {allRooms.filter(r => (r.roomType === appRoom.roomType || !appRoom.roomType) && isRoomAvailableForDates(r, arrivalData.rawCheckIn, arrivalData.rawCheckOut)).map(r => (
+                                            {allRooms.filter(r => (r.roomType === appRoom.roomType || !appRoom.roomType) && r.status === 'AVAILABLE' && isRoomAvailableForDates(r, arrivalData.rawCheckIn, arrivalData.rawCheckOut)).map(r => (
                                                 <option key={r.roomId} value={r.roomId}>Room {r.roomId} ({r.roomType})</option>
                                             ))}
                                         </select>
@@ -94,7 +94,7 @@ export default function RoomAssignmentModal({
                             <RoomMatrix 
                                 rooms={allRooms.map(r => ({
                                     ...r,
-                                    status: isRoomAvailableForDates(r, arrivalData.rawCheckIn, arrivalData.rawCheckOut) ? 'AVAILABLE' : 'OCCUPIED'
+                                    status: (r.status === 'AVAILABLE' && isRoomAvailableForDates(r, arrivalData.rawCheckIn, arrivalData.rawCheckOut)) ? 'AVAILABLE' : r.status
                                 }))} 
                                 activeRoomIds={Object.values(roomAssignments)}
                                 onRoomClick={(physicalRoomId) => {
@@ -107,7 +107,7 @@ export default function RoomAssignmentModal({
                                     }
 
                                     const physicalRoom = allRooms.find(r => r.roomId === physicalRoomId);
-                                    if (!physicalRoom || !isRoomAvailableForDates(physicalRoom, arrivalData.rawCheckIn, arrivalData.rawCheckOut)) return;
+                                    if (!physicalRoom || physicalRoom.status !== 'AVAILABLE' || !isRoomAvailableForDates(physicalRoom, arrivalData.rawCheckIn, arrivalData.rawCheckOut)) return;
 
                                     const availableSlot = arrivalData.rooms.find(appRoom => {
                                         if (roomAssignments[appRoom.roomId]) return false;
