@@ -200,11 +200,6 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                     </td>
                                     <td className="px-6 py-4 font-bold text-indigo-700">
                                         ₹{getDisplayTotal(p).toLocaleString('en-IN')}
-                                        {p.bill_missing && (
-                                            <span className="ml-2 text-xs bg-amber-100 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 font-bold align-middle">
-                                                ⚠ Est.
-                                            </span>
-                                        )}
                                     </td>
                                     <td className="px-6 py-4 flex gap-2">
                                         <button 
