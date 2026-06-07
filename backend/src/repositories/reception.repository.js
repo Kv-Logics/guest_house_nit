@@ -638,21 +638,41 @@ exports.getPendingPayments = async (limit = 50, offset = 0, searchQuery = null, 
     const referenceDate = overrideNow ? `'${overrideNow}'::timestamp` : 'CURRENT_DATE';
     
     let sql = `
-        SELECT br.booking_id, br.formatted_id, br.booking_seq, br.arrival_datetime, br.departure_datetime, br.booking_state, 
+        SELECT br.booking_id, br.formatted_id, br.booking_seq, br.arrival_datetime, br.departure_datetime, br.booking_state,
                br.rooms_required, br.room_type, br.total_estimated_amount, br.category_id, br.payment_responsible,
                u.full_name as applicant_name,
-               fb.subtotal, fb.gst, fb.total, fb.invoice_number, fb.payment_mode, fb.generated_json
+               fb.subtotal, fb.gst,
+               COALESCE(fb.total, br.total_estimated_amount) AS total,
+               fb.invoice_number, fb.payment_mode, fb.generated_json,
+               (fb.booking_id IS NULL) AS bill_missing
         FROM booking_requests br
         LEFT JOIN final_bills fb ON br.booking_id = fb.booking_id
         LEFT JOIN users u ON br.user_id = u.user_id
-        WHERE ((br.booking_state = 'CHECKED_OUT') OR (br.booking_state = 'CHECKED_IN' AND fb.booking_id IS NOT NULL)) AND br.payment_state != 'PAID'
+        WHERE (
+            -- Always surface checked-out unpaid bookings, bill or no bill
+            (br.booking_state = 'CHECKED_OUT')
+            OR
+            -- Surface checked-in bookings that have a pending bill snapshot
+            (br.booking_state = 'CHECKED_IN' AND fb.booking_id IS NOT NULL AND fb.payment_mode IS NULL)
+            OR
+            -- Surface guest-responsible checked-in bookings with NO bill (bill generation may have failed)
+            (br.booking_state = 'CHECKED_IN' AND fb.booking_id IS NULL AND br.payment_responsible = 'guest')
+        )
+        AND br.payment_state != 'PAID'
     `;
     let countSql = `
         SELECT COUNT(*) as total_count
         FROM booking_requests br
         LEFT JOIN final_bills fb ON br.booking_id = fb.booking_id
         LEFT JOIN users u ON br.user_id = u.user_id
-        WHERE ((br.booking_state = 'CHECKED_OUT') OR (br.booking_state = 'CHECKED_IN' AND fb.booking_id IS NOT NULL)) AND br.payment_state != 'PAID'
+        WHERE (
+            (br.booking_state = 'CHECKED_OUT')
+            OR
+            (br.booking_state = 'CHECKED_IN' AND fb.booking_id IS NOT NULL AND fb.payment_mode IS NULL)
+            OR
+            (br.booking_state = 'CHECKED_IN' AND fb.booking_id IS NULL AND br.payment_responsible = 'guest')
+        )
+        AND br.payment_state != 'PAID'
     `;
     const params = [];
     let paramCount = 1;

@@ -66,13 +66,20 @@ const PaymentsTab = ({ onBillGenerated }) => {
         loadCompletedPayments(nextOffset, true);
     };
 
+    // Helper: get the displayable total; falls back to total_estimated_amount when the bill is not generated yet
+    const getDisplayTotal = (p) => {
+        const t = parseFloat(p.total);
+        if (!isNaN(t) && t > 0) return t;
+        return parseFloat(p.total_estimated_amount) || 0;
+    };
+
     const handleConfirm = async (e) => {
         e.preventDefault();
         try {
             setProcessing(true);
             const payload = {
                 payment_mode: paymentMode,
-                amount_received: selectedBooking.total,
+                amount_received: getDisplayTotal(selectedBooking),
                 transaction_ref: paymentMode === 'POS' ? transactionRef : null
             };
             const res = await receptionService.confirmPayment(selectedBooking.booking_id, payload);
@@ -183,7 +190,12 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 font-bold text-indigo-700">
-                                        ₹{parseFloat(p.total).toLocaleString('en-IN')}
+                                        ₹{getDisplayTotal(p).toLocaleString('en-IN')}
+                                        {p.bill_missing && (
+                                            <span className="ml-2 text-xs bg-amber-100 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 font-bold align-middle">
+                                                ⚠ Est.
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 flex gap-2">
                                         <button 
@@ -273,22 +285,28 @@ const PaymentsTab = ({ onBillGenerated }) => {
                             {/* Ledger Preview */}
                             <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
                                 <h4 className="font-semibold text-blue-900 mb-3 border-b border-blue-200 pb-2">Final Ledger</h4>
+                                {selectedBooking.bill_missing && (
+                                    <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 font-semibold">
+                                        ⚠ No bill has been generated yet for this booking. The amount shown is an estimate.
+                                        Clicking <strong>Confirm Payment</strong> will auto-generate the final bill.
+                                    </div>
+                                )}
                                 <div className="space-y-2 text-sm text-blue-800">
                                     <div className="flex justify-between">
                                         <span>Subtotal (Taxable):</span>
-                                        <span className="font-medium">₹{selectedBooking.subtotal}</span>
+                                        <span className="font-medium">₹{selectedBooking.subtotal ?? '—'}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span>CGST (6%):</span>
-                                        <span className="font-medium">₹{Math.round(selectedBooking.subtotal * 0.06)}</span>
+                                        <span className="font-medium">₹{selectedBooking.subtotal ? Math.round(selectedBooking.subtotal * 0.06) : '—'}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span>SGST (6%):</span>
-                                        <span className="font-medium">₹{Math.round(selectedBooking.subtotal * 0.06)}</span>
+                                        <span className="font-medium">₹{selectedBooking.subtotal ? Math.round(selectedBooking.subtotal * 0.06) : '—'}</span>
                                     </div>
                                     <div className="flex justify-between font-bold text-lg text-blue-900 mt-2 pt-2 border-t border-blue-200">
-                                        <span>Grand Total:</span>
-                                        <span>₹{selectedBooking.total}</span>
+                                        <span>Grand Total{selectedBooking.bill_missing ? ' (Estimated)' : ''}:</span>
+                                        <span>₹{getDisplayTotal(selectedBooking).toLocaleString('en-IN')}</span>
                                     </div>
                                 </div>
                             </div>
