@@ -230,9 +230,29 @@ exports.submitBookingRequest = async (data) => {
         const bookingRes = await client.query(insertBookingQuery, bookingValues);
         const bookingId = bookingRes.rows[0].booking_id;
         
-        // Set initial formatted_id to the short hash of the UUID
-        const shortId = String(bookingId).substring(0, 8).toUpperCase();
-        await client.query('UPDATE booking_requests SET formatted_id = $1 WHERE booking_id = $2', [shortId, bookingId]);
+        // Universal Formatted Booking ID Generation
+        const configRes = await client.query('SELECT financial_year FROM institution_configs WHERE config_id = 1');
+        const financialYear = configRes.rows[0]?.financial_year || '25-26';
+        
+        const seqRes = await client.query(
+            `INSERT INTO sequence_tracker (financial_year, last_sequence) VALUES ($1, 1)
+             ON CONFLICT (financial_year) DO UPDATE SET last_sequence = sequence_tracker.last_sequence + 1
+             RETURNING last_sequence`,
+            [financialYear]
+        );
+        const seqNum = seqRes.rows[0].last_sequence;
+        
+        const catRes = await client.query('SELECT category_code FROM category_rules WHERE category_id = $1', [data.category_id]);
+        let catCode = catRes.rows[0]?.category_code?.split(' ')[0] || 'UNK';
+        
+        // Format to 5 digits (0-99999)
+        const seqStr = String(seqNum).padStart(5, '0');
+        const formattedId = `NITTGH/${financialYear}/${catCode}/${seqStr}`;
+        
+        await client.query(
+            'UPDATE booking_requests SET booking_seq = $1, formatted_id = $2, financial_year = $3 WHERE booking_id = $4', 
+            [seqNum, formattedId, financialYear, bookingId]
+        );
 
         // 8. Insert Associated Guest Details & Food Preferences
         if (data.guests && data.guests.length > 0) {
@@ -514,30 +534,10 @@ exports.updateAdminStatus = async (bookingId, action, remarks, approverId, finan
         } else {
             const newState = action === 'APPROVED' ? BOOKING_STATUS.ADMIN_APPROVED : BOOKING_STATUS.ADMIN_REJECTED;
             
-            if (action === 'APPROVED' && !row.booking_seq) {
-                const seqRes = await client.query(
-                    `INSERT INTO sequence_tracker (financial_year, last_sequence) VALUES ($1, 1)
-                     ON CONFLICT (financial_year) DO UPDATE SET last_sequence = sequence_tracker.last_sequence + 1
-                     RETURNING last_sequence`,
-                    [financialYear]
-                );
-                const seqNum = seqRes.rows[0].last_sequence;
-                
-                const catRes = await client.query('SELECT category_code FROM category_rules WHERE category_id = $1', [row.category_id]);
-                let catCode = catRes.rows[0]?.category_code?.split(' ')[0] || 'UNK';
-                const seqStr = String(seqNum).padStart(4, '0');
-                const formattedId = `NITTGH/${financialYear}/${catCode}/${seqStr}`;
-                
-                result = await client.query(
-                    `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, booking_seq = $2, formatted_id = $3, financial_year = $4, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $5 RETURNING *`,
-                    [newState, seqNum, formattedId, financialYear, bookingId]
-                );
-            } else {
-                result = await client.query(
-                    `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
-                    [newState, bookingId]
-                );
-            }
+            result = await client.query(
+                `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+                [newState, bookingId]
+            );
         }
 
         if (result.rows.length === 0) throw new Error('Booking not found');

@@ -585,13 +585,15 @@ exports.updateInstitutionConfig = async (payload, client = null) => {
             signatory_designation = COALESCE($6, signatory_designation),
             invoice_prefix = COALESCE($7, invoice_prefix),
             sac_code = COALESCE($8, sac_code),
+            financial_year = COALESCE($9, financial_year),
             updated_at = CURRENT_TIMESTAMP
         WHERE config_id = 1
         RETURNING *
     `;
     const params = [
         payload.legal_name, payload.gstin, payload.pan, payload.address,
-        payload.signatory_name, payload.signatory_designation, payload.invoice_prefix, payload.sac_code
+        payload.signatory_name, payload.signatory_designation, payload.invoice_prefix, payload.sac_code,
+        payload.financial_year
     ];
     const result = await db.query(sql, params);
     return result.rows[0];
