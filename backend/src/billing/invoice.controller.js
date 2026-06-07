@@ -12,6 +12,15 @@ exports.downloadInvoice = async (req, res) => {
     if (!bill) {
       return res.status(404).json({ error: 'Invoice not found for this booking.' });
     }
+    const { db } = require('../config/database');
+    const bookingRes = await db.query('SELECT user_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
+    if (bookingRes.rows.length === 0) return res.status(404).json({ error: 'Booking not found.' });
+    const bookingOwner = bookingRes.rows[0].user_id;
+
+    if (req.user.role === 'user' && bookingOwner !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden: You do not have permission to view this invoice.' });
+    }
+
     if (bill.payment_mode === null) {
       return res.status(400).json({ error: 'Payment not yet confirmed. Invoice unavailable.' });
     }

@@ -8,10 +8,10 @@ const { requireRole } = require('../middlewares/role.middleware');
 
 router.use(requireAuth);
 
-// --- INVOICE DOWNLOAD (Admin, Coordinator, Receptionist) ---
+// --- INVOICE DOWNLOAD (Admin, Coordinator, Receptionist, User) ---
 router.get(
   '/billing/invoice/:bookingId',
-  requireRole(['super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff']),
+  requireRole(['super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff', 'user']),
   invoiceController.downloadInvoice
 );
 
