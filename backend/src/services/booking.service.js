@@ -242,8 +242,7 @@ exports.submitBookingRequest = async (data) => {
         );
         const seqNum = seqRes.rows[0].last_sequence;
         
-        const catRes = await client.query('SELECT category_code FROM category_rules WHERE category_id = $1', [data.category_id]);
-        let catCode = catRes.rows[0]?.category_code?.split(' ')[0] || 'UNK';
+        let catCode = category?.category_code?.split(' ')[0] || 'UNK';
         
         // Format to 5 digits (0-99999)
         const seqStr = String(seqNum).padStart(5, '0');
