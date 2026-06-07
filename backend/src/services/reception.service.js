@@ -1453,6 +1453,8 @@ exports.checkInBulkGuest = async (bookingId, roomId, guestData, userId) => {
     try {
         await client.query('BEGIN');
         
+        const ageVal = guestData.age === '' ? null : parseInt(guestData.age, 10);
+
         // 1. Insert Guest
         const gRes = await client.query(`
             INSERT INTO guests (
@@ -1461,7 +1463,7 @@ exports.checkInBulkGuest = async (bookingId, roomId, guestData, userId) => {
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, $9, 'single', false)
             RETURNING guest_id
         `, [
-            bookingId, guestData.guest_name, guestData.email, guestData.phone, guestData.gender, guestData.age,
+            bookingId, guestData.guest_name, guestData.email, guestData.phone, guestData.gender, ageVal,
             guestData.identity_proof_type, guestData.identity_proof_number, guestData.departure_datetime
         ]);
         const guestId = gRes.rows[0].guest_id;
