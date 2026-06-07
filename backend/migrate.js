@@ -36,6 +36,9 @@ async function runMigration() {
         // 3. Booking requests bulk flag
         await client.query(`ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS is_bulk BOOLEAN DEFAULT false;`);
         
+        // 4. Booking requests sequence
+        await client.query(`ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS booking_seq SERIAL;`);
+        
         await client.query('COMMIT');
         console.log('Migration completed successfully.');
     } catch (err) {

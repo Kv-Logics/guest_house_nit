@@ -136,6 +136,7 @@ CREATE TABLE rooms (
 -- 7. BOOKING REQUESTS (Updated with Payment Calculations)
 CREATE TABLE booking_requests (
     booking_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_seq SERIAL,
     user_id UUID REFERENCES users(user_id),
     category_id INTEGER REFERENCES category_rules(category_id),
     purpose_of_visit TEXT NOT NULL,
