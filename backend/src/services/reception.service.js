@@ -689,7 +689,15 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
     if (stayInfo.rows.length > 0) {
         const bookingId = stayInfo.rows[0].booking_id;
         const paymentResponsible = stayInfo.rows[0].payment_responsible;
-        if (paymentResponsible === 'guest') {
+        
+        // Check if there are other checked-in stays for this booking
+        const otherStaysCheck = await db.query(
+            `SELECT COUNT(*) as active_count FROM guest_room_stays WHERE booking_id = $1 AND stay_status = 'CHECKED_IN' AND stay_id != $2`, 
+            [bookingId, stayId]
+        );
+        const otherActiveStaysCount = Number(otherStaysCheck.rows[0].active_count);
+
+        if (paymentResponsible === 'guest' && otherActiveStaysCount === 0) {
             const billCheck = await db.query('SELECT * FROM final_bills WHERE booking_id = $1', [bookingId]);
             if (billCheck.rows.length === 0) {
                 const billing = await exports.calculateBookingBilling(bookingId, null, overrideNow);
@@ -729,7 +737,14 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
         const isForceCheckout = payload?.force === true && ADMIN_ROLES.includes(payload?.userRole);
         const bookingId = stay.booking_id;
 
-        if (stay.payment_responsible === 'guest' && !isForceCheckout) {
+        const otherStaysRes = await client.query(`
+            SELECT COUNT(*) as active_count
+            FROM guest_room_stays
+            WHERE booking_id = $1 AND stay_status = 'CHECKED_IN' AND stay_id != $2
+        `, [bookingId, stayId]);
+        const otherActiveStaysCount = Number(otherStaysRes.rows[0].active_count);
+
+        if (stay.payment_responsible === 'guest' && !isForceCheckout && otherActiveStaysCount === 0) {
             const billRes = await client.query(`SELECT * FROM final_bills WHERE booking_id = $1`, [bookingId]);
             const bill = billRes.rows[0];
             
