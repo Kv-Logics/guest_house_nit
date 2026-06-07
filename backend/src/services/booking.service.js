@@ -318,7 +318,7 @@ exports.submitBookingRequest = async (data) => {
         }
 
         await client.query('COMMIT');
-        return { booking_id: bookingId, category: category.category_code, status: initialState };
+        return { booking_id: bookingId, formatted_id: formattedId, category: category.category_code, status: initialState };
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;

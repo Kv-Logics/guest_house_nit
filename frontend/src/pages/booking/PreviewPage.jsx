@@ -310,7 +310,7 @@ export default function PreviewPage() {
       }
 
       localStorage.removeItem('nitt_booking_draft');
-      navigate('/success', { state: { bookingId: response.data.booking_id } });
+      navigate('/success', { state: { bookingId: response.data.formatted_id, rawId: response.data.booking_id } });
     } catch (err) {
       console.error('Backend Submission Error:', err);
       // Extract precise Zod validation messages if the payload gets rejected again

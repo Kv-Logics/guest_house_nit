@@ -48,7 +48,7 @@ exports.getBookingFullDetails = async (bookingId) => {
 
 exports.getModifiableBookings = async () => {
     const res = await db.query(`
-        SELECT br.booking_id, br.arrival_datetime, br.departure_datetime, br.booking_state, 
+        SELECT br.booking_id, br.formatted_id, br.arrival_datetime, br.departure_datetime, br.booking_state, 
                br.rooms_required, br.room_type, br.total_estimated_amount, br.allocated_room_numbers,
                u.full_name as applicant_name
         FROM booking_requests br
