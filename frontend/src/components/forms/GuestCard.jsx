@@ -53,7 +53,7 @@ export default function GuestCard({ guest, gIndex, guests, setFormData, formData
         )}
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">Email Address</label>
-          <input type="email" value={guest.email} onChange={(e) => updateGuest('email', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500" placeholder="guest@institute.edu" />
+          <input type="email" value={guest.email} onChange={(e) => updateGuest('email', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500" placeholder="guest@gmail.com" />
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">Age & Gender</label>

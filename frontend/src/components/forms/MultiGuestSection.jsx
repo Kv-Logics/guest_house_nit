@@ -70,7 +70,7 @@ const GuestCard = ({ guest, rIndex, gIndex, rooms, setFormData, formData, remove
         )}
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">Email Address</label>
-          <input type="email" autoComplete={enableAutofill ? "email" : "off"} value={guest.email || ''} onChange={(e) => updateGuest('email', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="guest@institute.edu" />
+          <input type="email" autoComplete={enableAutofill ? "email" : "off"} value={guest.email || ''} onChange={(e) => updateGuest('email', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="guest@gmail.com" />
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-600 mb-1">Age & Gender</label>
