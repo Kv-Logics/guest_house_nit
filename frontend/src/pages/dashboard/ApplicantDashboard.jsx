@@ -30,11 +30,7 @@ function stayDepartureAlert(booking) {
 }
 
 function extensionAwaitingApproval(booking) {
-    return (
-        Boolean(booking.checked_in_at) &&
-        booking.pending_extension_datetime != null &&
-        ['PENDING_APPROVER', 'PENDING_ADMIN'].includes(booking.booking_state)
-    );
+    return booking.stay_extension_requests?.some(e => ['PENDING', 'PENDING_AUTHORITY', 'PENDING_ADMIN'].includes(e.status));
 }
 
 export default function ApplicantDashboard() {
@@ -283,7 +279,7 @@ export default function ApplicantDashboard() {
                                         <StatusBadge status={b.booking_state} />
                                         {extensionAwaitingApproval(b) && (
                                             <p className="text-xs text-violet-700 mt-1.5 font-bold bg-violet-50 px-2 py-1 rounded inline-block border border-violet-100">
-                                                Stay extension until {new Date(b.pending_extension_datetime).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} awaiting approval
+                                                Stay extension awaiting approval
                                             </p>
                                         )}
                                     </td>
@@ -318,7 +314,7 @@ export default function ApplicantDashboard() {
                                                 <Trash2 className="w-4 h-4 mr-1.5" /> Withdraw
                                             </button>
                                         )}
-                                        {sysConfig.enable_extend_stay_applicant && b.booking_state === 'CHECKED_IN' && (
+                                        {sysConfig.enable_extend_stay_applicant && b.booking_state === 'CHECKED_IN' && !extensionAwaitingApproval(b) && (
                                             <button
                                                 type="button"
                                                 onClick={() => { 

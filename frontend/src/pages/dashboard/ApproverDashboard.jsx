@@ -102,19 +102,25 @@ export default function ApproverDashboard() {
                                         {new Date(b.arrival_datetime).toLocaleDateString()} - {new Date(b.departure_datetime).toLocaleDateString()}
                                     </td>
                                     <td className="p-4">
-                                        <StatusBadge status={b.booking_state} />
+                                        {b.stay_extension_requests?.some(e => e.status.startsWith('PENDING_')) ? (
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                                                Extension Pending
+                                            </span>
+                                        ) : (
+                                            <StatusBadge status={b.booking_state} />
+                                        )}
                                     </td>
                                     <td className="p-4 text-right space-x-2">
                                         <button onClick={() => setPreviewId(b.booking_id)} className="inline-flex items-center px-4 py-2 bg-slate-50 text-slate-700 font-bold rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors shadow-sm">
                                             <Eye className="w-4 h-4 mr-1.5" /> Preview
                                         </button>
-                                        {(b.booking_state === 'PENDING_APPROVER' || b.booking_state === 'PENDING_DIRECTOR') && (
+                                        {(b.booking_state === 'PENDING_APPROVER' || b.booking_state === 'PENDING_DIRECTOR' || (b.stay_extension_requests && b.stay_extension_requests.some(e => e.status === 'PENDING_AUTHORITY'))) && (
                                             <>
                                                 <button onClick={() => setActionModal({ isOpen: true, id: b.booking_id, action: 'APPROVED' })} className="px-4 py-2 bg-emerald-50 text-emerald-700 font-bold rounded-xl hover:bg-emerald-100 transition-colors">Approve</button>
                                                 <button onClick={() => setActionModal({ isOpen: true, id: b.booking_id, action: 'REJECTED' })} className="px-4 py-2 bg-red-50 text-red-700 font-bold rounded-xl hover:bg-red-100 transition-colors">Reject</button>
                                             </>
                                         )}
-                                        {!['CANCELLED', 'CHECKED_IN', 'CHECKED_OUT'].includes(b.booking_state) && b.booking_state !== 'PENDING_APPROVER' && b.booking_state !== 'PENDING_DIRECTOR' && (
+                                        {!['CANCELLED', 'CHECKED_IN', 'CHECKED_OUT'].includes(b.booking_state) && b.booking_state !== 'PENDING_APPROVER' && b.booking_state !== 'PENDING_DIRECTOR' && !(b.stay_extension_requests && b.stay_extension_requests.some(e => e.status === 'PENDING_AUTHORITY')) && (
                                             <button onClick={() => {
                                                 const isRej = b.booking_state.includes('REJECT');
                                                 const msg = isRej 

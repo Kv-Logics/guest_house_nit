@@ -18,11 +18,14 @@ exports.getBookingsByUserId = async (userId) => {
                        )
                    )
                    FROM guests g WHERE g.booking_id = b.booking_id
-               ) as guests
+               ) as guests,
+               (
+                   SELECT json_agg(row_to_json(e)) FROM stay_extension_requests e WHERE e.booking_id = b.booking_id
+               ) as stay_extension_requests
         FROM booking_requests b
         JOIN category_rules c ON b.category_id = c.category_id
         LEFT JOIN users a ON b.assigned_approver_id = a.user_id
-        WHERE b.user_id = $1 
+        WHERE b.user_id = $1
         ORDER BY b.arrival_datetime ASC, b.created_at DESC
     `;
     const result = await db.query(query, [userId]);
@@ -65,6 +68,8 @@ exports.getAllBookingsWithDetails = async (limit = null, offset = 0, statusFilte
             query += ` AND b.booking_state IN ('ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN', 'CHECKED_OUT', 'CONFIRMED')`;
         } else if (statusFilter === 'ADMIN_REJECTED') {
             query += ` AND b.booking_state IN ('ADMIN_REJECTED', 'REJECTED')`;
+        } else if (statusFilter === 'PENDING_ADMIN') {
+            query += ` AND (b.booking_state = 'PENDING_ADMIN' OR EXISTS (SELECT 1 FROM stay_extension_requests ext WHERE ext.booking_id = b.booking_id AND ext.status = 'PENDING_ADMIN'))`;
         } else {
             query += ` AND b.booking_state = $${paramCount}`;
             params.push(statusFilter);
@@ -116,6 +121,8 @@ exports.getAllBookingsWithDetails = async (limit = null, offset = 0, statusFilte
             countQuery += ` AND b.booking_state IN ('ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN', 'CHECKED_OUT', 'CONFIRMED')`;
         } else if (statusFilter === 'ADMIN_REJECTED') {
             countQuery += ` AND b.booking_state IN ('ADMIN_REJECTED', 'REJECTED')`;
+        } else if (statusFilter === 'PENDING_ADMIN') {
+            countQuery += ` AND (b.booking_state = 'PENDING_ADMIN' OR EXISTS (SELECT 1 FROM stay_extension_requests ext WHERE ext.booking_id = b.booking_id AND ext.status = 'PENDING_ADMIN'))`;
         } else {
             countQuery += ` AND b.booking_state = $${countParamCount}`;
             countParams.push(statusFilter);

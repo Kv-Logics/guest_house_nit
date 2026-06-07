@@ -22,7 +22,10 @@ exports.getFrontDeskBookings = async (overrideNow = null) => {
                    b.checked_in_at IS NOT NULL
                    AND b.checked_out_at IS NULL
                    AND b.booking_state IN ($5, $6)
-                   AND b.pending_extension_datetime IS NOT NULL
+                   AND EXISTS (
+                       SELECT 1 FROM stay_extension_requests ext 
+                       WHERE ext.booking_id = b.booking_id AND ext.status IN ('PENDING_AUTHORITY', 'PENDING_ADMIN')
+                   )
                ) AS is_extension_pending, b.checked_in_at, b.checked_out_at
         FROM booking_requests b
         JOIN users u ON b.user_id = u.user_id
@@ -132,7 +135,7 @@ exports.getRoomsWithStays = async (overrideNow = null) => {
                grs.occupancy_type, grs.extra_bed, grs.operational_room_type, grs.operational_tariff, grs.operational_notes,
                g.guest_name, g.relation_to_applicant, g.arrival_datetime AS guest_arrival_datetime, g.departure_datetime AS guest_departure_datetime, g.expected_departure,
                u.full_name AS applicant_name, b.arrival_datetime, b.departure_datetime AS booking_departure_datetime, b.booking_state, b.pending_extension_datetime, b.payment_state, b.payment_responsible, b.category_id,
-               b.formatted_id, b.booking_seq,
+               b.formatted_id, b.booking_seq, b.allocated_room_numbers,
                (SELECT json_agg(row_to_json(fp)) FROM guest_food_preferences fp WHERE fp.guest_id = g.guest_id) as food_preferences
         FROM guest_room_stays grs
         JOIN guests g ON grs.guest_id = g.guest_id

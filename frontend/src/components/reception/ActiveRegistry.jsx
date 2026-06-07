@@ -54,9 +54,28 @@ export default function ActiveRegistry({
                                     );
                                 }
 
+                                let roomSuffix = selectedRoom.roomId;
+                                const booking = selectedRoom.active_booking;
+                                if (booking && booking.allocated_room_numbers) {
+                                    let allocatedRooms = booking.allocated_room_numbers;
+                                    if (typeof allocatedRooms === 'string') {
+                                        if (allocatedRooms.includes('[')) {
+                                            try { allocatedRooms = JSON.parse(allocatedRooms); } catch (e) { allocatedRooms = [allocatedRooms]; }
+                                        } else {
+                                            allocatedRooms = allocatedRooms.split(',').map(s => s.trim());
+                                        }
+                                    }
+                                    if (Array.isArray(allocatedRooms)) {
+                                        const idx = allocatedRooms.findIndex(r => String(r) === String(selectedRoom.roomId));
+                                        if (idx !== -1) {
+                                            roomSuffix = (idx + 1).toString();
+                                        }
+                                    }
+                                }
+
                                 const rowBookingId = selectedRoom.active_booking 
-                                    ? `${getFormattedBookingId(selectedRoom.active_booking)}:${selectedRoom.roomId}` 
-                                    : (guest.booking_id ? `${getFormattedBookingId({ booking_id: guest.booking_id, booking_state: 'APPROVED' })}:${selectedRoom.roomId}` : '');
+                                    ? `${getFormattedBookingId(selectedRoom.active_booking)}:${roomSuffix}` 
+                                    : (guest.booking_id ? `${getFormattedBookingId({ booking_id: guest.booking_id, booking_state: 'APPROVED' })}:${roomSuffix}` : '');
                                 return (
                                 <tr key={guest.guestId || guest.stay_id} className={`hover:bg-slate-50/50 ${isOverstaying ? 'bg-red-50/50' : ''}`}>
                                     <td className="p-3">

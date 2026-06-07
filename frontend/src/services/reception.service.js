@@ -5,7 +5,6 @@ export const receptionService = {
   getTodayArrivals: async () => api.get('/reception/arrivals'),
   getRooms: async () => api.get('/reception/rooms'),
   updateRoomStatus: async (roomNumber, status) => api.post(`/reception/rooms/${roomNumber}/status`, { status }),
-  extendStay: async (bookingId, departure_datetime) => api.post(`/reception/bookings/${bookingId}/extend`, { departure_datetime }),
   assignRooms: async (id, allocated_room_numbers) => api.post(`/reception/${id}/assign-rooms`, { allocated_room_numbers }),
   checkIn: async (id, allocated_room_numbers) => api.post(`/reception/${id}/check-in`, { allocated_room_numbers }),
   checkInGuest: async (guestId) => api.post(`/reception/guests/${guestId}/check-in`),

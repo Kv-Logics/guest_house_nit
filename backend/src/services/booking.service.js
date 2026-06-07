@@ -112,16 +112,7 @@ async function applyStayExtension(client, bookingId) {
     // Fetch approved requests for this booking
     const extRes = await client.query('SELECT * FROM stay_extension_requests WHERE booking_id = $1 AND status = $2', [bookingId, 'APPROVED']);
     const extensions = extRes.rows;
-
-    if (extensions.length === 0) {
-        // Fallback for older global extensions (if any pending_extension_datetime was manually set)
-        if (booking.pending_extension_datetime) {
-            await client.query(
-                `UPDATE booking_requests SET departure_datetime = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2`,
-                [booking.pending_extension_datetime, bookingId]
-            );
-        }
-    } else {
+    if (extensions.length > 0) {
         let maxDeparture = new Date(booking.departure_datetime);
         for (const ext of extensions) {
             const reqDep = new Date(ext.requested_departure);
@@ -138,7 +129,6 @@ async function applyStayExtension(client, bookingId) {
             [maxDeparture.toISOString(), bookingId]
         );
     }
-
     const refreshed = await client.query(
         `SELECT b.*, (SELECT json_agg(g) FROM guests g WHERE g.booking_id = b.booking_id) AS guests
          FROM booking_requests b WHERE b.booking_id = $1`,
@@ -522,8 +512,13 @@ exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
         );
         if (checkRes.rows.length === 0) throw new Error('Booking not found');
         const row = checkRes.rows[0];
+        const extAdminRes = await client.query(
+            'SELECT COUNT(*) as cnt FROM stay_extension_requests WHERE booking_id = $1 AND status = $2',
+            [bookingId, 'PENDING_ADMIN']
+        );
+        const hasPendingAdminExtension = parseInt(extAdminRes.rows[0].cnt) > 0;
 
-        if (action === 'APPROVED' && row.booking_state !== BOOKING_STATUS.PENDING_ADMIN) {
+        if (action === 'APPROVED' && row.booking_state !== BOOKING_STATUS.PENDING_ADMIN && !hasPendingAdminExtension) {
             throw new Error('Admins can only approve bookings that have already been approved by the Authority.');
         }
 
@@ -533,15 +528,15 @@ exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
                 `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
                 [BOOKING_STATUS.PENDING_ADMIN, bookingId]
             );
-        } else if (action === 'APPROVED' && row.pending_extension_datetime != null) {
-            await client.query('UPDATE stay_extension_requests SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 AND status = $3', ['APPROVED', bookingId, 'PENDING']);
+        } else if (action === 'APPROVED' && hasPendingAdminExtension) {
+            await client.query('UPDATE stay_extension_requests SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 AND status = $3', ['APPROVED', bookingId, 'PENDING_ADMIN']);
             await applyStayExtension(client, bookingId);
             result = await client.query(
                 `UPDATE booking_requests SET booking_state = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
                 [BOOKING_STATUS.CHECKED_IN, bookingId]
             );
-        } else if (action === 'REJECTED' && row.pending_extension_datetime != null) {
-            await client.query('UPDATE stay_extension_requests SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 AND status = $3', ['REJECTED', bookingId, 'PENDING']);
+        } else if (action === 'REJECTED' && hasPendingAdminExtension) {
+            await client.query('UPDATE stay_extension_requests SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 AND status = $3', ['REJECTED', bookingId, 'PENDING_ADMIN']);
             result = await client.query(
                 `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
                 [BOOKING_STATUS.CHECKED_IN, bookingId]
@@ -614,14 +609,12 @@ exports.requestStayExtension = async (bookingId, userId, guestExtensions) => {
         if (!userRes.rows.length) throw new Error('User not found.');
         const userRole = userRes.rows[0].role;
 
-        let targetState = BOOKING_STATUS.PENDING_APPROVER;
         let autoApproveLog = null;
         const instantApply = ['super_admin', 'guest_house_admin'].includes(userRole);
 
         if (instantApply) {
             autoApproveLog = 'Stay extension auto-approved (guest house admin).';
         } else if (existing.assigned_approver_id === userId || (String(existing.category_id) === '3' && userRole === 'faculty')) {
-            targetState = BOOKING_STATUS.PENDING_ADMIN;
             autoApproveLog = 'Stay extension routed to admin (self-approved authority).';
         }
 
@@ -630,7 +623,7 @@ exports.requestStayExtension = async (bookingId, userId, guestExtensions) => {
             await client.query(`
                 INSERT INTO stay_extension_requests (booking_id, guest_id, requested_departure, status)
                 VALUES ($1, $2, $3, $4)
-            `, [bookingId, ext.guest_id, ext.new_departure_datetime, instantApply ? 'APPROVED' : 'PENDING']);
+            `, [bookingId, ext.guest_id, ext.new_departure_datetime, instantApply ? 'APPROVED' : (autoApproveLog ? 'PENDING_ADMIN' : 'PENDING_AUTHORITY')]);
         }
 
         if (instantApply) {
@@ -643,10 +636,10 @@ exports.requestStayExtension = async (bookingId, userId, guestExtensions) => {
                 await client.query(`UPDATE guests SET expected_departure = $1 WHERE guest_id = $2`, [ext.new_departure_datetime, ext.guest_id]);
             }
         } else {
-            // Keep pending_extension_datetime for backward compat in the booking state machine, but use the max
+            // Only update version, leave state and pending_extension_datetime alone
             await client.query(
-                `UPDATE booking_requests SET pending_extension_datetime = $1, booking_state = $2, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $3`,
-                [maxDeparture.toISOString(), targetState, bookingId]
+                `UPDATE booking_requests SET version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $1`,
+                [bookingId]
             );
         }
 

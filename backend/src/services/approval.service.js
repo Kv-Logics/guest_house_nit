@@ -27,9 +27,39 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
         if (!sel.rows.length) throw new Error('Booking not found');
 
         const booking = sel.rows[0];
-        const pendingExt = booking.pending_extension_datetime;
         const applicantRole = booking.applicant_role;
         const approverRole = booking.approver_role;
+
+        const extRes = await client.query(
+            'SELECT COUNT(*) as cnt FROM stay_extension_requests WHERE booking_id = $1 AND status = $2',
+            [bookingId, 'PENDING_AUTHORITY']
+        );
+        const hasPendingExtension = parseInt(extRes.rows[0].cnt) > 0;
+
+        // Handle extension approval separately — don't touch booking_state
+        if (hasPendingExtension && action !== 'WITHDRAW') {
+            if (action === 'APPROVED') {
+                await client.query(
+                    'UPDATE stay_extension_requests SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 AND status = $3',
+                    ['PENDING_ADMIN', bookingId, 'PENDING_AUTHORITY']
+                );
+            } else {
+                await client.query(
+                    'UPDATE stay_extension_requests SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 AND status = $3',
+                    ['REJECTED', bookingId, 'PENDING_AUTHORITY']
+                );
+            }
+            
+            await client.query(
+                'INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)',
+                [bookingId, approverId, action, remarks || '']
+            );
+            
+            await client.query('COMMIT');
+            // Return the booking as-is (state unchanged)
+            const retRes = await db.query('SELECT * FROM booking_requests WHERE booking_id = $1', [bookingId]);
+            return retRes.rows[0];
+        }
 
         let newState;
         let finalRemarks = remarks;
@@ -63,7 +93,7 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
                     newState = BOOKING_STATUS.PENDING_ADMIN;
                 }
 
-                if (['super_admin', 'guest_house_admin'].includes(applicantRole) && !requestedSuite && pendingExt == null) {
+                if (['super_admin', 'guest_house_admin'].includes(applicantRole) && !requestedSuite) {
                     newState = BOOKING_STATUS.ADMIN_APPROVED;
                 }
             } else {
@@ -71,42 +101,16 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
             }
         }
 
-        if (action === 'REJECTED' && pendingExt != null) {
-            newState = BOOKING_STATUS.CHECKED_IN;
-        }
 
-        let bookingRes;
-        if (action === 'REJECTED' && pendingExt != null) {
-            bookingRes = await client.query(
-                `
-            UPDATE booking_requests
-            SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP
-            WHERE booking_id = $2
-            RETURNING *
-        `,
-                [newState, bookingId]
-            );
-        } else if (action === 'APPROVED' && pendingExt != null) {
-            bookingRes = await client.query(
-                `
+        const bookingRes = await client.query(
+            `
             UPDATE booking_requests
             SET booking_state = $1, updated_at = CURRENT_TIMESTAMP
             WHERE booking_id = $2
             RETURNING *
         `,
-                [newState, bookingId]
-            );
-        } else {
-            bookingRes = await client.query(
-                `
-            UPDATE booking_requests
-            SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP
-            WHERE booking_id = $2
-            RETURNING *
-        `,
-                [newState, bookingId]
-            );
-        }
+            [newState, bookingId]
+        );
         if (bookingRes.rows.length === 0) throw new Error('Booking not found');
 
         await client.query(

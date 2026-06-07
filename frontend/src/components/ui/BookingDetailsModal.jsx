@@ -225,7 +225,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
         const hasExtensionRequests = booking.stay_extension_requests && booking.stay_extension_requests.length > 0;
         if (!booking.pending_extension_datetime && !hasExtensionRequests) return null;
 
-        const requestDate = booking.pending_extension_datetime || (hasExtensionRequests ? booking.stay_extension_requests[0].created_at : null);
+        const requestDate = hasExtensionRequests ? booking.stay_extension_requests[0].created_at : booking.pending_extension_datetime;
 
         const steps = [
             { id: 1, title: 'Requested', description: requestDate ? new Date(requestDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Extension Requested' },
@@ -238,22 +238,18 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
         
         if (hasExtensionRequests) {
             const allApproved = booking.stay_extension_requests.every(e => e.status === 'APPROVED');
-            const allRejected = booking.stay_extension_requests.every(e => e.status === 'REJECTED');
+            const anyRejected = booking.stay_extension_requests.some(e => e.status === 'REJECTED');
+            const isAtAdmin = booking.stay_extension_requests.some(e => e.status === 'PENDING_ADMIN');
             
-            if (allApproved && !booking.pending_extension_datetime) {
-                // Admin already approved and dates applied
-                currentStep = 5;
-            } else if (allApproved && booking.pending_extension_datetime) {
-                // Authority approved, waiting for admin
-                currentStep = 3;
-            } else if (booking.booking_state === 'PENDING_ADMIN') {
-                // Self-approved authority or authority approved, now at admin
-                currentStep = 3;
-            } else if (allRejected) {
-                currentStep = 2; // Rejected at authority
+            if (allApproved && booking.stay_extension_requests.every(e => e.is_allocated)) {
+                currentStep = 5; // Fully done and allocated
+            } else if (allApproved) {
+                currentStep = 4; // Dates updated, waiting for reception allocation
+            } else if (isAtAdmin) {
+                currentStep = 3; // Authority approved or self-approved
+            } else if (anyRejected) {
+                currentStep = 2; // Rejected at authority or admin
             }
-        } else if (booking.booking_state === 'PENDING_ADMIN' && booking.pending_extension_datetime) {
-            currentStep = 3;
         }
 
         return (

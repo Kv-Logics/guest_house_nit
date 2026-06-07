@@ -65,9 +65,11 @@ export default function ApprovalQueueTable({
                   <span
                     className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${booking.booking_state === 'APPROVED' || booking.booking_state === 'CONFIRMED' ? 'bg-green-100 text-green-800' : booking.booking_state === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}
                   >
-                    {booking.booking_state.startsWith('PENDING_')
-                      ? 'Pending Approval'
-                      : booking.booking_state.replace(/_/g, ' ')}
+                    {booking.stay_extension_requests?.some(e => e.status.startsWith('PENDING_')) 
+                      ? 'Extension Pending' 
+                      : booking.booking_state.startsWith('PENDING_')
+                        ? 'Pending Approval'
+                        : booking.booking_state.replace(/_/g, ' ')}
                   </span>
                 </td>
                 <td className="p-4 text-right space-x-2 whitespace-nowrap">
@@ -78,7 +80,7 @@ export default function ApprovalQueueTable({
                   >
                     <Eye className="w-5 h-5" />
                   </button>
-                  {booking.booking_state === 'PENDING_ADMIN' && (
+                  {(booking.booking_state === 'PENDING_ADMIN' || (booking.stay_extension_requests && booking.stay_extension_requests.some(e => e.status === 'PENDING_ADMIN'))) && (
                       <button
                         onClick={() => handleUpdateStatus(booking.booking_id, 'APPROVED')}
                         className="inline-flex items-center p-2 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-700 rounded-lg transition-colors border border-green-200 shadow-sm"
@@ -87,7 +89,7 @@ export default function ApprovalQueueTable({
                         <CheckCircle className="w-5 h-5" />
                       </button>
                   )}
-                  {booking.booking_state.startsWith('PENDING_') && (
+                  {(booking.booking_state.startsWith('PENDING_') || (booking.stay_extension_requests && booking.stay_extension_requests.some(e => e.status.startsWith('PENDING_')))) && (
                       <button
                         onClick={() => handleUpdateStatus(booking.booking_id, 'REJECTED')}
                         className="inline-flex items-center p-2 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-lg transition-colors border border-red-200 shadow-sm"

@@ -18,7 +18,7 @@ const ExtensionAllocationModal = ({ guest, onClose, onComplete }) => {
                     const allRooms = res.data;
                     
                     // Filter rooms to only those of the exact same room type
-                    const sameTypeRooms = allRooms.filter(r => r.room_type === guest.room_type);
+                    const sameTypeRooms = allRooms.filter(r => r.room_type === guest.current_room_type);
 
                     const oldCheckout = new Date(guest.old_checkout);
                     const newCheckout = new Date(guest.new_checkout);
@@ -106,7 +106,7 @@ const ExtensionAllocationModal = ({ guest, onClose, onComplete }) => {
                                 <div className="space-y-2 text-sm">
                                     <div className="flex justify-between">
                                         <span className="text-slate-500">Current Room</span>
-                                        <span className="font-bold text-indigo-700">{guest.current_room} ({guest.room_type})</span>
+                                        <span className="font-bold text-indigo-700">{guest.current_room} ({guest.current_room_type})</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-slate-500">Extension Period</span>
@@ -155,7 +155,7 @@ const ExtensionAllocationModal = ({ guest, onClose, onComplete }) => {
                                 <h4 className="text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider">Option 2: Transfer Room</h4>
                                 <div className="p-5 border border-slate-200 bg-white rounded-xl">
                                     {otherAvailableRooms.length === 0 ? (
-                                        <p className="text-sm text-slate-500 italic text-center py-4">No other rooms of type "{guest.room_type}" are available.</p>
+                                        <p className="text-sm text-slate-500 italic text-center py-4">No other rooms of type "{guest.current_room_type}" are available.</p>
                                     ) : (
                                         <>
                                             <p className="text-sm text-slate-600 mb-4">Select an available room to transfer the guest to. The transfer will be scheduled for the original checkout time.</p>
