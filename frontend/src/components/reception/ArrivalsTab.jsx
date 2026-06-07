@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Clock, ChevronUp, ChevronDown, Filter } from 'lucide-react';
+import { getFormattedBookingId } from '../../utils/booking';
 
 export default function ArrivalsTab({
     receivedApplications,
@@ -64,7 +65,7 @@ export default function ArrivalsTab({
                                 <div className="flex justify-between items-start mb-3">
                                     <div>
                                         <span className="text-xs font-mono font-bold text-slate-400 block">
-                                            {arr.bookingId.split('-')[0].toUpperCase()}
+                                            {getFormattedBookingId(arr)}
                                         </span>
                                         <h3 className="font-bold text-lg text-slate-800">{arr.applicant}</h3>
                                     </div>
@@ -107,7 +108,7 @@ export default function ArrivalsTab({
                                 >
                                     <div>
                                         <span className="text-xs font-mono font-bold text-slate-400 block group-hover:text-indigo-500 transition-colors">
-                                            {arr.bookingId.split('-')[0].toUpperCase()}
+                                            {getFormattedBookingId(arr)}
                                         </span>
                                         <h3 className="font-bold text-lg text-slate-800">{arr.applicant}</h3>
                                     </div>

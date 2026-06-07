@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Calendar, DoorOpen, Plus, UserPlus, CheckCircle, Clock } from 'lucide-react';
 import { receptionService } from '../../services/reception.service';
+import { getFormattedBookingId } from '../../utils/booking';
 
-const BulkRoomsTab = ({ allRooms }) => {
+const BulkRoomsTab = ({ allRooms, isRoomAvailableForDates }) => {
     const [blocks, setBlocks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -103,7 +104,7 @@ const BulkRoomsTab = ({ allRooms }) => {
                         <div key={block.booking_id} className="bg-white rounded-xl shadow-sm border p-5">
                             <div className="flex justify-between items-start mb-4">
                                 <div>
-                                    <h3 className="font-bold text-lg text-gray-900">Block {block.booking_id.split('-')[0].toUpperCase()}</h3>
+                                    <h3 className="font-bold text-lg text-gray-900">Block {getFormattedBookingId(block)}</h3>
                                     <div className="flex items-center text-sm text-gray-500 mt-1">
                                         <Calendar className="h-4 w-4 mr-1" />
                                         {new Date(block.arrival_datetime).toLocaleDateString()} to {new Date(block.departure_datetime).toLocaleDateString()}
@@ -156,11 +157,11 @@ const BulkRoomsTab = ({ allRooms }) => {
                                 <div className="grid grid-cols-2 gap-4 mb-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                                        <input type="datetime-local" required className="w-full border rounded-lg px-3 py-2" value={createForm.arrival} onChange={e => setCreateForm({...createForm, arrival: e.target.value})} />
+                                        <input type="datetime-local" required className="w-full border rounded-lg px-3 py-2" value={createForm.arrival} onChange={e => setCreateForm({...createForm, arrival: e.target.value, room_ids: []})} />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                                        <input type="datetime-local" required className="w-full border rounded-lg px-3 py-2" value={createForm.departure} onChange={e => setCreateForm({...createForm, departure: e.target.value})} />
+                                        <input type="datetime-local" required className="w-full border rounded-lg px-3 py-2" value={createForm.departure} onChange={e => setCreateForm({...createForm, departure: e.target.value, room_ids: []})} />
                                     </div>
                                 </div>
                                 <div className="mb-4">
@@ -170,19 +171,27 @@ const BulkRoomsTab = ({ allRooms }) => {
                                 
                                 <div className="mb-6">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Select Rooms to Block</label>
-                                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-2 border rounded-lg bg-gray-50">
-                                        {(allRooms || []).map(r => (
-                                            <button 
-                                                type="button"
-                                                key={r.room_id}
-                                                onClick={() => toggleRoomSelection(r.room_id)}
-                                                className={`py-2 px-1 text-center rounded text-sm font-bold border transition-colors ${createForm.room_ids.includes(r.room_id) ? 'bg-blue-600 text-white border-blue-600 shadow-inner' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
-                                            >
-                                                {r.roomNumber}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-2">{createForm.room_ids.length} rooms selected</p>
+                                    {(!createForm.arrival || !createForm.departure) ? (
+                                        <div className="p-4 text-center text-sm text-gray-500 border rounded-lg bg-gray-50">
+                                            Please select Start and End dates to view available rooms.
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-2 border rounded-lg bg-gray-50">
+                                                {(allRooms || []).filter(r => isRoomAvailableForDates ? isRoomAvailableForDates(r, createForm.arrival, createForm.departure) : true).map(r => (
+                                                    <button 
+                                                        type="button"
+                                                        key={r.room_id}
+                                                        onClick={() => toggleRoomSelection(r.room_id)}
+                                                        className={`py-2 px-1 text-center rounded text-sm font-bold border transition-colors ${createForm.room_ids.includes(r.room_id) ? 'bg-blue-600 text-white border-blue-600 shadow-inner' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
+                                                    >
+                                                        {r.roomNumber}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-2">{createForm.room_ids.length} rooms selected</p>
+                                        </>
+                                    )}
                                 </div>
 
                                 <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">Block Rooms</button>

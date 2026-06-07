@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import RoomMatrix from '../dashboard/RoomMatrix';
+import { getFormattedBookingId } from '../../utils/booking';
 
 export default function RoomAssignmentModal({
     isOpen,
@@ -42,7 +43,7 @@ export default function RoomAssignmentModal({
                 <div className="bg-indigo-600 p-6 text-white shrink-0 flex justify-between items-start">
                     <div>
                         <h2 className="text-2xl font-bold mb-1">Block Room</h2>
-                        <p className="text-indigo-200 text-sm">{arrivalData.bookingId.split('-')[0].toUpperCase()} - {arrivalData.applicant}</p>
+                        <p className="text-indigo-200 text-sm">{getFormattedBookingId(arrivalData)} - {arrivalData.applicant}</p>
                     </div>
                     <button onClick={onClose} className="text-indigo-200 hover:text-white p-1 rounded-lg hover:bg-indigo-500/50 transition-colors">
                         <X className="w-5 h-5" />

@@ -179,8 +179,27 @@ exports.updateInstitutionConfig = async (req, res, next) => {
 
 exports.getPendingPayments = async (req, res, next) => {
     try {
-        const data = await receptionService.getPendingPayments();
+        const limit = parseInt(req.query.limit, 10) || 50;
+        const offset = parseInt(req.query.offset, 10) || 0;
+        const search = req.query.search || null;
+        const monthFilter = req.query.month_filter || null;
+        const overrideNow = req.headers['x-mock-date'] || req.query.overrideNow || null;
+        const data = await receptionService.getPendingPayments(limit, offset, search, monthFilter, overrideNow);
         return sendSuccess(res, 'Pending payments retrieved successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.getCompletedPayments = async (req, res, next) => {
+    try {
+        const limit = parseInt(req.query.limit, 10) || 50;
+        const offset = parseInt(req.query.offset, 10) || 0;
+        const search = req.query.search || null;
+        const monthFilter = req.query.month_filter || null;
+        const overrideNow = req.headers['x-mock-date'] || req.query.overrideNow || null;
+        const data = await receptionService.getCompletedPayments(limit, offset, search, monthFilter, overrideNow);
+        return sendSuccess(res, 'Completed payments retrieved successfully', data);
     } catch (error) {
         next(error);
     }

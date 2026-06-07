@@ -27,7 +27,10 @@ export const receptionService = {
     api.get(`/reception/rooms/${roomNumber}/history?page=${page}&limit=${limit}`),
     
   // POS & Billing
-  getPendingPayments: async () => api.get('/reception/pending-payments'),
+  getPendingPayments: async (limit = 50, offset = 0, search = '', monthFilter = 'current') => 
+    api.get(`/reception/pending-payments?limit=${limit}&offset=${offset}&search=${encodeURIComponent(search)}&month_filter=${monthFilter}`),
+  getCompletedPayments: async (limit = 50, offset = 0, search = '', monthFilter = 'current') => 
+    api.get(`/reception/completed-payments?limit=${limit}&offset=${offset}&search=${encodeURIComponent(search)}&month_filter=${monthFilter}`),
   confirmPayment: async (bookingId, payload) => api.post(`/reception/bookings/${bookingId}/confirm-payment`, payload),
   
   // Institution Config

@@ -92,12 +92,23 @@ exports.assignRooms = async (bookingId, allocatedRoomsStr, assignedBy) => {
             }
         }
 
-        // 5. Insert reservations into booking_rooms
+        // 5. Insert reservations into booking_rooms and update physical status
         for (const room of allocatedRooms) {
             await client.query(`
                 INSERT INTO booking_rooms (booking_id, room_id, allocated_from, allocated_to, allocation_status, allocated_by)
                 VALUES ($1, $2, $3, $4, 'reserved', $5)
             `, [bookingId, room.room_id, booking.arrival_datetime, booking.departure_datetime, assignedBy || null]);
+
+            await client.query(`
+                UPDATE rooms
+                SET current_status = 'booked', updated_at = CURRENT_TIMESTAMP
+                WHERE room_id = $1
+            `, [room.room_id]);
+
+            await client.query(`
+                INSERT INTO room_status_history (room_id, previous_status, new_status, changed_by, remarks)
+                VALUES ($1, $2, $3, $4, $5)
+            `, [room.room_id, room.current_status, 'booked', assignedBy || null, `Room assigned to booking ${bookingId.split('-')[0].toUpperCase()}`]);
         }
 
         // 6. Update booking request state and allocated_room_numbers
@@ -493,11 +504,7 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null) => {
             throw new Error('Booking has already been checked out.');
         }
 
-        if (['3', '4'].includes(String(booking.category_id)) || (String(booking.category_id) === '2' && booking.payment_responsible === 'guest')) {
-            if (booking.payment_state !== 'PAID' && booking.payment_state !== 'NOT_APPLICABLE') {
-                throw new Error('The bill must be settled before checkout for this category/payment responsibility.');
-            }
-        }
+        // Payment block removed: Guest should be able to checkout, which generates the bill, and then they pay in the pending payments tab.
 
         // 2. Fetch and lock active stays for this booking
         const staysRes = await client.query(`
@@ -648,11 +655,7 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null) => {
             throw new Error('This guest has already been checked out.');
         }
 
-        if (['3', '4'].includes(String(stay.category_id)) || (String(stay.category_id) === '2' && stay.payment_responsible === 'guest')) {
-            if (stay.payment_state !== 'PAID' && stay.payment_state !== 'NOT_APPLICABLE') {
-                throw new Error('The bill must be settled before checkout for this category/payment responsibility.');
-            }
-        }
+        // Payment block removed: Guest should be able to checkout, which generates the bill, and then they pay in the pending payments tab.
 
         const bookingId = stay.booking_id;
 
@@ -1228,8 +1231,12 @@ exports.updateInstitutionConfig = async (payload) => {
     return await receptionRepository.updateInstitutionConfig(payload);
 };
 
-exports.getPendingPayments = async () => {
-    return await receptionRepository.getPendingPayments();
+exports.getPendingPayments = async (limit = 50, offset = 0, searchQuery = null, monthFilter = null, overrideNow = null) => {
+    return await receptionRepository.getPendingPayments(limit, offset, searchQuery, monthFilter, overrideNow);
+};
+
+exports.getCompletedPayments = async (limit = 50, offset = 0, searchQuery = null, monthFilter = null, overrideNow = null) => {
+    return await receptionRepository.getCompletedPayments(limit, offset, searchQuery, monthFilter, overrideNow);
 };
 
 exports.confirmPayment = async (bookingId, paymentData, userId) => {
@@ -1238,7 +1245,7 @@ exports.confirmPayment = async (bookingId, paymentData, userId) => {
         await client.query('BEGIN');
         
         // 1. Fetch booking to get CategoryCode and ShortBookingId
-        const bRes = await client.query(`SELECT booking_state, category_id FROM booking_requests WHERE booking_id = $1`, [bookingId]);
+        const bRes = await client.query(`SELECT booking_state, category_id, booking_seq FROM booking_requests WHERE booking_id = $1`, [bookingId]);
         if (bRes.rows.length === 0) throw new Error('Booking not found');
         const booking = bRes.rows[0];
         
@@ -1255,15 +1262,16 @@ exports.confirmPayment = async (bookingId, paymentData, userId) => {
         const seq = await receptionRepository.getLatestInvoiceSequence(prefix, client);
         const nextSeq = String(seq + 1).padStart(4, '0');
         
-        // Formatting: NITTGH/CAT-{CategoryCode}/{ShortBookingId}
-        const shortBookingId = bookingId.split('-')[0].toUpperCase();
+        // Formatting: NITTGH/CAT-{CategoryCode}/{SeqNumber}
+        const seqNum = booking.booking_seq;
+        const appId = seqNum ? String(seqNum).padStart(4, '0') : bookingId.split('-')[0].toUpperCase();
         let catCode = 'I';
         if (booking.category_id == 2) catCode = 'II';
         if (booking.category_id == 3) catCode = 'III';
         if (booking.category_id == 4) catCode = 'IV';
         
         // Use standard booking invoice format (room number suffix not strictly required unless per-room splitting is requested later)
-        const invoiceNumber = `${prefix}CAT-${catCode}/${shortBookingId}/${nextSeq}`;
+        const invoiceNumber = `${prefix}CAT-${catCode}/${appId}/${nextSeq}`;
         
         paymentData.invoice_number = invoiceNumber;
         paymentData.received_by = userId;
@@ -1323,6 +1331,9 @@ exports.createBulkBlock = async (payload, userId) => {
         return bookingId;
     } catch (err) {
         await client.query('ROLLBACK');
+        if (err.code === '23P01') {
+            throw new Error('One or more selected rooms are already allocated during the specified dates. Please adjust your dates or select different rooms.');
+        }
         throw err;
     } finally {
         client.release();

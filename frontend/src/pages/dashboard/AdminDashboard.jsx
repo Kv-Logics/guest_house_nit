@@ -9,27 +9,36 @@ import {
   Plus,
   CreditCard,
   Receipt,
+  Filter,
+  Database
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
 import MyBookingsTable from './MyBookingsTable';
 import ApprovalQueueTable from './ApprovalQueueTable';
-import PaymentsTable from './PaymentsTable';
-import PaymentProofModal from '../../components/ui/PaymentProofModal';
-import AdminPaymentVerificationModal from '../../components/ui/AdminPaymentVerificationModal';
+import SystemLogs from './SystemLogs';
+import { getFormattedBookingId } from '../../utils/booking';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [myBookings, setMyBookings] = useState([]);
-  const [approvalBookings, setApprovalBookings] = useState([]);
-  const [activeTab, setActiveTab] = useState('approvals'); // 'approvals', 'approved_requests', 'rejected_requests', 'payments', 'final_bills'
+  const [adminPending, setAdminPending] = useState([]);
+  const [adminApproved, setAdminApproved] = useState([]);
+  const [adminRejected, setAdminRejected] = useState([]);
+  const [activeTab, setActiveTab] = useState('approvals'); // 'approvals', 'approved_requests', 'rejected_requests'
   const [previewId, setPreviewId] = useState(null);
-  const [paymentModalBooking, setPaymentModalBooking] = useState(null);
-  const [verificationModalBooking, setVerificationModalBooking] = useState(null);
   const [actionModal, setActionModal] = useState({ isOpen: false, id: null, action: null });
   const [remarks, setRemarks] = useState('');
-  const [sortBy, setSortBy] = useState('app_desc');
+  
+  // Search & Pagination State
+  const [searchTermInput, setSearchTermInput] = useState('');
+  const [activeSearchTerm, setActiveSearchTerm] = useState('');
+  const [offsets, setOffsets] = useState({ approvals: 0, approved_requests: 0, rejected_requests: 0 });
+  const [hasMore, setHasMore] = useState({ approvals: true, approved_requests: true, rejected_requests: true });
+  const [loading, setLoading] = useState(false);
+  const [monthFilter, setMonthFilter] = useState('current'); // 'current' | 'archive'
+
   const navigate = useNavigate();
 
   const userRole = String(user?.role || '').trim().toLowerCase();
@@ -40,17 +49,17 @@ export default function AdminDashboard() {
     ['admin@nitt.edu', 'hod@nitt.edu'].includes(user?.email);
 
   useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    // PERFECT ROUTING: Send Admins straight to Approvals, Regular users to My Bookings
-
-    if (isApprover) setActiveTab('approvals');
-
+    if (!user) return;
+    if (isApprover && activeTab === 'approvals' && adminPending.length === 0) setActiveTab('approvals');
     fetchMyBookings();
-    fetchApprovalBookings();
-  }, [user, isApprover]);
+  }, [user]);
+
+  useEffect(() => {
+      if (!isApprover) return;
+      // When tab or search changes, reset offset and load fresh
+      setOffsets(prev => ({ ...prev, [activeTab]: 0 }));
+      loadTabBookings(activeTab, 0, false, activeSearchTerm);
+  }, [activeTab, activeSearchTerm, isApprover, monthFilter]);
 
   const fetchMyBookings = async () => {
     try {
@@ -61,16 +70,58 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchApprovalBookings = async () => {
+  const getStatusFilterForTab = (tab) => {
+      switch(tab) {
+          case 'approvals': return 'PENDING_ADMIN';
+          case 'approved_requests': return 'ADMIN_APPROVED';
+          case 'rejected_requests': return 'ADMIN_REJECTED';
+          default: return '';
+      }
+  };
+
+  const loadTabBookings = async (tab, offset = 0, isAppend = false, search = '') => {
     try {
-      const response = await api.get(`/bookings/admin/all`);
+      setLoading(true);
+      const limit = offset === 0 ? 50 : 100;
+      const statusFilter = getStatusFilterForTab(tab);
+      const response = await api.get(`/bookings/admin/all`, {
+          params: { limit, offset, status: statusFilter, search, month_filter: monthFilter }
+      });
+      
       if (response.success) {
-        setApprovalBookings(response.data);
+        const newItems = response.data.rows;
+        const totalCount = response.data.totalCount;
+        
+        const updateState = (setter) => {
+            if (isAppend) setter(prev => [...prev, ...newItems]);
+            else setter(newItems);
+        };
+
+        if (tab === 'approvals') updateState(setAdminPending);
+        else if (tab === 'approved_requests') updateState(setAdminApproved);
+        else if (tab === 'rejected_requests') updateState(setAdminRejected);
+
+        setHasMore(prev => ({ ...prev, [tab]: newItems.length === limit }));
       }
     } catch (error) {
       console.error('Failed to fetch bookings:', error);
+    } finally {
+      setLoading(false);
     }
   };
+
+  const handleSearchSubmit = (e) => {
+      e.preventDefault();
+      setActiveSearchTerm(searchTermInput);
+  };
+
+  const handleLoadMore = () => {
+      const nextOffset = offsets[activeTab] + (offsets[activeTab] === 0 ? 50 : 100);
+      setOffsets(prev => ({ ...prev, [activeTab]: nextOffset }));
+      loadTabBookings(activeTab, nextOffset, true, activeSearchTerm);
+  };
+
+  const [financialYear, setFinancialYear] = useState('25-26');
 
   const handleUpdateStatus = (id, status) => {
     setActionModal({ isOpen: true, id, action: status });
@@ -81,11 +132,12 @@ export default function AdminDashboard() {
     try {
       await api.patch(`/bookings/${actionModal.id}/admin-status`, { 
         status: actionModal.action, 
-        remarks 
+        remarks,
+        financialYear
       });
       setActionModal({ isOpen: false, id: null, action: null });
       setRemarks('');
-      fetchApprovalBookings(); // Refresh list
+      loadTabBookings(activeTab, 0, false, activeSearchTerm); // Refresh current list
     } catch (error) {
       console.error('Failed to update status:', error);
       alert(error.message || 'Failed to update booking status.');
@@ -95,8 +147,8 @@ export default function AdminDashboard() {
   const handleMockPay = async (id) => {
     try {
       await api.post(`/bookings/${id}/pay`, {});
-      fetchMyBookings(); // Refresh list
-      if (isApprover) fetchApprovalBookings();
+      fetchMyBookings();
+      if (isApprover) loadTabBookings(activeTab, 0, false, activeSearchTerm);
     } catch (error) {
       console.error('Payment failed:', error);
     }
@@ -106,8 +158,8 @@ export default function AdminDashboard() {
     if (!window.confirm('Are you sure you want to withdraw/delete this request?')) return;
     try {
       await api.patch(`/bookings/${id}/cancel`, {});
-      fetchMyBookings(); // Refresh list
-      if (isApprover) fetchApprovalBookings(); // Refresh admin list
+      fetchMyBookings();
+      if (isApprover) loadTabBookings(activeTab, 0, false, activeSearchTerm);
     } catch (error) {
       alert(error.message || 'Failed to delete booking');
     }
@@ -115,40 +167,14 @@ export default function AdminDashboard() {
 
   const handleWithdrawDecision = async (id) => {
     try {
-      await api.patch(`/bookings/${id}/admin-status`, { status: 'WITHDRAW', remarks: 'Decision withdrawn by Guest House Manager' });
-      fetchApprovalBookings(); // Refresh list
+      await api.patch(`/bookings/${id}/admin-status`, { status: 'WITHDRAW', remarks: 'Decision withdrawn by GH Chairperson' });
+      loadTabBookings(activeTab, 0, false, activeSearchTerm);
     } catch (error) {
       alert(error.message || 'Failed to withdraw decision.');
     }
   };
 
   if (!user) return null;
-
-
-  const sortedApprovalBookings = [...approvalBookings].sort((a, b) => {
-      const aArr = new Date(a.arrival_datetime || 0).getTime();
-      const bArr = new Date(b.arrival_datetime || 0).getTime();
-      const aApp = new Date(a.created_at || 0).getTime();
-      const bApp = new Date(b.created_at || 0).getTime();
-
-      switch (sortBy) {
-          case 'app_desc': return aApp !== bApp ? bApp - aApp : String(b.booking_id).localeCompare(String(a.booking_id));
-          case 'app_asc': return aApp !== bApp ? aApp - bApp : String(a.booking_id).localeCompare(String(b.booking_id));
-          case 'arr_asc': return aArr - bArr;
-          case 'arr_desc': return bArr - aArr;
-          default: return bApp - aApp;
-      }
-  });
-
-  const adminPending = sortedApprovalBookings.filter(
-    (b) => b.booking_state === 'PENDING_ADMIN'
-  );
-  const adminApproved = sortedApprovalBookings.filter(
-    (b) => b.booking_state && ['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN', 'CHECKED_OUT', 'CONFIRMED'].includes(b.booking_state)
-  );
-  const adminRejected = sortedApprovalBookings.filter(
-    (b) => b.booking_state && ['ADMIN_REJECTED', 'REJECTED'].includes(b.booking_state)
-  );
 
   return (
     <div className="bg-white p-8 md:p-10 rounded-3xl shadow-sm border border-slate-200">
@@ -165,72 +191,69 @@ export default function AdminDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 shadow-sm">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-2">Sort:</span>
-            <select 
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="bg-transparent text-slate-700 text-sm font-bold outline-none focus:ring-0 py-1"
-            >
-                <option value="app_desc">App Date (New)</option>
-                <option value="app_asc">App Date (Old)</option>
-                <option value="arr_asc">Arrival (Soon)</option>
-                <option value="arr_desc">Arrival (Late)</option>
-            </select>
-          </div>
+          {isApprover && (
+              <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-auto">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  <input 
+                      type="text" 
+                      placeholder="Search bookings..." 
+                      className="w-full sm:w-64 pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors shadow-sm"
+                      value={searchTermInput}
+                      onChange={(e) => setSearchTermInput(e.target.value)}
+                  />
+                  <button type="submit" className="hidden">Search</button>
+              </form>
+          )}
+          {isApprover && (
+              <button
+                  type="button"
+                  onClick={() => setMonthFilter(prev => prev === 'current' ? 'archive' : 'current')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${
+                      monthFilter === 'archive' 
+                          ? 'bg-slate-800 text-white border-slate-800 shadow-md' 
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  }`}
+              >
+                  <Filter className="w-4 h-4" />
+                  {monthFilter === 'archive' ? 'Viewing Archive' : 'View Archive'}
+              </button>
+          )}
           <button
             onClick={() => navigate('/book')}
             className="hidden sm:flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
           >
             <Plus className="w-4 h-4 mr-2" /> New Application
           </button>
-          <div className="flex bg-slate-100 p-1 rounded-xl flex-wrap gap-1">
-            <button
-              onClick={() => setActiveTab('approvals')}
-              className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'approvals' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              <ClipboardCheck className="w-4 h-4 mr-2" /> Pending
-              {adminPending.length > 0 && (
-                <span className="ml-2 min-w-[18px] h-[18px] bg-green-500 text-white text-[10px] font-black rounded-full flex items-center justify-center px-1">
-                  {adminPending.length > 99 ? '99+' : adminPending.length}
-                </span>
+          {isApprover && (
+            <div className="flex bg-slate-100 p-1 rounded-xl flex-wrap gap-1">
+              <button
+                onClick={() => setActiveTab('approvals')}
+                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'approvals' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <ClipboardCheck className="w-4 h-4 mr-2" /> Pending
+              </button>
+              <button
+                onClick={() => setActiveTab('approved_requests')}
+                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'approved_requests' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <CheckCircle className="w-4 h-4 mr-2" /> Approved
+              </button>
+              <button
+                onClick={() => setActiveTab('rejected_requests')}
+                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'rejected_requests' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <XCircle className="w-4 h-4 mr-2" /> Rejected
+              </button>
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setActiveTab('master_logs')}
+                  className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'master_logs' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <Database className="w-4 h-4 mr-2" /> Master Logs
+                </button>
               )}
-            </button>
-            <button
-              onClick={() => setActiveTab('approved_requests')}
-              className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'approved_requests' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              <CheckCircle className="w-4 h-4 mr-2" /> Approved
-              {adminApproved.length > 0 && (
-                <span className="ml-2 min-w-[18px] h-[18px] bg-emerald-400 text-white text-[10px] font-black rounded-full flex items-center justify-center px-1">
-                  {adminApproved.length > 99 ? '99+' : adminApproved.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('rejected_requests')}
-              className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'rejected_requests' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              <XCircle className="w-4 h-4 mr-2" /> Rejected
-              {adminRejected.length > 0 && (
-                <span className="ml-2 min-w-[18px] h-[18px] bg-red-400 text-white text-[10px] font-black rounded-full flex items-center justify-center px-1">
-                  {adminRejected.length > 99 ? '99+' : adminRejected.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('payments')}
-              className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'payments' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              <CreditCard className="w-4 h-4 mr-2" /> Payments
-            </button>
-            <button
-              onClick={() => setActiveTab('final_bills')}
-              className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'final_bills' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              <Receipt className="w-4 h-4 mr-2" /> Final Bills
-            </button>
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -243,111 +266,74 @@ export default function AdminDashboard() {
       )}
 
       {activeTab === 'approvals' && (
-        <ApprovalQueueTable
-          activeTab={activeTab}
-          bookings={adminPending}
-          setPreviewId={setPreviewId}
-          handleUpdateStatus={handleUpdateStatus}
-          handleMockPay={handleMockPay}
-          handleDelete={handleDelete}
-          handleWithdrawDecision={handleWithdrawDecision}
-        />
+        <>
+          <ApprovalQueueTable
+            activeTab={activeTab}
+            bookings={adminPending}
+            setPreviewId={setPreviewId}
+            handleUpdateStatus={handleUpdateStatus}
+            handleMockPay={handleMockPay}
+            handleDelete={handleDelete}
+            handleWithdrawDecision={handleWithdrawDecision}
+          />
+          {hasMore.approvals && adminPending.length > 0 && !loading && (
+            <div className="p-4 text-center mt-4">
+                <button onClick={handleLoadMore} className="px-6 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl shadow-sm hover:bg-slate-50 transition-colors">
+                    Load More Records
+                </button>
+            </div>
+          )}
+        </>
       )}
 
       {activeTab === 'approved_requests' && (
-        <ApprovalQueueTable
-          activeTab={activeTab}
-          bookings={adminApproved}
-          setPreviewId={setPreviewId}
-          handleUpdateStatus={handleUpdateStatus}
-          handleMockPay={handleMockPay}
-          handleDelete={handleDelete}
-          handleWithdrawDecision={handleWithdrawDecision}
-        />
+        <>
+          <ApprovalQueueTable
+            activeTab={activeTab}
+            bookings={adminApproved}
+            setPreviewId={setPreviewId}
+            handleUpdateStatus={handleUpdateStatus}
+            handleMockPay={handleMockPay}
+            handleDelete={handleDelete}
+            handleWithdrawDecision={handleWithdrawDecision}
+          />
+          {hasMore.approved_requests && adminApproved.length > 0 && !loading && (
+            <div className="p-4 text-center mt-4">
+                <button onClick={handleLoadMore} className="px-6 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl shadow-sm hover:bg-slate-50 transition-colors">
+                    Load More Records
+                </button>
+            </div>
+          )}
+        </>
       )}
 
       {activeTab === 'rejected_requests' && (
-        <ApprovalQueueTable
-          activeTab={activeTab}
-          bookings={adminRejected}
-          setPreviewId={setPreviewId}
-          handleUpdateStatus={handleUpdateStatus}
-          handleMockPay={handleMockPay}
-          handleDelete={handleDelete}
-          handleWithdrawDecision={handleWithdrawDecision}
-        />
+        <>
+          <ApprovalQueueTable
+            activeTab={activeTab}
+            bookings={adminRejected}
+            setPreviewId={setPreviewId}
+            handleUpdateStatus={handleUpdateStatus}
+            handleMockPay={handleMockPay}
+            handleDelete={handleDelete}
+            handleWithdrawDecision={handleWithdrawDecision}
+          />
+          {hasMore.rejected_requests && adminRejected.length > 0 && !loading && (
+            <div className="p-4 text-center mt-4">
+                <button onClick={handleLoadMore} className="px-6 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl shadow-sm hover:bg-slate-50 transition-colors">
+                    Load More Records
+                </button>
+            </div>
+          )}
+        </>
       )}
 
-      {activeTab === 'payments' && (
-        <PaymentsTable bookings={approvalBookings} handleManage={setVerificationModalBooking} refresh={fetchApprovalBookings} />
+      {activeTab === 'master_logs' && isSuperAdmin && (
+          <SystemLogs />
       )}
-
-      {activeTab === 'final_bills' && (() => {
-        const checkedOut = approvalBookings.filter(b => b.booking_state === 'CHECKED_OUT');
-        return checkedOut.length === 0 ? (
-          <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
-            <Receipt className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-            <h3 className="text-xl font-bold text-slate-700">No Completed Stays</h3>
-            <p className="text-slate-500">Final bills appear here once guests check out.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-sm">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500">
-                  <th className="p-4 font-bold">Booking ID</th>
-                  <th className="p-4 font-bold">Applicant</th>
-                  <th className="p-4 font-bold">Room(s)</th>
-                  <th className="p-4 font-bold">Check-Out</th>
-                  <th className="p-4 font-bold">Payment</th>
-                  <th className="p-4 font-bold text-right">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {checkedOut.map(b => (
-                  <tr key={b.booking_id} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-4 font-mono text-xs text-slate-500">{b.booking_id.split('-')[0]}</td>
-                    <td className="p-4">
-                      <p className="font-bold text-slate-800 text-sm">{b.applicant_name}</p>
-                      <p className="text-xs text-slate-500">{b.purpose_of_visit}</p>
-                    </td>
-                    <td className="p-4 text-sm font-bold text-blue-700">{b.allocated_room_numbers || '—'}</td>
-                    <td className="p-4 text-sm text-slate-700">{b.checked_out_at ? new Date(b.checked_out_at).toLocaleDateString() : '—'}</td>
-                    <td className="p-4">
-                      <span className={`text-xs font-extrabold px-2 py-1 rounded-lg ${
-                        b.payment_state === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                      }`}>{b.payment_state}</span>
-                    </td>
-                    <td className="p-4 text-right">
-                      <button
-                        onClick={() => setPreviewId(b.booking_id)}
-                        className="inline-flex items-center px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 transition-colors"
-                      >
-                        <FileText className="w-3.5 h-3.5 mr-1" /> View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      })()}
 
       {previewId && (
         <BookingDetailsModal bookingId={previewId} onClose={() => setPreviewId(null)} />
-      )}
-
-      {paymentModalBooking && (
-        <PaymentProofModal booking={paymentModalBooking} onClose={() => setPaymentModalBooking(null)} />
-      )}
-
-      {verificationModalBooking && (
-        <AdminPaymentVerificationModal 
-          booking={verificationModalBooking} 
-          onClose={() => setVerificationModalBooking(null)} 
-          onSuccess={() => { setVerificationModalBooking(null); fetchApprovalBookings(); fetchMyBookings(); }} 
-        />
       )}
 
       {actionModal.isOpen && (
@@ -361,9 +347,21 @@ export default function AdminDashboard() {
             </div>
             <p className="text-sm text-slate-500 mb-4 font-medium">
               {actionModal.action === 'APPROVED' 
-                ? 'Are you sure you want to approve this accommodation request?' 
+                ? 'Please confirm the Financial Year for the formatted Booking ID before approving:' 
                 : 'Please provide a brief reason for rejecting this request:'}
             </p>
+            {actionModal.action === 'APPROVED' && (
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Financial Year</label>
+                <input 
+                  type="text" 
+                  value={financialYear}
+                  onChange={(e) => setFinancialYear(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                  placeholder="e.g. 25-26"
+                />
+              </div>
+            )}
             <textarea
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}

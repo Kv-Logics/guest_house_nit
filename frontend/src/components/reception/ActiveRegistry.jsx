@@ -1,5 +1,6 @@
 import React from 'react';
 import { Users, LogOut, ArrowLeftRight, Clock } from 'lucide-react';
+import { getFormattedBookingId } from '../../utils/booking';
 
 export default function ActiveRegistry({ 
     selectedRoom, 
@@ -33,6 +34,7 @@ export default function ActiveRegistry({
                     <table className="w-full text-left text-sm">
                         <thead>
                             <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[11px] tracking-wider border-b border-slate-100">
+                                <th className="p-3">Booking ID</th>
                                 <th className="p-3">Guest Details</th>
                                 <th className="p-3">Status</th>
                                 <th className="p-3">Stay Dates</th>
@@ -42,8 +44,14 @@ export default function ActiveRegistry({
                         <tbody className="divide-y divide-slate-100">
                             {selectedRoom.guests.map(guest => {
                                 const isOverstaying = guest.stay_status === 'CHECKED_IN' && guest.rawCheckOut && new Date(guest.rawCheckOut) < now;
+                                const rowBookingId = selectedRoom.active_booking 
+                                    ? `${getFormattedBookingId(selectedRoom.active_booking)}:${selectedRoom.roomId}` 
+                                    : (guest.booking_id ? `${getFormattedBookingId({ booking_id: guest.booking_id, booking_state: 'APPROVED' })}:${selectedRoom.roomId}` : '');
                                 return (
                                 <tr key={guest.guestId || guest.stay_id} className={`hover:bg-slate-50/50 ${isOverstaying ? 'bg-red-50/50' : ''}`}>
+                                    <td className="p-3">
+                                        <span className="font-bold font-mono text-slate-700 text-[11px]">{rowBookingId}</span>
+                                    </td>
                                     <td className={`p-3 ${isOverstaying ? 'border-l-4 border-l-red-500' : 'border-l-4 border-l-transparent'}`}>
                                         <div className="font-semibold text-slate-800 flex items-center gap-2">
                                             {guest.name || guest.guest_name}

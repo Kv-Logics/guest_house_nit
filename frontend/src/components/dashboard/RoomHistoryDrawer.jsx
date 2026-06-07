@@ -46,8 +46,7 @@ export default function RoomHistoryDrawer({ roomNumber, isOpen, onClose }) {
         setLoading(true);
         try {
             const res = await receptionService.getRoomHistory(roomNum, targetPage, 20);
-            const data = res.data?.data || [];
-            
+            const data = res.data || [];
             if (data.length < 20) {
                 setHasMore(false);
             }

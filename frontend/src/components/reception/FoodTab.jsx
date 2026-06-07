@@ -1,5 +1,5 @@
 import React from 'react';
-import { Utensils } from 'lucide-react';
+import { Utensils, Check, Minus } from 'lucide-react';
 
 export default function FoodTab({
     bookingData,
@@ -41,7 +41,7 @@ export default function FoodTab({
                                 if (room.status === 'OCCUPIED' || room.status === 'AVAILABLE' || room.status === 'CLEANING') {
                                     const activeStays = room.guests;
                                     (activeStays || []).forEach(guest => {
-                                        if (guest.stay_status === 'CHECKED_IN' || guest.status === 'CHECKED_IN') {
+                                        if (['CHECKED_IN', 'PENDING'].includes(guest.stay_status) || ['CHECKED_IN', 'PENDING'].includes(guest.status)) {
                                             const currentFilterDateStr = new Date(foodFilterDate).toDateString();
                                             const checkInDate = new Date(guest.rawCheckIn);
                                             const checkOutDate = new Date(guest.rawCheckOut);
@@ -50,10 +50,13 @@ export default function FoodTab({
                                                                       new Date(foodFilterDate) <= new Date(checkOutDate.toDateString());
 
                                             if (staysOnFilterDate) {
-                                                const formattedPref = (guest.food_preferences || []).map(p => p.trim().toLowerCase());
-                                                const hasBreakfast = formattedPref.includes('breakfast');
-                                                const hasLunch = formattedPref.includes('lunch');
-                                                const hasDinner = formattedPref.includes('dinner');
+                                                const dayPref = (guest.food_preferences || []).find(p => {
+                                                    const pDate = new Date(p.meal_date || p.date).toDateString();
+                                                    return pDate === currentFilterDateStr;
+                                                });
+                                                const hasBreakfast = dayPref && dayPref.breakfast > 0;
+                                                const hasLunch = dayPref && dayPref.lunch > 0;
+                                                const hasDinner = dayPref && dayPref.dinner > 0;
 
                                                 if (hasBreakfast || hasLunch || hasDinner) {
                                                     foodRows.push(
@@ -61,19 +64,19 @@ export default function FoodTab({
                                                             <td className="p-4 font-bold text-indigo-650">Room {room.roomId}</td>
                                                             <td className="p-4">{guest.name}</td>
                                                             <td className="p-4 text-center">
-                                                                <span className={`px-2 py-1 rounded text-xs font-bold ${hasBreakfast ? 'bg-emerald-100 text-emerald-850' : 'text-slate-350 bg-slate-50'}`}>
-                                                                    {hasBreakfast ? 'Veg' : 'No'}
-                                                                </span>
+                                                                <div className={`mx-auto w-7 h-7 flex items-center justify-center rounded-full ${hasBreakfast ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'}`}>
+                                                                    {hasBreakfast ? <Check className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
+                                                                </div>
                                                             </td>
                                                             <td className="p-4 text-center">
-                                                                <span className={`px-2 py-1 rounded text-xs font-bold ${hasLunch ? 'bg-emerald-100 text-emerald-850' : 'text-slate-350 bg-slate-50'}`}>
-                                                                    {hasLunch ? 'Veg' : 'No'}
-                                                                </span>
+                                                                <div className={`mx-auto w-7 h-7 flex items-center justify-center rounded-full ${hasLunch ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'}`}>
+                                                                    {hasLunch ? <Check className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
+                                                                </div>
                                                             </td>
                                                             <td className="p-4 text-center">
-                                                                <span className={`px-2 py-1 rounded text-xs font-bold ${hasDinner ? 'bg-emerald-100 text-emerald-850' : 'text-slate-350 bg-slate-50'}`}>
-                                                                    {hasDinner ? 'Veg' : 'No'}
-                                                                </span>
+                                                                <div className={`mx-auto w-7 h-7 flex items-center justify-center rounded-full ${hasDinner ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'}`}>
+                                                                    {hasDinner ? <Check className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     );

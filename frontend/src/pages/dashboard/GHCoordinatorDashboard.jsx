@@ -5,6 +5,7 @@ import api from '../../services/api';
 import QRScannerModal from '../../components/ui/QRScannerModal';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
 import InstitutionConfigForm from '../../components/reception/InstitutionConfigForm';
+import { getFormattedBookingId } from '../../utils/booking';
 
 export default function GHCoordinatorDashboard() {
     const { user } = useAuth();
@@ -336,7 +337,7 @@ export default function GHCoordinatorDashboard() {
                                     className={`p-3 rounded-xl border cursor-pointer transition-all ${selectedBooking?.booking_id === b.booking_id ? 'bg-indigo-50 border-indigo-300 ring-1 ring-indigo-200' : 'bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-white'}`}
                                 >
                                     <div className="flex justify-between items-start mb-1">
-                                        <span className="font-bold text-sm text-slate-800">{b.booking_id?.split('-')[0].toUpperCase()}</span>
+                                        <span className="font-bold text-sm text-slate-800">{getFormattedBookingId(b)}</span>
                                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${b.booking_state === 'CHECKED_IN' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                             {b.booking_state}
                                         </span>
@@ -361,7 +362,7 @@ export default function GHCoordinatorDashboard() {
                             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
                                 <div>
                                     <h2 className="text-2xl font-black text-slate-800 mb-1 flex items-center gap-3">
-                                        App {selectedBooking.booking_id?.split('-')[0].toUpperCase()}
+                                        App {getFormattedBookingId(selectedBooking)}
                                         {selectedBooking.final_bill && (
                                             <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-md border border-emerald-200 flex items-center gap-1 shadow-sm">
                                                 <ShieldCheck className="w-3 h-3" /> BILL LOCKED

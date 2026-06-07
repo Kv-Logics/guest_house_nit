@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, CheckCircle, CreditCard, Banknote, Search, Calendar, User } from 'lucide-react';
+import { DollarSign, CheckCircle, CreditCard, Banknote, Search, Calendar, User, Receipt } from 'lucide-react';
 import { receptionService } from '../../services/reception.service';
+import { getFormattedBookingId } from '../../utils/booking';
 
 const PaymentsTab = ({ onBillGenerated }) => {
+    const [subTab, setSubTab] = useState('pending'); // 'pending' | 'completed'
     const [pending, setPending] = useState([]);
+    const [completed, setCompleted] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedBooking, setSelectedBooking] = useState(null);
@@ -11,12 +14,15 @@ const PaymentsTab = ({ onBillGenerated }) => {
     const [transactionRef, setTransactionRef] = useState('');
     const [processing, setProcessing] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showLedger, setShowLedger] = useState(false);
+    const [pageOffset, setPageOffset] = useState(0);
+    const [hasMoreCompleted, setHasMoreCompleted] = useState(true);
 
     const loadPendingPayments = async () => {
         try {
             setLoading(true);
             const res = await receptionService.getPendingPayments();
-            if (res.success) setPending(res.data);
+            if (res.success) setPending(res.data.rows || res.data);
         } catch (err) {
             setError(err.message || 'Failed to load pending payments');
         } finally {
@@ -24,9 +30,41 @@ const PaymentsTab = ({ onBillGenerated }) => {
         }
     };
 
+    const loadCompletedPayments = async (offset = 0, isAppend = false) => {
+        try {
+            setLoading(true);
+            const limit = offset === 0 ? 50 : 100;
+            const res = await receptionService.getCompletedPayments(limit, offset);
+            if (res.success) {
+                const newItems = res.data.rows;
+                if (isAppend) {
+                    setCompleted(prev => [...prev, ...newItems]);
+                } else {
+                    setCompleted(newItems);
+                }
+                setHasMoreCompleted(newItems.length === limit);
+            }
+        } catch (err) {
+            setError(err.message || 'Failed to load completed payments');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        loadPendingPayments();
-    }, []);
+        if (subTab === 'pending') {
+            loadPendingPayments();
+        } else {
+            setPageOffset(0);
+            loadCompletedPayments(0, false);
+        }
+    }, [subTab]);
+
+    const handleLoadMoreCompleted = () => {
+        const nextOffset = pageOffset + (pageOffset === 0 ? 50 : 100);
+        setPageOffset(nextOffset);
+        loadCompletedPayments(nextOffset, true);
+    };
 
     const handleConfirm = async (e) => {
         e.preventDefault();
@@ -52,19 +90,25 @@ const PaymentsTab = ({ onBillGenerated }) => {
         }
     };
 
-    const filtered = pending.filter(p => 
+    const filteredPending = pending.filter(p => 
         p.booking_id.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (p.applicant_name && p.applicant_name.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    const filteredCompleted = completed.filter(p => 
+        p.booking_id.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (p.invoice_number && p.invoice_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (p.applicant_name && p.applicant_name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     if (loading) return <div className="p-8 text-center"><div className="animate-spin h-8 w-8 mx-auto border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div><p className="text-gray-500">Loading pending payments...</p></div>;
 
     return (
-        <div className="p-6">
+        <div className="p-6 font-sans">
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800">Pending Payments</h2>
-                    <p className="text-gray-500">Checked-out bookings awaiting payment settlement.</p>
+                    <h2 className="text-2xl font-bold text-slate-800">Payments Management</h2>
+                    <p className="text-slate-500 text-sm mt-1">Manage pending settlements and view completed invoices.</p>
                 </div>
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -78,11 +122,35 @@ const PaymentsTab = ({ onBillGenerated }) => {
                 </div>
             </div>
 
-            {error && <div className="p-4 bg-red-50 text-red-600 rounded-lg mb-6">{error}</div>}
+            <div className="flex gap-2 mb-6">
+                <button
+                    onClick={() => setSubTab('pending')}
+                    className={`px-5 py-2 rounded-xl font-bold transition-all text-sm ${
+                        subTab === 'pending'
+                            ? 'bg-amber-100 text-amber-800 border-2 border-amber-300 shadow-sm'
+                            : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+                    }`}
+                >
+                    Pending Settlements ({pending.length})
+                </button>
+                <button
+                    onClick={() => setSubTab('completed')}
+                    className={`px-5 py-2 rounded-xl font-bold transition-all text-sm ${
+                        subTab === 'completed'
+                            ? 'bg-teal-100 text-teal-800 border-2 border-teal-300 shadow-sm'
+                            : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+                    }`}
+                >
+                    Completed Invoices
+                </button>
+            </div>
 
-            <div className="bg-white rounded-xl border overflow-hidden">
+            {error && <div className="p-4 bg-red-50 text-red-600 rounded-lg mb-6 text-sm font-medium">{error}</div>}
+
+            <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    {subTab === 'pending' ? (
+                        <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-gray-50 border-b">
                                 <th className="px-6 py-4 text-sm font-medium text-gray-500">Booking ID</th>
@@ -94,52 +162,109 @@ const PaymentsTab = ({ onBillGenerated }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y">
-                            {filtered.length === 0 ? (
-                                <tr><td colSpan="6" className="p-8 text-center text-gray-500">No pending payments.</td></tr>
-                            ) : filtered.map(p => (
-                                <tr key={p.booking_id} className="hover:bg-gray-50">
+                            {filteredPending.length === 0 && !loading ? (
+                                <tr><td colSpan="6" className="p-8 text-center text-slate-500 font-medium">No pending payments.</td></tr>
+                            ) : filteredPending.map(p => (
+                                <tr key={p.booking_id} className="hover:bg-slate-50">
                                     <td className="px-6 py-4">
-                                        <span className="font-mono text-sm font-medium">{p.booking_id}</span>
+                                        <span className="font-mono text-sm font-bold text-slate-700">{getFormattedBookingId(p)}</span>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex items-center">
-                                            <User className="h-4 w-4 mr-2 text-gray-400" />
+                                        <div className="flex items-center text-slate-700 font-medium">
+                                            <User className="h-4 w-4 mr-2 text-slate-400" />
                                             {p.applicant_name || 'N/A'}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-sm">{p.rooms_required} ({p.room_type})</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 font-medium">{p.rooms_required} ({p.room_type})</td>
                                     <td className="px-6 py-4">
-                                        <div className="text-sm text-gray-600 flex items-center">
+                                        <div className="text-xs font-bold text-slate-600 flex items-center bg-slate-100 px-2 py-1 rounded w-fit">
                                             <Calendar className="h-3 w-3 mr-1" />
                                             {new Date(p.arrival_datetime).toLocaleDateString()} - {new Date(p.departure_datetime).toLocaleDateString()}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 font-bold text-gray-900">
-                                        ₹{p.total}
+                                    <td className="px-6 py-4 font-bold text-indigo-700">
+                                        ₹{parseFloat(p.total).toLocaleString('en-IN')}
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-4 flex gap-2">
                                         <button 
-                                            onClick={() => { setSelectedBooking(p); setPaymentMode('POS'); setTransactionRef(''); }}
-                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm transition-colors"
+                                            onClick={() => { setSelectedBooking(p); setPaymentMode('POS'); setTransactionRef(''); setShowLedger(false); }}
+                                            className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold text-sm transition-colors shadow-sm"
                                         >
                                             Settle Payment
+                                        </button>
+                                        <button 
+                                            onClick={() => { setSelectedBooking(p); setPaymentMode('POS'); setTransactionRef(''); setShowLedger(true); }}
+                                            className="px-3 py-2 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 font-bold text-sm transition-colors flex items-center gap-1 shadow-sm"
+                                            title="View Guest Stays Summary & Occupancy Ledger"
+                                        >
+                                            <Receipt className="h-4 w-4 text-slate-500" />
+                                            Ledger
                                         </button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
+                    ) : (
+                        <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200">
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Invoice No.</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Booking ID</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Applicant</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Amount Paid</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Mode</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Date Settled</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredCompleted.length === 0 && !loading ? (
+                                <tr><td colSpan="6" className="p-8 text-center text-slate-500 font-medium">No completed payments.</td></tr>
+                            ) : filteredCompleted.map(p => (
+                                <tr key={p.booking_id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="px-6 py-4">
+                                        <span className="font-mono text-sm font-bold text-slate-700">{p.invoice_number}</span>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className="font-mono text-xs font-medium text-slate-500">{getFormattedBookingId(p)}</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm font-medium text-slate-700">{p.applicant_name || 'N/A'}</td>
+                                    <td className="px-6 py-4 font-bold text-teal-700">₹{parseFloat(p.total).toLocaleString('en-IN')}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-2 py-1 text-xs font-bold rounded ${p.payment_mode === 'Cash' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
+                                            {p.payment_mode}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-slate-500 font-medium">
+                                        {new Date(p.paid_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    )}
                 </div>
             </div>
 
+            {subTab === 'completed' && !loading && hasMoreCompleted && (
+                <div className="mt-6 flex justify-center">
+                    <button
+                        onClick={handleLoadMoreCompleted}
+                        className="px-6 py-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-sm transition-colors shadow-sm"
+                    >
+                        Load More Records
+                    </button>
+                </div>
+            )}
+
             {/* Settlement Modal */}
             {selectedBooking && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+                <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/60 p-0 overflow-hidden animate-fade-in">
+                    <div className="bg-white h-full w-full max-w-xl rounded-l-3xl shadow-2xl overflow-hidden flex flex-col border-l border-slate-200 animate-slide-in-right">
                         <div className="p-6 border-b flex justify-between items-center bg-gray-50">
                             <div>
                                 <h3 className="text-xl font-bold text-gray-900">Settle Payment</h3>
-                                <p className="text-sm text-gray-500 font-mono mt-1">{selectedBooking.booking_id}</p>
+                                <p className="text-sm text-gray-500 font-mono mt-1">{getFormattedBookingId(selectedBooking)}</p>
                             </div>
                             <button onClick={() => setSelectedBooking(null)} className="text-gray-400 hover:text-gray-600">✕</button>
                         </div>
@@ -166,6 +291,56 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                         <span>₹{selectedBooking.total}</span>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div className="mb-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowLedger(!showLedger)}
+                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                                >
+                                    {showLedger ? 'Hide Stays Breakdown & Occupancy Ledger' : 'View Guest Stays Summary & Occupancy Ledger'}
+                                </button>
+                                
+                                {showLedger && (
+                                    selectedBooking.generated_json?.roomDaysBreakdown ? (
+                                        <div className="mt-3 border rounded-xl overflow-hidden text-xs max-h-52 overflow-y-auto bg-slate-50 shadow-inner">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-100 border-b font-bold text-slate-600">
+                                                        <th className="p-2.5">Date</th>
+                                                        <th className="p-2.5">Room</th>
+                                                        <th className="p-2.5">Guest Stays</th>
+                                                        <th className="p-2.5 text-right">Daily Cost</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200">
+                                                    {selectedBooking.generated_json.roomDaysBreakdown.map((day, idx) => (
+                                                        <tr key={idx} className="hover:bg-slate-100/50">
+                                                            <td className="p-2.5 font-semibold text-slate-700">
+                                                                {new Date(day.date).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}
+                                                            </td>
+                                                            <td className="p-2.5 font-mono font-bold text-indigo-600">{day.room_number}</td>
+                                                            <td className="p-2.5 text-slate-600 font-medium">
+                                                                {day.guests.map((g, gIdx) => (
+                                                                    <div key={gIdx} className="leading-tight py-0.5">
+                                                                        • {g.guest_name} 
+                                                                        {g.extra_bed && (
+                                                                            <span className="bg-amber-100 text-amber-800 text-[8px] px-1 rounded ml-1 font-bold">Extra Bed</span>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </td>
+                                                            <td className="p-2.5 text-right font-extrabold text-slate-800">₹{day.cost}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-slate-400 italic py-4">No detailed guest stays breakdown available in generated invoice.</p>
+                                    )
+                                )}
                             </div>
 
                             <form onSubmit={handleConfirm}>

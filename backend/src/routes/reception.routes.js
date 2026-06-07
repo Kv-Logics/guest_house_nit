@@ -25,6 +25,7 @@ router.post('/stays/:stayId/check-out', receptionController.checkOutStay);
 router.get('/institution-config', receptionController.getInstitutionConfig);
 router.post('/institution-config', receptionController.updateInstitutionConfig);
 router.get('/pending-payments', receptionController.getPendingPayments);
+router.get('/completed-payments', receptionController.getCompletedPayments);
 router.post('/bookings/:bookingId/confirm-payment', receptionController.confirmPayment);
 
 router.get('/bulk-blocks', receptionController.getActiveBulkBlocks);

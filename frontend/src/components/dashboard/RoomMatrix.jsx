@@ -12,9 +12,25 @@ export default function RoomMatrix({
     const [isMatrixOpen, setIsMatrixOpen] = useState(true);
     const [filterCategory, setFilterCategory] = useState('ALL');
 
-    const availableRoomsList = rooms.filter(r => r.status === 'AVAILABLE');
-    const bookedRoomsList = rooms.filter(r => r.status === 'OCCUPIED');
-    const cleaningRoomsList = rooms.filter(r => r.status === 'CLEANING');
+    const processedRooms = rooms.map(room => {
+        let dynamicStatus = room.status;
+        if (dynamicStatus === 'AVAILABLE' || dynamicStatus === undefined) {
+            const isRegularBlocked = room.future_allocations && room.future_allocations.some(a => {
+                if (a.is_bulk) return false;
+                const from = new Date(a.allocated_from);
+                const to = new Date(a.allocated_to);
+                return now >= from && now <= to;
+            });
+            if (isRegularBlocked) {
+                dynamicStatus = 'BOOKED';
+            }
+        }
+        return { ...room, status: dynamicStatus };
+    });
+
+    const availableRoomsList = processedRooms.filter(r => r.status === 'AVAILABLE');
+    const bookedRoomsList = processedRooms.filter(r => r.status === 'OCCUPIED' || r.status === 'BOOKED');
+    const cleaningRoomsList = processedRooms.filter(r => r.status === 'CLEANING');
 
     return (
         <div className="w-full animate-fade-in font-sans">
@@ -43,11 +59,11 @@ export default function RoomMatrix({
                         )}
                         
                         <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-12 gap-1.5 max-h-[280px] overflow-y-auto pr-2 custom-scrollbar">
-                            {rooms.filter(r => filterCategory === 'ALL' ? true : r.status === filterCategory).map(room => {
+                            {processedRooms.filter(r => filterCategory === 'ALL' ? true : (filterCategory === 'OCCUPIED' ? (r.status === 'OCCUPIED' || r.status === 'BOOKED') : r.status === filterCategory)).map(room => {
                                 const isSelected = activeRoomIds.includes(room.roomId);
                                 let bgClass = "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-400";
                                 if (room.status === 'AVAILABLE') bgClass = "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100";
-                                if (room.status === 'OCCUPIED') bgClass = "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100";
+                                if (room.status === 'OCCUPIED' || room.status === 'BOOKED') bgClass = "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100";
                                 if (room.status === 'CLEANING') bgClass = "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100";
                                 
                                 if (isSelected) {
@@ -59,24 +75,42 @@ export default function RoomMatrix({
                                     return new Date(g.rawCheckOut) < now;
                                 });
 
+                                const isBulkBlocked = room.future_allocations && room.future_allocations.some(a => {
+                                    if (!a.is_bulk) return false;
+                                    const from = new Date(a.allocated_from);
+                                    const to = new Date(a.allocated_to);
+                                    return now >= from && now <= to;
+                                });
+
+                                if (isBulkBlocked) {
+                                    bgClass = "bg-slate-200 border-slate-300 text-slate-500 opacity-80 cursor-not-allowed";
+                                }
+
                                 return (
                                     <div
                                         key={room.roomId}
                                         onClick={(e) => {
                                             e.stopPropagation();
+                                            if (isBulkBlocked) return;
                                             onRoomClick(room.roomId);
                                         }}
-                                        className={`py-1.5 px-1 rounded-lg border cursor-pointer transition-colors text-center flex flex-col items-center justify-center relative min-h-[48px] ${bgClass}`}
-                                        title={room.roomType}
+                                        className={`py-1.5 px-1 rounded-lg border transition-colors text-center flex flex-col items-center justify-center relative min-h-[48px] ${bgClass} ${isBulkBlocked ? '' : 'cursor-pointer'}`}
+                                        title={isBulkBlocked ? 'Room is Bulk Blocked' : room.roomType}
                                     >
                                         {hasOverstay && (
                                             <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border-2 border-white shadow-sm" title="Guest Overstaying!" />
                                         )}
                                         <span className="font-bold text-sm tracking-tight">{room.roomId}</span>
-                                        {room.roomType && room.roomType.includes('Suite') && (
-                                            <span className={`text-[7px] font-bold px-1 py-0.5 mt-0.5 rounded leading-none uppercase tracking-wider ${isSelected ? 'bg-slate-700 text-slate-200' : 'bg-black/10'}`}>
-                                                {room.roomType.replace(' Room', '')}
+                                        {isBulkBlocked ? (
+                                            <span className="text-[7px] font-bold px-1 py-0.5 mt-0.5 rounded leading-none uppercase tracking-wider bg-slate-400 text-white">
+                                                BULK BLOCKED
                                             </span>
+                                        ) : (
+                                            room.roomType && room.roomType.includes('Suite') && (
+                                                <span className={`text-[7px] font-bold px-1 py-0.5 mt-0.5 rounded leading-none uppercase tracking-wider ${isSelected ? 'bg-slate-700 text-slate-200' : 'bg-black/10'}`}>
+                                                    {room.roomType.replace(' Room', '')}
+                                                </span>
+                                            )
                                         )}
 
                                     </div>

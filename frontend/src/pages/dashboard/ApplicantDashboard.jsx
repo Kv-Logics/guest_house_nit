@@ -8,6 +8,7 @@ import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
 import PaymentProofModal from '../../components/ui/PaymentProofModal';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../utils/constants';
+import { getFormattedBookingId } from '../../utils/booking';
 
 const MS_DAY = 1000 * 60 * 60 * 24;
 /** In dev, warn when departure is this soon (so short seeded stays surface the banner). Prod keeps 24h. */
@@ -125,19 +126,15 @@ export default function ApplicantDashboard() {
                         <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">My Applications</h2>
                         <p className="text-slate-500 font-medium">Track your guest house booking requests</p>
                     </div>
+                    </div>
                 </div>
-                <Link to="/book" className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-sm">
-                    <PlusCircle className="w-5 h-5" />
-                    New Application
-                </Link>
-            </div>
 
             {/* Manage Request Stats */}
             {bookings.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                     {[
                         { label: 'Pending — With Authority', count: bookings.filter(b => b.booking_state === 'PENDING_APPROVER').length, color: 'amber' },
-                        { label: 'Pending — With Admin', count: bookings.filter(b => b.booking_state === 'PENDING_ADMIN').length, color: 'blue' },
+                        { label: 'Pending — With GH Chair', count: bookings.filter(b => b.booking_state === 'PENDING_ADMIN').length, color: 'blue' },
                         { label: 'Approved / Ready', count: bookings.filter(b => ['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN'].includes(b.booking_state)).length, color: 'green' },
                         { label: 'Rejected', count: bookings.filter(b => ['APPROVER_REJECTED', 'ADMIN_REJECTED'].includes(b.booking_state)).length, color: 'red' },
                     ].map(({ label, count, color }) => (
@@ -215,10 +212,6 @@ export default function ApplicantDashboard() {
                     <FileText className="w-12 h-12 mx-auto text-slate-300 mb-4" />
                     <h3 className="text-xl font-bold text-slate-700 mb-2">No {activeTab === 'active' ? 'Active' : 'Past'} Bookings Found</h3>
                     <p className="text-slate-500 mb-6">You have not submitted any accommodation requests yet.</p>
-                    <Link to="/book" className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-sm">
-                        <PlusCircle className="w-5 h-5" />
-                        New Application
-                    </Link>
                 </div>
             ) : (
                 <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-sm">
@@ -238,7 +231,7 @@ export default function ApplicantDashboard() {
                             {displayedBookings.map(b => (
                                 <tr key={b.booking_id} className="hover:bg-slate-50 transition-colors">
                                     <td className="p-4">
-                                        <p className="font-mono text-xs text-slate-500">{b.booking_id.split('-')[0]}</p>
+                                        <p className="font-mono text-xs text-slate-500 font-bold">{getFormattedBookingId(b)}</p>
                                         {b.version > 1 && (
                                             <span className="inline-block mt-1 text-[10px] font-extrabold text-amber-700 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">v{b.version} Re-applied</span>
                                         )}
@@ -326,7 +319,7 @@ export default function ApplicantDashboard() {
                     <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 animate-fade-in">
                         <h3 id="extend-stay-title" className="text-lg font-extrabold text-slate-800 tracking-tight mb-1">Extend stay</h3>
                         <p className="text-sm text-slate-500 font-medium mb-4">
-                            Booking <span className="font-mono text-xs">{extendTarget.booking_id.split('-')[0]}</span> — add nights after the current scheduled departure. This will be sent for the same approver and admin review as a new application.
+                            Booking <span className="font-mono text-xs font-bold">{getFormattedBookingId(extendTarget)}</span> — add nights after the current scheduled departure. This will be sent for the same approver and admin review as a new application.
                             <br /><br />Current Departure: <strong className="text-slate-800">{new Date(extendTarget.departure_datetime).toLocaleString()}</strong>
                         </p>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">New Exact Departure Date & Time</label>
