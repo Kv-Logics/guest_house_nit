@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Key,
   FileText,
+  BarChart3,
 } from 'lucide-react';
 import { ROLES } from '../../utils/constants';
 import { approvalService } from '../../services/approval.service';
@@ -49,14 +50,14 @@ export default function Navbar() {
   // Fetch pending count for admin (PENDING_ADMIN bookings)
   const { data: adminData } = useQuery({
     queryKey: ['adminPendingCount'],
-    queryFn: () => api.get('/bookings/admin/all'),
+    queryFn: () => api.get('/bookings/admin/all?status=PENDING_ADMIN'),
     enabled: isAdmin,
     staleTime: 30000,
     refetchInterval: 60000,
   });
 
   const authorityPendingCount = approvalData?.data?.length || 0;
-  const adminPendingCount = adminData?.data?.filter(b => b.booking_state === 'PENDING_ADMIN').length || 0;
+  const adminPendingCount = adminData?.data?.totalCount || adminData?.data?.rows?.length || 0;
 
   let primaryPath = '/dashboard';
   if (role === ROLES.RECEPTIONIST) primaryPath = '/reception/dashboard';
@@ -98,6 +99,22 @@ export default function Navbar() {
         path: '/admin/dashboard',
         icon: ShieldCheck,
         count: adminPendingCount,
+      });
+    }
+    if (isAdmin || role === ROLES.RECEPTIONIST || role === ROLES.GH_COORDINATOR) {
+      dynamicNavLinks.push({
+        name: 'Manage Payments',
+        path: '/manage-payments',
+        icon: FileText,
+        count: 0,
+      });
+    }
+    if (isAdmin) {
+      dynamicNavLinks.push({
+        name: 'Reports',
+        path: '/reports',
+        icon: BarChart3,
+        count: 0,
       });
     }
   }

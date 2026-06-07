@@ -172,11 +172,10 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-2">
-              Primary Document (PDF/PNG, Max 5MB) <span className="text-red-500">*</span>
+              Primary Document (PDF/PNG, Max 5MB) <span className="text-slate-400 font-normal ml-1">(Optional)</span>
             </label>
             {!formData.document_1 ? (
               <input
-                required
                 type="file"
                 accept=".pdf, .png"
                 onChange={(e) => handleFileChange(e, 'document_1')}
@@ -192,11 +191,10 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
           {formData.category_id === '1' && (
             <div className="animate-fade-in">
               <label className="block text-xs font-bold text-slate-600 mb-2">
-                Additional Document (PDF/PNG, Max 5MB) <span className="text-red-500">*</span>
+                Additional Document (PDF/PNG, Max 5MB) <span className="text-slate-400 font-normal ml-1">(Optional)</span>
               </label>
               {!formData.document_2 ? (
                 <input
-                  required
                   type="file"
                   accept=".pdf, .png"
                   onChange={(e) => handleFileChange(e, 'document_2')}

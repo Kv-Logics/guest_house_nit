@@ -24,7 +24,11 @@ exports.getMyBookings = async (req, res, next) => {
 
 exports.getAllBookingsForAdmin = async (req, res, next) => {
     try {
-        const data = await bookingService.getAllBookingsForAdmin();
+        const { limit = 20, offset = 0, status, search, month_filter } = req.query;
+        const parsedLimit = parseInt(limit, 10);
+        const parsedOffset = parseInt(offset, 10);
+        
+        const data = await bookingService.getAllBookingsForAdmin(parsedLimit, parsedOffset, status, search, month_filter);
         return sendSuccess(res, 'Admin bookings retrieved successfully', data);
     } catch (error) {
         next(error);
@@ -51,8 +55,8 @@ exports.mockPayment = async (req, res, next) => {
 
 exports.updateAdminStatus = async (req, res, next) => {
     try {
-        const { status, remarks } = req.body;
-        const data = await bookingService.updateAdminStatus(req.params.id, status, remarks, req.user.user_id);
+        const { status, remarks, financialYear } = req.body;
+        const data = await bookingService.updateAdminStatus(req.params.id, status, remarks, req.user.user_id, financialYear);
         return sendSuccess(res, `Booking transitioned to ${data.booking_state}`, data);
     } catch (error) {
         next(error);

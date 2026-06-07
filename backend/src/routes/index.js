@@ -7,6 +7,9 @@ const paymentRoutes = require('./payment.routes');
 const receptionRoutes = require('./reception.routes');
 const coordinatorRoutes = require('./coordinator.routes');
 
+const billingRoutes = require('./billing.routes');
+const reportsRoutes = require('./reports.routes');
+
 // Helper to safely mount routers and prevent application crashes
 const safeMount = (path, routeModule) => {
     // If exported correctly: `module.exports = router;`
@@ -32,5 +35,7 @@ safeMount('/approvals', approvalRoutes);
 safeMount('/payments', paymentRoutes);
 safeMount('/reception', receptionRoutes);
 safeMount('/coordinator', coordinatorRoutes);
+safeMount('/billing', billingRoutes);
+safeMount('/reports', reportsRoutes);
 
 module.exports = router;

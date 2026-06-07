@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, AlertTriangle, Eye, CreditCard, CheckCircle, Clock, Send } from 'lucide-react';
 import { paymentService } from '../../services/payment.service';
+import { getFormattedBookingId } from '../../utils/booking';
 
 export default function PaymentsTable({ bookings, handleManage, refresh }) {
   const paymentBookings = bookings.filter(
@@ -146,7 +147,7 @@ export default function PaymentsTable({ bookings, handleManage, refresh }) {
                     />
                   </td>
                 )}
-                <td className="p-4 font-mono text-xs text-slate-500">{booking.booking_id}</td>
+                <td className="p-4 font-mono text-xs text-slate-500 font-bold">{getFormattedBookingId(booking)}</td>
                 <td className="p-4">
                   <p className="font-bold text-slate-800">{booking.applicant_name}</p>
                   <p className="text-xs text-slate-500">{booking.category_code}</p>

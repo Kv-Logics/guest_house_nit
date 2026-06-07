@@ -229,6 +229,10 @@ exports.submitBookingRequest = async (data) => {
         
         const bookingRes = await client.query(insertBookingQuery, bookingValues);
         const bookingId = bookingRes.rows[0].booking_id;
+        
+        // Set initial formatted_id to the short hash of the UUID
+        const shortId = String(bookingId).substring(0, 8).toUpperCase();
+        await client.query('UPDATE booking_requests SET formatted_id = $1 WHERE booking_id = $2', [shortId, bookingId]);
 
         // 8. Insert Associated Guest Details & Food Preferences
         if (data.guests && data.guests.length > 0) {
@@ -441,8 +445,8 @@ exports.getBookingsByUser = async (userId) => {
     return await bookingRepository.getBookingsByUserId(userId);
 };
 
-exports.getAllBookingsForAdmin = async () => {
-    return await bookingRepository.getAllBookingsWithDetails();
+exports.getAllBookingsForAdmin = async (limit = null, offset = 0, statusFilter = null, searchQuery = null, monthFilter = null) => {
+    return await bookingRepository.getAllBookingsWithDetails(limit, offset, statusFilter, searchQuery, monthFilter);
 };
 
 exports.getTariffs = async () => {
@@ -474,13 +478,13 @@ exports.mockPayment = async (bookingId) => {
     }
 };
 
-exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
+exports.updateAdminStatus = async (bookingId, action, remarks, approverId, financialYear = '25-26') => {
     const client = await db.getClient();
     try {
         await client.query('BEGIN');
 
         const checkRes = await client.query(
-                'SELECT booking_state, pending_extension_datetime FROM booking_requests WHERE booking_id = $1 FOR UPDATE',
+            'SELECT booking_state, pending_extension_datetime, category_id, booking_seq FROM booking_requests WHERE booking_id = $1 FOR UPDATE',
             [bookingId]
         );
         if (checkRes.rows.length === 0) throw new Error('Booking not found');
@@ -509,10 +513,31 @@ exports.updateAdminStatus = async (bookingId, action, remarks, approverId) => {
             );
         } else {
             const newState = action === 'APPROVED' ? BOOKING_STATUS.ADMIN_APPROVED : BOOKING_STATUS.ADMIN_REJECTED;
-            result = await client.query(
-                `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
-                [newState, bookingId]
-            );
+            
+            if (action === 'APPROVED' && !row.booking_seq) {
+                const seqRes = await client.query(
+                    `INSERT INTO sequence_tracker (financial_year, last_sequence) VALUES ($1, 1)
+                     ON CONFLICT (financial_year) DO UPDATE SET last_sequence = sequence_tracker.last_sequence + 1
+                     RETURNING last_sequence`,
+                    [financialYear]
+                );
+                const seqNum = seqRes.rows[0].last_sequence;
+                
+                const catRes = await client.query('SELECT category_code FROM category_rules WHERE category_id = $1', [row.category_id]);
+                let catCode = catRes.rows[0]?.category_code?.split(' ')[0] || 'UNK';
+                const seqStr = String(seqNum).padStart(4, '0');
+                const formattedId = `NITTGH/${financialYear}/${catCode}/${seqStr}`;
+                
+                result = await client.query(
+                    `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, booking_seq = $2, formatted_id = $3, financial_year = $4, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $5 RETURNING *`,
+                    [newState, seqNum, formattedId, financialYear, bookingId]
+                );
+            } else {
+                result = await client.query(
+                    `UPDATE booking_requests SET booking_state = $1, pending_extension_datetime = NULL, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
+                    [newState, bookingId]
+                );
+            }
         }
 
         if (result.rows.length === 0) throw new Error('Booking not found');
@@ -721,6 +746,15 @@ exports.editBookingRequest = async (data) => {
             newState = BOOKING_STATUS.PENDING_APPROVER;
             actionStr = 'APPLICANT_REVISION';
             logMessage = 'Applicant revised booking, reverting state for re-approval.';
+
+            const targetCat = String(data.category_id || existing.category_id);
+            const assignedApp = data.assigned_approver_id || existing.assigned_approver_id;
+            
+            if (assignedApp === data.user_id || (targetCat === '3' && userRole !== 'student')) {
+                newState = BOOKING_STATUS.PENDING_ADMIN;
+                logMessage = 'Applicant revised booking, auto-approved by applicant (Self-Approval).';
+                data.assigned_approver_id = data.user_id;
+            }
             
             // Delete room stays since they might be invalid now
             await client.query('DELETE FROM guest_room_stays WHERE booking_id = $1 AND stay_status != $2', [data.booking_id, 'CHECKED_IN']);

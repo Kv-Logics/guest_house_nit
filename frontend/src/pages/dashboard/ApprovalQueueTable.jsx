@@ -1,5 +1,6 @@
 import React from 'react';
 import { LayoutDashboard, CheckCircle, XCircle, Trash2, Eye } from 'lucide-react';
+import { getFormattedBookingId } from '../../utils/booking';
 
 export default function ApprovalQueueTable({
   activeTab,
@@ -28,6 +29,7 @@ export default function ApprovalQueueTable({
       <table className="w-full text-left border-collapse">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500">
+            <th className="p-4 font-bold">Booking ID</th>
             <th className="p-4 font-bold">Applicant</th>
             <th className="p-4 font-bold">Arrival</th>
             <th className="p-4 font-bold">Rooms</th>
@@ -39,6 +41,9 @@ export default function ApprovalQueueTable({
           {bookings.map((booking) => (
             <React.Fragment key={booking.booking_id}>
               <tr className="hover:bg-slate-50 transition-colors">
+                <td className="p-4">
+                  <span className="font-bold text-slate-700">{getFormattedBookingId(booking)}</span>
+                </td>
                 <td className="p-4">
                   <p className="font-bold text-slate-800">{booking.applicant_name}</p>
                   <p className="text-xs text-slate-500 capitalize">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { bookingService } from '../../services/booking.service';
@@ -9,7 +9,7 @@ import StatusBadge from './StatusBadge';
 import nitLogo from '../../assets/images/nitlogo.png';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
 import { QRCodeCanvas } from 'qrcode.react';
-import { useRef } from 'react';
+import { getFormattedBookingId } from '../../utils/booking';
 const getActionStyle = (action) => {
     const act = String(action || '').toUpperCase();
     if (act.includes('REJECT') || act === 'CANCELLED') {
@@ -143,7 +143,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                 { id: 1, title: 'Submitted', description: 'Application Received' },
                 { id: 2, title: 'HOD / Dean', description: 'Authority Review' },
                 { id: 3, title: 'Director', description: 'Director Review' },
-                { id: 4, title: 'GH Manager', description: 'Room & Payment' },
+                { id: 4, title: 'GH Chairperson', description: 'Room & Payment' },
                 { id: 5, title: 'Reception', description: 'Check-In' }
             ] : [
                 { id: 1, title: 'Submitted', description: 'Application Received' },
@@ -156,7 +156,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
             isApplicant ? [
                 { id: 1, title: 'Submitted', description: 'Application Received' },
                 { id: 2, title: 'Authority', description: 'Authority Review' },
-                { id: 3, title: 'GH Manager', description: 'Room & Payment' },
+                { id: 3, title: 'GH Chairperson', description: 'Room & Payment' },
                 { id: 4, title: 'Reception', description: 'Check-In' }
             ] : [
                 { id: 1, title: 'Submitted', description: 'Application Received' },
@@ -390,7 +390,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                     </span>
                                 ) : booking && booking.booking_state === 'PENDING_ADMIN' ? (
                                     <span className="bg-purple-100 text-purple-800 text-xs font-extrabold px-2.5 py-1 rounded-lg border border-purple-200 shadow-sm">
-                                        Pending With: {isAuthorityOrAdmin ? 'Guest House Admin' : 'Guest House Manager'}
+                                        Pending With: {isAuthorityOrAdmin ? 'Guest House Admin' : 'GH Chairperson'}
                                     </span>
                                 ) : (
                                     booking && <StatusBadge status={booking.booking_state} />
@@ -524,7 +524,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                     <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-6 flex flex-col md:flex-row items-center gap-6 shadow-sm">
                                         <div className="flex flex-col items-center gap-3 shrink-0">
                                             <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-100" ref={qrRef}>
-                                                <QRCodeCanvas value={booking.booking_id} size={120} level="M" includeMargin={true} />
+                                                <QRCodeCanvas value={getFormattedBookingId(booking)} size={120} level="M" includeMargin={true} />
                                             </div>
                                             <button 
                                                 onClick={downloadQRCode}
@@ -542,7 +542,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                             </p>
                                             <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 inline-flex items-center gap-3 font-mono text-sm shadow-sm">
                                                 <span className="text-slate-400 font-bold">ID:</span>
-                                                <span className="font-bold text-slate-800">{booking.booking_id}</span>
+                                                <span className="font-bold text-slate-800">{getFormattedBookingId(booking)}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -682,7 +682,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                                                                 ? (log.approver_name || 'System / Applicant')
                                                                                 : (log.approver_name === booking.applicant_name
                                                                                     ? booking.applicant_name
-                                                                                    : (log.action.includes('REJECT') || log.action === 'APPROVED' ? 'Approving Authority' : 'Guest House Manager'))}
+                                                                                    : (['APPROVED', 'REJECTED', 'APPROVER_REJECTED', 'DIRECTOR_APPROVED', 'DIRECTOR_REJECTED'].includes(log.action) ? 'Approving Authority' : 'GH Chairperson'))}
                                                                         </span>
                                                                     </span>
                                                                 </div>

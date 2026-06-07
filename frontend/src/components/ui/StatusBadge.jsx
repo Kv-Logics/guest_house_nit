@@ -32,7 +32,7 @@ export default function StatusBadge({ status }) {
     [BOOKING_STATUS.PENDING_ADMIN]: {
       color: 'bg-purple-100 text-purple-800',
       icon: Clock,
-      label: 'Pending Admin',
+      label: 'Pending GH Chair',
     },
     [BOOKING_STATUS.ADMIN_APPROVED]: {
       color: 'bg-emerald-100 text-emerald-800',

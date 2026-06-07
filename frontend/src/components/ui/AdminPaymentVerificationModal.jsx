@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { paymentService } from '../../services/payment.service';
 import { X, CheckCircle, XCircle, AlertTriangle, CreditCard, FileText, ExternalLink, ShieldCheck, Clock } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
+import { getFormattedBookingId } from '../../utils/booking';
 
 export default function AdminPaymentVerificationModal({ booking, onClose, onSuccess }) {
     const [activeForm, setActiveForm] = useState('NONE'); // 'NONE', 'REJECT', 'WARN'
@@ -69,7 +70,7 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
                         </div>
                         <div>
                             <h3 className="text-xl font-extrabold text-slate-800">Admin Payment Console</h3>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">{booking.applicant_name} • {booking.category_code}</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">{getFormattedBookingId(booking)} • {booking.applicant_name} • {booking.category_code}</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 rounded-xl transition-colors">

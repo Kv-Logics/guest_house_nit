@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { paymentService } from '../../services/payment.service';
 import { X, UploadCloud, FileText, AlertTriangle, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
+import { getFormattedBookingId } from '../../utils/booking';
 
 export default function PaymentProofModal({ booking, onClose }) {
     const queryClient = useQueryClient();
@@ -67,7 +68,7 @@ export default function PaymentProofModal({ booking, onClose }) {
                         </div>
                         <div>
                             <h3 className="text-xl font-extrabold text-slate-800">Payment Verification</h3>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">Booking ID: {booking.booking_id.split('-')[0]}</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">Booking ID: {getFormattedBookingId(booking)}</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 rounded-xl transition-colors">
