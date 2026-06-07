@@ -772,7 +772,7 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
         // 2. Rule 7: check if final bill exists
         const finalBill = await receptionRepository.getFinalBillByBooking(bookingId, client);
         if (finalBill && !isForceCheckout) {
-            if (finalBill.payment_mode === null && stay.payment_responsible === 'guest') {
+            if (finalBill.payment_mode === null && stay.payment_responsible === 'guest' && otherActiveStaysCount === 0) {
                 throw new Error('This stay cannot be checked out because the final bill has been generated but is unpaid.');
             }
         }
