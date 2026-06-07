@@ -169,6 +169,16 @@ exports.extendStay = async (req, res, next) => {
     }
 };
 
+exports.previewBill = async (req, res, next) => {
+    try {
+        const overrideNow = req.headers['x-mock-date'] || req.query.overrideNow || null;
+        const data = await receptionService.calculateBookingBilling(req.params.bookingId, null, overrideNow);
+        return sendSuccess(res, 'Bill preview calculated successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
 exports.getRoomHistory = async (req, res, next) => {
     try {
         const { roomNumber } = req.params;

@@ -25,6 +25,8 @@ export const receptionService = {
     api.get(`/reception/bookings/${bookingId}/override-logs`),
   getRoomHistory: async (roomNumber, page = 1, limit = 20) =>
     api.get(`/reception/rooms/${roomNumber}/history?page=${page}&limit=${limit}`),
+  previewBill: async (bookingId) =>
+    api.get(`/reception/bookings/${bookingId}/preview-bill`),
     
   // POS & Billing
   getPendingPayments: async (limit = 50, offset = 0, search = '', monthFilter = 'current') => 

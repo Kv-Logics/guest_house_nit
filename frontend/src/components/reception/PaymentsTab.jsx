@@ -73,6 +73,33 @@ const PaymentsTab = ({ onBillGenerated }) => {
         return parseFloat(p.total_estimated_amount) || 0;
     };
 
+    const handleOpenModal = async (booking, isLedger) => {
+        setSelectedBooking(booking);
+        setPaymentMode('POS');
+        setTransactionRef('');
+        setShowLedger(isLedger);
+
+        if (booking.bill_missing && !booking.breakdown) {
+            try {
+                const res = await receptionService.previewBill(booking.booking_id);
+                if (res.success) {
+                    setSelectedBooking(prev => {
+                        if (prev?.booking_id !== booking.booking_id) return prev;
+                        return {
+                            ...prev,
+                            subtotal: res.data.subtotal,
+                            gst: res.data.gst,
+                            total_estimated_amount: res.data.total,
+                            breakdown: res.data.breakdown
+                        };
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to load bill preview", err);
+            }
+        }
+    };
+
     const handleConfirm = async (e) => {
         e.preventDefault();
         try {
@@ -203,13 +230,13 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                     </td>
                                     <td className="px-6 py-4 flex gap-2">
                                         <button 
-                                            onClick={() => { setSelectedBooking(p); setPaymentMode('POS'); setTransactionRef(''); setShowLedger(false); }}
+                                            onClick={() => handleOpenModal(p, false)}
                                             className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold text-sm transition-colors shadow-sm"
                                         >
                                             Settle Payment
                                         </button>
                                         <button 
-                                            onClick={() => { setSelectedBooking(p); setPaymentMode('POS'); setTransactionRef(''); setShowLedger(true); }}
+                                            onClick={() => handleOpenModal(p, true)}
                                             className="px-3 py-2 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 font-bold text-sm transition-colors flex items-center gap-1 shadow-sm"
                                             title="View Guest Stays Summary & Occupancy Ledger"
                                         >
@@ -361,7 +388,7 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                 </button>
                                 
                                 {showLedger && (
-                                    selectedBooking.generated_json?.roomDaysBreakdown ? (
+                                    (selectedBooking.generated_json?.roomDaysBreakdown || selectedBooking.breakdown?.roomDaysBreakdown) ? (
                                         <div className="mt-3 border rounded-xl overflow-hidden text-xs max-h-52 overflow-y-auto bg-slate-50 shadow-inner">
                                             <table className="w-full text-left border-collapse">
                                                 <thead>
@@ -373,7 +400,7 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-200">
-                                                    {selectedBooking.generated_json.roomDaysBreakdown.map((day, idx) => (
+                                                    {(selectedBooking.generated_json?.roomDaysBreakdown || selectedBooking.breakdown?.roomDaysBreakdown).map((day, idx) => (
                                                         <tr key={idx} className="hover:bg-slate-100/50">
                                                             <td className="p-2.5 font-semibold text-slate-700">
                                                                 {new Date(day.date).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}

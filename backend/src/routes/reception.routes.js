@@ -35,6 +35,7 @@ router.post('/rooms/transfer', receptionController.roomTransfer);
 router.post('/rooms/override', receptionController.overrideStayBilling);
 router.get('/bookings/:bookingId/override-logs', receptionController.getBillingOverrideLogsByBooking);
 router.post('/bookings/:bookingId/extend', receptionController.extendStay);
+router.get('/bookings/:bookingId/preview-bill', receptionController.previewBill);
 
 router.post('/stays/:stayId/check-out', receptionController.checkOutStay);
 
