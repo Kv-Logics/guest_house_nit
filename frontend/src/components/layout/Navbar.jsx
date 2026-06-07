@@ -101,7 +101,7 @@ export default function Navbar() {
         count: adminPendingCount,
       });
     }
-    if (isAdmin || role === ROLES.RECEPTIONIST || role === ROLES.GH_COORDINATOR) {
+    if (isAdmin || role === ROLES.GH_COORDINATOR) {
       dynamicNavLinks.push({
         name: 'Manage Payments',
         path: '/manage-payments',

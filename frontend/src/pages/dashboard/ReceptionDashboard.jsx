@@ -61,10 +61,14 @@ const translateArrivalsFromBackend = (arrivals) => {
 
         return {
             bookingId: b.booking_id,
+            booking_id: b.booking_id,
+            formatted_id: b.formatted_id || '',
+            booking_seq: b.booking_seq,
             bookingSeq: b.booking_seq,
             applicant: b.applicant_name,
             category: b.category_id,
             bookingState: b.booking_state,
+            booking_state: b.booking_state,
             allocatedRoomNumbers: b.allocated_room_numbers,
             rooms: rooms,
             rawGuests: (b.guests || []).map(g => ({
@@ -73,7 +77,8 @@ const translateArrivalsFromBackend = (arrivals) => {
                 departure_datetime: g.departure_datetime || b.departure_datetime
             })),
             rawCheckIn: b.arrival_datetime,
-            rawCheckOut: b.departure_datetime
+            rawCheckOut: b.departure_datetime,
+            created_at: b.created_at
         };
     });
 };

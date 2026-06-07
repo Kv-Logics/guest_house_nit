@@ -133,6 +133,7 @@ exports.getRoomsWithStays = async (overrideNow = null) => {
                grs.occupancy_type, grs.extra_bed, grs.operational_room_type, grs.operational_tariff, grs.operational_notes,
                g.guest_name, g.relation_to_applicant, g.arrival_datetime AS guest_arrival_datetime, g.departure_datetime AS guest_departure_datetime,
                u.full_name AS applicant_name, b.arrival_datetime, b.departure_datetime AS booking_departure_datetime, b.booking_state, b.pending_extension_datetime, b.payment_state, b.payment_responsible, b.category_id,
+               b.formatted_id, b.booking_seq,
                (SELECT json_agg(row_to_json(fp)) FROM guest_food_preferences fp WHERE fp.guest_id = g.guest_id) as food_preferences
         FROM guest_room_stays grs
         JOIN guests g ON grs.guest_id = g.guest_id
@@ -273,6 +274,8 @@ exports.getRoomsWithStays = async (overrideNow = null) => {
 
             bookingDetails = {
                 booking_id: firstStay.booking_id,
+                formatted_id: firstStay.formatted_id || '',
+                booking_seq: firstStay.booking_seq,
                 applicant_name: firstStay.applicant_name,
                 arrival_datetime: firstStay.arrival_datetime,
                 departure_datetime: firstStay.booking_departure_datetime,
