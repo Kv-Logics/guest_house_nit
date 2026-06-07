@@ -287,6 +287,7 @@ exports.getRoomsWithStays = async (overrideNow = null) => {
                 payment_state: firstStay.payment_state,
                 payment_responsible: firstStay.payment_responsible,
                 category_id: firstStay.category_id,
+                allocated_room_numbers: firstStay.allocated_room_numbers,
                 guests: mappedGuests,
                 is_late: roomIsLate
             };
