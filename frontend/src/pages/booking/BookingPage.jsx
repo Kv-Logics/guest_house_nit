@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
+import { calculateHotelNights } from '../../utils/date';
 import BookingForm from '../../components/forms/BookingForm';
 import ApplicationRouteSidebar from '../../components/forms/ApplicationRouteSidebar';
 import { useAuth } from '../../context/AuthContext';
@@ -205,8 +206,7 @@ export default function BookingPage() {
         const end = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate());
 
         // Cap the max days to 30 to prevent massive loop freeze if dates are accidentally set years apart
-        const diffTime = Math.abs(end - start);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        const diffDays = calculateHotelNights(minDate, maxDate);
         const maxDaysToLoop = Math.min(diffDays, 30);
 
         for (let i = 0; i < maxDaysToLoop; i++) {

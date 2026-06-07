@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Clock, ChevronUp, ChevronDown, Filter } from 'lucide-react';
 import { getFormattedBookingId } from '../../utils/booking';
+import { calculateHotelNights } from '../../utils/date';
 
 export default function ArrivalsTab({
     receivedApplications,
@@ -151,7 +152,7 @@ export default function ArrivalsTab({
                                                                         OUT: {new Date(guest.departure_datetime).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'})}
                                                                     </span>
                                                                     <span className="text-[9px] text-indigo-650 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 uppercase tracking-wider">
-                                                                        {Math.max(1, Math.ceil((new Date(guest.departure_datetime) - new Date(guest.arrival_datetime)) / (1000 * 60 * 60 * 24)))} Night(s)
+                                                                        {calculateHotelNights(guest.arrival_datetime, guest.departure_datetime)} Night(s)
                                                                     </span>
                                                                 </>
                                                             )}

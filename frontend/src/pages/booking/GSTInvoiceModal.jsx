@@ -3,6 +3,7 @@ import { X, Printer } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { bookingService } from '../../services/booking.service';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { calculateHotelNights } from '../../utils/date';
 
 // Helper to convert number to words (Indian numbering system)
 function numberToWords(num) {
@@ -36,8 +37,7 @@ export default function GSTInvoiceModal({ bookingId, bookingData, onClose }) {
   // Calculate Invoice Data
   const arrival = new Date(booking.arrival_datetime || booking.checked_in_at);
   const departure = new Date(booking.checked_out_at || booking.departure_datetime);
-  const ms = Math.max(0, departure - arrival);
-  const nights = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+  const nights = calculateHotelNights(booking.arrival_datetime || booking.checked_in_at, booking.departure_datetime || booking.checked_out_at);
   
   // Financials
   let totalEstimated = Number(booking.total_estimated_amount) || 0;
@@ -111,7 +111,7 @@ export default function GSTInvoiceModal({ bookingId, bookingData, onClose }) {
                         </tr>
                         <tr>
                             <td className="py-1 font-bold">Booking Ref:</td>
-                            <td className="py-1 font-mono font-medium">{booking.booking_id.split('-')[0].toUpperCase()}</td>
+                            <td className="py-1 font-mono font-medium">{bookingData?.formatted_id || booking.booking_id.split('-')[0].toUpperCase()}</td>
                         </tr>
                     </tbody>
                 </table>

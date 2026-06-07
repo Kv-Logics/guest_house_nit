@@ -17,9 +17,10 @@ api.interceptors.request.use((config) => {
     config.headers['X-CSRF-Token'] = csrfToken;
   }
 
+  const isTimeMachineEnabled = import.meta.env.VITE_ENABLE_TIME_MACHINE === 'true';
   const isMockActive = localStorage.getItem('mock-system-date-active') === 'true';
   const mockDate = localStorage.getItem('mock-system-date');
-  if (isMockActive && mockDate) {
+  if (isTimeMachineEnabled && isMockActive && mockDate) {
     config.headers['X-Mock-Date'] = mockDate;
   }
 

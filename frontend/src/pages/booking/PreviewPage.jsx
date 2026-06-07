@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { calculateHotelNights } from '../../utils/date';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -87,7 +88,7 @@ export default function PreviewPage() {
   
   let days = 1;
   if (latestDeparture > earliestArrival) {
-    days = Math.ceil(Math.abs(latestDeparture - earliestArrival) / (1000 * 60 * 60 * 24));
+    days = calculateHotelNights(earliestArrival, latestDeparture);
   }
 
   const [selectedBillingRoomType, setSelectedBillingRoomType] = useState(formData.room_type || 'Standard Room');

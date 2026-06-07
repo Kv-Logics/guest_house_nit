@@ -6,6 +6,7 @@ import QRScannerModal from '../../components/ui/QRScannerModal';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
 import InstitutionConfigForm from '../../components/reception/InstitutionConfigForm';
 import { getFormattedBookingId } from '../../utils/booking';
+import { calculateHotelNights } from '../../utils/date';
 
 export default function GHCoordinatorDashboard() {
     const { user } = useAuth();
@@ -87,8 +88,7 @@ export default function GHCoordinatorDashboard() {
             const checkOuts = guestsInRoom.map(g => new Date(g.departure_datetime));
             const maxCheckOut = new Date(Math.max(...checkOuts));
             
-            let days = Math.ceil((maxCheckOut - checkIn) / (1000 * 60 * 60 * 24));
-            if (days < 1) days = 1;
+            let days = calculateHotelNights(checkIn, maxCheckOut);
 
             const count = guestsInRoom.length;
             let defaultTariff = 800;
@@ -162,7 +162,11 @@ export default function GHCoordinatorDashboard() {
             cleanId = cleanId.replace('APP ', '').trim();
         }
         
-        const found = bookings.find(b => b.booking_id.toUpperCase().includes(cleanId) || b.booking_id.split('-')[0].toUpperCase().includes(cleanId));
+        const found = bookings.find(b => 
+            b.booking_id.toUpperCase().includes(cleanId) || 
+            b.booking_id.split('-')[0].toUpperCase().includes(cleanId) ||
+            (b.formatted_id && b.formatted_id.toUpperCase().includes(cleanId))
+        );
         if (found) {
             fetchBookingDetails(found.booking_id);
         } else {
@@ -275,7 +279,22 @@ export default function GHCoordinatorDashboard() {
                 onScanSuccess={(decodedText) => {
                     setIsQRScannerOpen(false);
                     setSearchId(decodedText);
-                    fetchBookingDetails(decodedText);
+                    // Give React a tick to update the searchId state, then trigger the same logic as manual search
+                    setTimeout(() => {
+                        const fakeEvent = { preventDefault: () => {} };
+                        // We use decodedText directly in case state hasn't flushed
+                        let cleanId = decodedText.trim().toUpperCase();
+                        if (cleanId.startsWith('APP-')) cleanId = cleanId.replace('APP-', '').trim();
+                        else if (cleanId.startsWith('APP ')) cleanId = cleanId.replace('APP ', '').trim();
+                        
+                        const found = bookings.find(b => 
+                            b.booking_id.toUpperCase().includes(cleanId) || 
+                            b.booking_id.split('-')[0].toUpperCase().includes(cleanId) ||
+                            (b.formatted_id && b.formatted_id.toUpperCase().includes(cleanId))
+                        );
+                        if (found) fetchBookingDetails(found.booking_id);
+                        else fetchBookingDetails(cleanId);
+                    }, 0);
                 }}
             />
 

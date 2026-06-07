@@ -8,6 +8,7 @@ exports.ROLES = {
     GUEST_HOUSE_ADMIN: 'guest_house_admin',
     RECEPTIONIST: 'reception_staff',
     DIRECTOR: 'director',
+    GH_COORDINATOR: 'gh_coordinator',
     STAFF: 'staff'
 };
 

@@ -301,6 +301,36 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                         Clicking <strong>Confirm Payment</strong> will auto-generate the final bill.
                                     </div>
                                 )}
+                                
+                                {selectedBooking.breakdown && (selectedBooking.breakdown.roomDaysBreakdown?.length > 0 || selectedBooking.breakdown.items?.length > 0) && (
+                                    <div className="mb-4">
+                                        <h5 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Itemized Breakdown</h5>
+                                        <div className="max-h-40 overflow-y-auto pr-2 custom-scrollbar space-y-2 bg-white rounded border border-blue-100 p-2">
+                                            {selectedBooking.breakdown.roomDaysBreakdown ? selectedBooking.breakdown.roomDaysBreakdown.map((item, idx) => (
+                                                <div key={idx} className="flex justify-between text-xs text-slate-700 pb-2 border-b border-slate-100 last:border-0 last:pb-0">
+                                                    <div>
+                                                        <p className="font-semibold">{item.date} - Room {item.room_number}</p>
+                                                        {item.guests.map((g, gIdx) => (
+                                                            <p key={gIdx} className="text-slate-500 ml-2">↳ {g.guest_name} (₹{g.tariff})</p>
+                                                        ))}
+                                                    </div>
+                                                    <div className="font-bold">₹{item.cost}</div>
+                                                </div>
+                                            )) : selectedBooking.breakdown.items?.map((item, idx) => (
+                                                <div key={idx} className="flex justify-between text-xs text-slate-700 pb-2 border-b border-slate-100 last:border-0 last:pb-0">
+                                                    <div>
+                                                        <p className="font-semibold">{item.description}</p>
+                                                        {item.guests && item.guests.map((g, gIdx) => (
+                                                            <p key={gIdx} className="text-slate-500 ml-2">↳ {g.guest_name} (₹{g.tariff})</p>
+                                                        ))}
+                                                    </div>
+                                                    <div className="font-bold">₹{item.amount || item.cost}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="space-y-2 text-sm text-blue-800">
                                     <div className="flex justify-between">
                                         <span>Subtotal (Taxable):</span>

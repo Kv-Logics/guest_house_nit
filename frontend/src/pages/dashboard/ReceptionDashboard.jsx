@@ -218,7 +218,8 @@ export default function ReceptionDashboard() {
 
 
     // Time machine clock mock state
-    const [isMockActive, setIsMockActive] = useState(localStorage.getItem('mock-system-date-active') === 'true');
+    const isTimeMachineEnabled = import.meta.env.VITE_ENABLE_TIME_MACHINE === 'true';
+    const [isMockActive, setIsMockActive] = useState(isTimeMachineEnabled && localStorage.getItem('mock-system-date-active') === 'true');
     const [mockDateStr, setMockDateStr] = useState(localStorage.getItem('mock-system-date') || '');
     const [now, setNow] = useState(new Date());
 
@@ -759,7 +760,7 @@ export default function ReceptionDashboard() {
         <div className="min-h-screen bg-slate-50 text-slate-800 font-sans p-6">
             {/* Error Notification */}
             {error && (
-                <div className="max-w-7xl mx-auto mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl font-medium text-sm flex justify-between items-center">
+                <div className="w-full mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl font-medium text-sm flex justify-between items-center">
                     <span>{error}</span>
                     <button onClick={() => setError(null)} className="text-red-500 hover:text-red-800 font-bold">Dismiss</button>
                 </div>
@@ -801,7 +802,7 @@ export default function ReceptionDashboard() {
             />
 
             {/* Top Navigation Strip */}
-            <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 gap-4">
+            <div className="w-full flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 gap-4">
                 <div className="flex items-center gap-3">
                     <div className="p-3 bg-indigo-600 text-white rounded-xl shadow-md">
                         <Bed className="w-6 h-6" />
@@ -828,7 +829,8 @@ export default function ReceptionDashboard() {
             </div>
 
             {/* Time Machine / Clock Simulator Panel for Testing */}
-            <div className="max-w-7xl mx-auto mb-6 p-4 bg-teal-50/40 border border-teal-100/70 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+            {isTimeMachineEnabled && (
+            <div className="w-full mb-6 p-4 bg-teal-50/40 border border-teal-100/70 rounded-2xl flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-2.5">
                     <Clock className="w-5 h-5 text-teal-600" />
                     <div>
@@ -863,9 +865,10 @@ export default function ReceptionDashboard() {
                     )}
                 </div>
             </div>
+            )}
 
             {/* Navigation Tabs */}
-            <div className="max-w-7xl mx-auto flex gap-2 mb-6">
+            <div className="w-full flex gap-2 mb-6">
                 <button
                     onClick={() => setActiveTab('arrivals')}
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
@@ -919,7 +922,7 @@ export default function ReceptionDashboard() {
                 </button>
             </div>
 
-            <div className="max-w-7xl mx-auto">
+            <div className="w-full">
                 {activeTab === 'arrivals' && (
                     <ArrivalsTab
                         receivedApplications={receivedApplications}
