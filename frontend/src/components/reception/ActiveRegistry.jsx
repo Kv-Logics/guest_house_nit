@@ -93,8 +93,9 @@ export default function ActiveRegistry({
                                                     const booking = selectedRoom.active_booking;
                                                     const isUnpaidGuest = booking && booking.payment_responsible === 'guest' && booking.payment_state !== 'PAID';
                                                     const isAdmin = ['super_admin', 'guest_house_admin'].includes(userRole);
+                                                    const otherCheckedInGuestsCount = selectedRoom.guests.filter(g => (g.status || g.stay_status) === 'CHECKED_IN' && g !== guest).length;
                                                     
-                                                    if (isUnpaidGuest) {
+                                                    if (isUnpaidGuest && otherCheckedInGuestsCount === 0) {
                                                         if (isAdmin) {
                                                             return (
                                                                 <button
