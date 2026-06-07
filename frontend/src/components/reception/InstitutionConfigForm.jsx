@@ -49,9 +49,11 @@ const InstitutionConfigForm = () => {
             if (res.success) {
                 setConfig(res.data);
                 setMessage({ type: 'success', text: 'Configuration saved successfully!' });
+                setTimeout(() => setMessage(null), 3000);
             }
         } catch (err) {
             setMessage({ type: 'error', text: 'Failed to save configuration' });
+            setTimeout(() => setMessage(null), 3000);
         } finally {
             setSaving(false);
         }
@@ -70,9 +72,9 @@ const InstitutionConfigForm = () => {
             </div>
 
             {message && (
-                <div className={`p-4 mb-6 rounded-lg flex items-center ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 shadow-lg rounded-full flex items-center animate-fade-in ${message.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
                     {message.type === 'success' && <CheckCircle className="h-5 w-5 mr-2" />}
-                    {message.text}
+                    <span className="font-medium">{message.text}</span>
                 </div>
             )}
 
@@ -105,12 +107,19 @@ const InstitutionConfigForm = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 pt-6 border-t">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 pt-6 border-t">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Prefix</label>
                             <input type="text" name="invoice_prefix" value={config.invoice_prefix || ''} onChange={handleChange} placeholder="e.g. NITTGH/" className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-blue-50 font-mono" />
                             <p className="text-xs text-gray-500 mt-1">
-                                <strong>Preview:</strong> {config.invoice_prefix || 'PREFIX/'}25-26/CAT-I/00001
+                                <strong>Preview:</strong> {config.invoice_prefix || 'NITTGH/'}CAT-I/0001/0001
+                            </p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Booking Prefix</label>
+                            <input type="text" name="booking_prefix" value={config.booking_prefix || ''} onChange={handleChange} placeholder="e.g. NITTGH/" className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-blue-50 font-mono" />
+                            <p className="text-xs text-gray-500 mt-1">
+                                <strong>Preview:</strong> {config.booking_prefix || 'NITTGH/'}{config.financial_year || '25-26'}/CAT-I/00001
                             </p>
                         </div>
                         <div>

@@ -231,8 +231,9 @@ exports.submitBookingRequest = async (data) => {
         const bookingId = bookingRes.rows[0].booking_id;
         
         // Universal Formatted Booking ID Generation
-        const configRes = await client.query('SELECT financial_year FROM institution_configs WHERE config_id = 1');
+        const configRes = await client.query('SELECT financial_year, booking_prefix FROM institution_configs WHERE config_id = 1');
         const financialYear = configRes.rows[0]?.financial_year || '25-26';
+        const bookingPrefix = configRes.rows[0]?.booking_prefix || 'NITTGH/';
         
         const seqRes = await client.query(
             `INSERT INTO sequence_tracker (financial_year, last_sequence) VALUES ($1, 1)
@@ -246,7 +247,7 @@ exports.submitBookingRequest = async (data) => {
         
         // Format to 5 digits (0-99999)
         const seqStr = String(seqNum).padStart(5, '0');
-        const formattedId = `NITTGH/${financialYear}/${catCode}/${seqStr}`;
+        const formattedId = `${bookingPrefix}${financialYear}/${catCode}/${seqStr}`;
         
         await client.query(
             'UPDATE booking_requests SET booking_seq = $1, formatted_id = $2, financial_year = $3 WHERE booking_id = $4', 
