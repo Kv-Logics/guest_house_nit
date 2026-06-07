@@ -1,10 +1,10 @@
-import React from 'react';
-import { Users, LogOut, ArrowLeftRight, Clock } from 'lucide-react';
+import { Users, LogOut, ArrowLeftRight, Clock, Shield } from 'lucide-react';
 import { getFormattedBookingId } from '../../utils/booking';
 
 export default function ActiveRegistry({ 
     selectedRoom, 
     now, 
+    userRole,
     onCheckOutStay, 
     onOpenTransfer, 
     onSendToCleaning, 
@@ -89,13 +89,45 @@ export default function ActiveRegistry({
                                     <td className="p-3 text-right">
                                         {(guest.status || guest.stay_status) === 'CHECKED_IN' ? (
                                             <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => onCheckOutStay(guest, selectedRoom.roomId, selectedRoom.active_booking)}
-                                                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-transparent hover:border-rose-200"
-                                                    title="Check Out Guest"
-                                                >
-                                                    <LogOut className="w-4 h-4" />
-                                                </button>
+                                                {(() => {
+                                                    const booking = selectedRoom.active_booking;
+                                                    const isUnpaidGuest = booking && booking.payment_responsible === 'guest' && booking.payment_state !== 'PAID';
+                                                    const isAdmin = ['super_admin', 'guest_house_admin'].includes(userRole);
+                                                    
+                                                    if (isUnpaidGuest) {
+                                                        if (isAdmin) {
+                                                            return (
+                                                                <button
+                                                                    onClick={() => onCheckOutStay(guest, selectedRoom.roomId, booking, true)}
+                                                                    className="px-2.5 py-1 text-[10px] font-extrabold bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200 flex items-center gap-1 shadow-sm uppercase tracking-wider"
+                                                                    title="Force checkout (unpaid bill)"
+                                                                >
+                                                                    <Shield className="w-3.5 h-3.5 text-amber-600" /> Force Out
+                                                                </button>
+                                                            );
+                                                        } else {
+                                                            return (
+                                                                <button
+                                                                    disabled
+                                                                    className="p-2 text-slate-300 bg-slate-50 border border-slate-200 rounded-xl cursor-not-allowed"
+                                                                    title="Settle bill first (Guest responsible)"
+                                                                >
+                                                                    <LogOut className="w-4 h-4" />
+                                                                </button>
+                                                            );
+                                                        }
+                                                    }
+                                                    
+                                                    return (
+                                                        <button
+                                                            onClick={() => onCheckOutStay(guest, selectedRoom.roomId, booking, false)}
+                                                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-transparent hover:border-rose-200"
+                                                            title="Check Out Guest"
+                                                        >
+                                                            <LogOut className="w-4 h-4" />
+                                                        </button>
+                                                    );
+                                                })()}
                                             </div>
                                         ) : (guest.status || guest.stay_status) === 'PENDING' ? (
                                             <div className="flex items-center justify-end">

@@ -10,6 +10,7 @@ export default function RoomsTab({
     setActiveRoomId,
     selectedRoom,
     now,
+    userRole,
     handleMarkAsCleaned,
     handleCheckOutStay,
     handleOpenTransfer,
@@ -55,6 +56,7 @@ export default function RoomsTab({
                         <ActiveRegistry 
                             selectedRoom={selectedRoom}
                             now={now}
+                            userRole={userRole}
                             onCheckOutStay={handleCheckOutStay}
                             onOpenTransfer={handleOpenTransfer}
                             onSendToCleaning={handleSendToCleaning}

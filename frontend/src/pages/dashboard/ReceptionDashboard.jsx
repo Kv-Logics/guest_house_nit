@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Bed, UserPlus, LogOut, Receipt, Shield, Calendar, Users, DollarSign, Trash2, UserCheck, CheckCircle2, Sliders, Clock, ArrowLeftRight, ChevronDown, ChevronUp, X, Utensils, Activity, CheckCircle, XCircle, ArrowRight, Home, Settings, FileText, User, Bell, Search, Filter, HelpCircle, Loader2, Save, Printer, CreditCard, Plus, QrCode } from 'lucide-react';
 import { receptionService } from '../../services/reception.service';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
+import { useAuth } from '../../context/AuthContext';
+import { ROLES } from '../../utils/constants';
 import QRScannerModal from '../../components/ui/QRScannerModal';
 import RoomHistoryDrawer from '../../components/dashboard/RoomHistoryDrawer';
 import ArrivalsTab from '../../components/reception/ArrivalsTab';
@@ -168,9 +170,18 @@ const translateRoomsFromBackend = (rooms) => {
 };
 
 export default function ReceptionDashboard() {
+    const { user } = useAuth();
     const [filterCategory, setFilterCategory] = useState('ALL');
     const [bookingData, setBookingData] = useState({ category: 'I', arrivals: [], rooms: [] });
     const [loading, setLoading] = useState(true);
+    const [forceCheckoutModal, setForceCheckoutModal] = useState({
+        isOpen: false,
+        bookingId: null,
+        stayId: null,
+        roomNumber: null,
+        guestName: '',
+        isRoomVacate: false
+    });
     const [error, setError] = useState(null);
     const [tariffs, setTariffs] = useState([]);
 
@@ -444,8 +455,20 @@ export default function ReceptionDashboard() {
         });
     };
 
-    const handleCheckOutStay = (g, roomNumber, booking) => {
+    const handleCheckOutStay = (g, roomNumber, booking, forceInit = false) => {
         if (!booking) return;
+
+        if (forceInit) {
+            setForceCheckoutModal({
+                isOpen: true,
+                bookingId: booking.booking_id,
+                stayId: g.stay_id || g.guestId,
+                roomNumber: roomNumber,
+                guestName: g.name || g.guest_name,
+                isRoomVacate: false
+            });
+            return;
+        }
 
         setConfirmDialog({
             title: 'Confirm Check-Out',
@@ -536,16 +559,37 @@ export default function ReceptionDashboard() {
 
         const booking = activeRoom.active_booking;
         const needsPayment = booking && booking.payment_responsible === 'guest' && booking.payment_state !== 'PAID' && booking.payment_state !== 'NOT_APPLICABLE';
+        const isAdmin = ['super_admin', 'guest_house_admin'].includes(user?.role);
+
         if (needsPayment) {
-            setConfirmDialog({
-                title: 'Payment Required',
-                message: `Payment must be settled before vacating this room since it is guest responsibility. Redirecting to Payments tab.`,
-                isAlert: true,
-                onConfirm: () => {
-                    setConfirmDialog(null);
-                    setActiveTab('payments');
-                }
-            });
+            if (isAdmin) {
+                setConfirmDialog({
+                    title: 'Payment Required',
+                    message: `Payment must be settled before vacating this room since it is guest responsibility. Alternatively, you can force checkout as Admin.`,
+                    isAlert: false,
+                    onConfirm: () => {
+                        setConfirmDialog(null);
+                        setForceCheckoutModal({
+                            isOpen: true,
+                            bookingId: activeRoom.activeBookingId,
+                            stayId: null,
+                            roomNumber: roomId,
+                            guestName: 'All room guests (Vacate Room)',
+                            isRoomVacate: true
+                        });
+                    }
+                });
+            } else {
+                setConfirmDialog({
+                    title: 'Payment Required',
+                    message: `Payment must be settled before vacating this room since it is guest responsibility. Redirecting to Payments tab.`,
+                    isAlert: true,
+                    onConfirm: () => {
+                        setConfirmDialog(null);
+                        setActiveTab('payments');
+                    }
+                });
+            }
             return;
         }
 
@@ -895,6 +939,7 @@ export default function ReceptionDashboard() {
                         setActiveRoomId={setActiveRoomId}
                         selectedRoom={selectedRoom}
                         now={now}
+                        userRole={user?.role}
                         handleMarkAsCleaned={handleMarkAsCleaned}
                         handleCheckOutStay={handleCheckOutStay}
                         handleOpenTransfer={handleOpenTransfer}
@@ -1006,6 +1051,99 @@ export default function ReceptionDashboard() {
 
             {/* BILL/INVOICE MODAL */}
             {invoiceBookingId && <GSTInvoiceModal bookingId={invoiceBookingId} onClose={() => setInvoiceBookingId(null)} />}
+
+            {/* FORCE CHECKOUT MODAL */}
+            {forceCheckoutModal.isOpen && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex justify-center items-center p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in animate-scale-up">
+                        {/* Header */}
+                        <div className="bg-red-600 p-6 text-white flex justify-between items-start">
+                            <div>
+                                <h2 className="text-xl font-bold mb-1 flex items-center gap-2">
+                                    Force Check-Out
+                                </h2>
+                                <p className="text-red-100 text-xs">
+                                    {forceCheckoutModal.isRoomVacate
+                                        ? `Force check-out / vacate for Room ${forceCheckoutModal.roomNumber}`
+                                        : `Force check-out for guest: ${forceCheckoutModal.guestName}`}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setForceCheckoutModal({ ...forceCheckoutModal, isOpen: false })}
+                                className="text-red-100 hover:text-white p-1 rounded-lg hover:bg-red-500/50 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Form */}
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const reason = e.target.elements.overrideReason.value.trim();
+                            if (!reason) return;
+                            try {
+                                setLoading(true);
+                                setForceCheckoutModal(prev => ({ ...prev, isOpen: false }));
+                                if (forceCheckoutModal.isRoomVacate) {
+                                    await receptionService.checkOut(forceCheckoutModal.bookingId, { force: true, forceReason: reason });
+                                } else {
+                                    await receptionService.checkOutStay(forceCheckoutModal.stayId, { force: true, forceReason: reason });
+                                }
+                                await loadDashboardData();
+                            } catch (err) {
+                                setConfirmDialog({
+                                    title: "Operation Failed",
+                                    message: err.response?.data?.message || err.message || "Force checkout failed.",
+                                    isAlert: true,
+                                    onConfirm: () => setConfirmDialog(null)
+                                });
+                            } finally {
+                                setLoading(false);
+                            }
+                        }}>
+                            <div className="p-6 space-y-4">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Room / Guest</label>
+                                    <input 
+                                        type="text" 
+                                        disabled 
+                                        value={forceCheckoutModal.isRoomVacate ? `Room ${forceCheckoutModal.roomNumber}` : `${forceCheckoutModal.guestName} (Room ${forceCheckoutModal.roomNumber})`}
+                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 font-medium text-sm"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Override Reason (Required)</label>
+                                    <textarea 
+                                        name="overrideReason"
+                                        required
+                                        placeholder="Explain why this checkout is being forced without payment (e.g., institution-sponsored, cash payment collected manually, etc.)..."
+                                        rows={4}
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none font-semibold text-slate-700 placeholder-slate-400 bg-slate-50 resize-none text-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="p-6 border-t border-slate-100 flex gap-3 bg-slate-50 justify-end">
+                                <button 
+                                    type="button"
+                                    onClick={() => setForceCheckoutModal({ ...forceCheckoutModal, isOpen: false })}
+                                    className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-100 rounded-xl transition-colors text-xs"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-5 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-sm text-xs"
+                                >
+                                    Force Checkout
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* ROOM HISTORY DRAWER */}
             <RoomHistoryDrawer

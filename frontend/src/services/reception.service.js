@@ -9,8 +9,8 @@ export const receptionService = {
   assignRooms: async (id, allocated_room_numbers) => api.post(`/reception/${id}/assign-rooms`, { allocated_room_numbers }),
   checkIn: async (id, allocated_room_numbers) => api.post(`/reception/${id}/check-in`, { allocated_room_numbers }),
   checkInGuest: async (guestId) => api.post(`/reception/guests/${guestId}/check-in`),
-  checkOut: async (id) => api.post(`/reception/${id}/check-out`),
-  checkOutStay: async (stayId) => api.post(`/reception/stays/${stayId}/check-out`),
+  checkOut: async (id, payload = null) => api.post(`/reception/${id}/check-out`, payload),
+  checkOutStay: async (stayId, payload = null) => api.post(`/reception/stays/${stayId}/check-out`, payload),
   updateGuestTimes: async (guestId, arrivalDatetime, departureDatetime, pendingExtensionDatetime) => 
     api.patch(`/reception/guests/${guestId}`, {
       arrival_datetime: arrivalDatetime,
