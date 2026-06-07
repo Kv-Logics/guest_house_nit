@@ -40,7 +40,7 @@ function extensionAwaitingApproval(booking) {
 export default function ApplicantDashboard() {
     const [previewId, setPreviewId] = useState(null);
     const [extendModalId, setExtendModalId] = useState(null);
-    const [extendDatetime, setExtendDatetime] = useState('');
+    const [guestExtensions, setGuestExtensions] = useState({});
     const [paymentModalBooking, setPaymentModalBooking] = useState(null);
     const [qrModalBooking, setQrModalBooking] = useState(null);
     const { user } = useAuth();
@@ -48,6 +48,22 @@ export default function ApplicantDashboard() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('active');
     const [searchTerm, setSearchTerm] = useState('');
+    
+    // System Configurations
+    const [sysConfig, setSysConfig] = useState({ enable_extend_stay_applicant: true, show_invoice_applicant: true });
+    useEffect(() => {
+        try {
+            const configStr = localStorage.getItem('sys-config');
+            if (configStr) setSysConfig(JSON.parse(configStr));
+            
+            const handleConfigUpdate = () => {
+                const updatedStr = localStorage.getItem('sys-config');
+                if (updatedStr) setSysConfig(JSON.parse(updatedStr));
+            };
+            window.addEventListener('sys-config-updated', handleConfigUpdate);
+            return () => window.removeEventListener('sys-config-updated', handleConfigUpdate);
+        } catch(e) {}
+    }, []);
 
     // Admins and authorities may need to visit the dashboard to manage their own applications.
     // Default redirects upon login are now handled in LoginPage.
@@ -63,14 +79,14 @@ export default function ApplicantDashboard() {
     });
 
     const extendMutation = useMutation({
-        mutationFn: ({ id, new_departure_datetime }) => bookingService.requestStayExtension(id, new_departure_datetime),
+        mutationFn: ({ id, guest_extensions }) => bookingService.requestStayExtension(id, guest_extensions),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['myBookings'] });
             setExtendModalId(null);
-            setExtendDatetime('');
+            setGuestExtensions({});
         },
         onError: (error) => {
-            alert(error?.message || 'Failed to submit stay extension request.');
+            alert(error?.response?.data?.message || error?.message || 'Failed to submit stay extension request.');
         }
     });
 
@@ -104,17 +120,26 @@ export default function ApplicantDashboard() {
     const extendTarget = extendModalId ? bookings.find((b) => b.booking_id === extendModalId) : null;
 
     const submitExtend = () => {
-        if (!extendDatetime) {
-            alert('Please select a valid date and time for checkout.');
+        const payload = [];
+        
+        // Only include checked-in guests who have a new date selected that is after their current departure
+        for (const guest of (extendTarget.guests || []).filter(g => g.stay_status === 'CHECKED_IN')) {
+            const extTime = guestExtensions[guest.guest_id];
+            if (!extTime) continue;
+            
+            const currentDep = new Date(guest.expected_departure || extendTarget.departure_datetime);
+            const selected = new Date(extTime);
+            
+            if (selected <= currentDep) continue; // Skip if not actually extended
+            
+            payload.push({ guest_id: guest.guest_id, new_departure_datetime: selected.toISOString() });
+        }
+        
+        if (payload.length === 0) {
+            alert('Please select a new departure date (after the current checkout) for at least one checked-in guest.');
             return;
         }
-        const selected = new Date(extendDatetime);
-        const currentDep = new Date(extendTarget.departure_datetime);
-        if (selected <= currentDep) {
-            alert('New departure time must be after your current checkout time.');
-            return;
-        }
-        extendMutation.mutate({ id: extendModalId, new_departure_datetime: selected.toISOString() });
+        extendMutation.mutate({ id: extendModalId, guest_extensions: payload });
     };
 
     return (
@@ -293,14 +318,31 @@ export default function ApplicantDashboard() {
                                                 <Trash2 className="w-4 h-4 mr-1.5" /> Withdraw
                                             </button>
                                         )}
-                                        {b.booking_state === 'CHECKED_IN' && (
+                                        {sysConfig.enable_extend_stay_applicant && b.booking_state === 'CHECKED_IN' && (
                                             <button
                                                 type="button"
-                                                onClick={() => { setExtendModalId(b.booking_id); setExtendDatetime(new Date(b.departure_datetime).toISOString().slice(0, 16)); }}
+                                                onClick={() => { 
+                                                    setExtendModalId(b.booking_id); 
+                                                    const initialExts = {};
+                                                    b.guests?.forEach(g => {
+                                                        initialExts[g.guest_id] = new Date(g.expected_departure || b.departure_datetime).toISOString().slice(0, 16);
+                                                    });
+                                                    setGuestExtensions(initialExts);
+                                                }}
                                                 className="inline-flex items-center px-3 py-1.5 bg-teal-50 text-teal-800 text-xs font-bold rounded-lg hover:bg-teal-100 border border-teal-200 transition-colors shadow-sm ml-2"
                                             >
                                                 <CalendarClock className="w-4 h-4 mr-1.5" /> Extend stay
                                             </button>
+                                        )}
+                                        {sysConfig.show_invoice_applicant && b.payment_state === 'PAID' && (
+                                            <a
+                                                href={`http://localhost:5000/api/reception/billing/invoice/${b.booking_id}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 shadow-sm ml-2"
+                                            >
+                                                <FileText className="w-4 h-4 mr-1.5" /> Invoice
+                                            </a>
                                         )}
                                         {((['PENDING_APPROVER', 'APPROVER_REJECTED', 'ADMIN_REJECTED', 'DRAFT'].includes(b.booking_state)) || (b.booking_state === 'PENDING_ADMIN' && String(b.category_id) === '3' && user?.role === 'faculty')) && (
                                             <button
@@ -329,18 +371,32 @@ export default function ApplicantDashboard() {
                             Booking <span className="font-mono text-xs font-bold">{getFormattedBookingId(extendTarget)}</span> — add nights after the current scheduled departure. This will be sent for the same approver and admin review as a new application.
                             <br /><br />Current Departure: <strong className="text-slate-800">{new Date(extendTarget.departure_datetime).toLocaleString()}</strong>
                         </p>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">New Exact Departure Date & Time</label>
-                        <input
-                            type="datetime-local"
-                            value={extendDatetime}
-                            min={new Date(extendTarget.departure_datetime).toISOString().slice(0, 16)}
-                            onChange={(e) => setExtendDatetime(e.target.value)}
-                            className="w-full border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                        />
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Select Guests to Extend & New Departure</label>
+                        <div className="max-h-60 overflow-y-auto pr-2 space-y-3">
+                            {(extendTarget.guests || []).filter(g => g.stay_status === 'CHECKED_IN').length === 0 ? (
+                                <p className="text-sm text-slate-400 text-center py-4">No checked-in guests found for this booking.</p>
+                            ) : (
+                                (extendTarget.guests || []).filter(g => g.stay_status === 'CHECKED_IN').map(g => (
+                                    <div key={g.guest_id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="font-bold text-slate-800 text-sm">{g.guest_name}</span>
+                                            <span className="text-xs text-slate-500">Current: {new Date(g.expected_departure || extendTarget.departure_datetime).toLocaleString()}</span>
+                                        </div>
+                                        <input
+                                            type="datetime-local"
+                                            value={guestExtensions[g.guest_id] || ''}
+                                            min={new Date(g.expected_departure || extendTarget.departure_datetime).toISOString().slice(0, 16)}
+                                            onChange={(e) => setGuestExtensions(prev => ({ ...prev, [g.guest_id]: e.target.value }))}
+                                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                                        />
+                                    </div>
+                                ))
+                            )}
+                        </div>
                         <div className="flex justify-end gap-2 mt-6">
                             <button
                                 type="button"
-                                onClick={() => { setExtendModalId(null); setExtendDatetime(''); }}
+                                onClick={() => { setExtendModalId(null); setGuestExtensions({}); }}
                                 className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl border border-slate-200"
                                 disabled={extendMutation.isPending}
                             >

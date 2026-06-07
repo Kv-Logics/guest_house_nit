@@ -44,6 +44,16 @@ export default function ActiveRegistry({
                         <tbody className="divide-y divide-slate-100">
                             {selectedRoom.guests.map(guest => {
                                 const isOverstaying = guest.stay_status === 'CHECKED_IN' && guest.rawCheckOut && new Date(guest.rawCheckOut) < now;
+                                const isExtended = guest.expected_departure != null;
+                                
+                                let hasConflict = false;
+                                if (isExtended && guest.stay_status === 'CHECKED_IN' && selectedRoom.future_allocations) {
+                                    const extendedUntil = new Date(guest.expected_departure);
+                                    hasConflict = selectedRoom.future_allocations.some(fa => 
+                                        new Date(fa.allocated_from) < extendedUntil && fa.booking_id !== (guest.booking_id || selectedRoom.activeBookingId)
+                                    );
+                                }
+
                                 const rowBookingId = selectedRoom.active_booking 
                                     ? `${getFormattedBookingId(selectedRoom.active_booking)}:${selectedRoom.roomId}` 
                                     : (guest.booking_id ? `${getFormattedBookingId({ booking_id: guest.booking_id, booking_state: 'APPROVED' })}:${selectedRoom.roomId}` : '');
@@ -54,8 +64,9 @@ export default function ActiveRegistry({
                                     </td>
                                     <td className={`p-3 ${isOverstaying ? 'border-l-4 border-l-red-500' : 'border-l-4 border-l-transparent'}`}>
                                         <div className="font-semibold text-slate-800 flex items-center gap-2">
-                                            {guest.name || guest.guest_name}
+                                {guest.name || guest.guest_name}
                                             {isOverstaying && <span className="text-[9px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Overstay</span>}
+                                            {isExtended && <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Extended</span>}
                                         </div>
                                         <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                                             {guest.relation || guest.relation_to_applicant || 'Guest'}
@@ -71,6 +82,11 @@ export default function ActiveRegistry({
                                         }`}>
                                             {guest.status || guest.stay_status || 'Pending'}
                                         </span>
+                                        {hasConflict && (
+                                            <div className="mt-1 flex items-center gap-1 text-[10px] text-red-600 font-bold bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                                                <span>⚠️ Room Conflict</span>
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="p-3 font-mono text-[10px]">
                                         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
@@ -120,13 +136,24 @@ export default function ActiveRegistry({
                                                     }
                                                     
                                                     return (
-                                                        <button
-                                                            onClick={() => onCheckOutStay(guest, selectedRoom.roomId, booking, false)}
-                                                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-transparent hover:border-rose-200"
-                                                            title="Check Out Guest"
-                                                        >
-                                                            <LogOut className="w-4 h-4" />
-                                                        </button>
+                                                        <div className="flex gap-1">
+                                                            {hasConflict && (
+                                                                <button
+                                                                    onClick={() => onOpenTransfer(guest, selectedRoom.roomId, false)}
+                                                                    className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-all border border-blue-200"
+                                                                    title="Transfer Room to Resolve Conflict"
+                                                                >
+                                                                    <ArrowLeftRight className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => onCheckOutStay(guest, selectedRoom.roomId, booking, false)}
+                                                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-transparent hover:border-rose-200"
+                                                                title="Check Out Guest"
+                                                            >
+                                                                <LogOut className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
                                                     );
                                                 })()}
                                             </div>

@@ -89,6 +89,7 @@ const PaymentsTab = ({ onBillGenerated }) => {
                             ...prev,
                             subtotal: res.data.subtotal,
                             gst: res.data.gst,
+                            total: res.data.total,
                             total_estimated_amount: res.data.total,
                             breakdown: res.data.breakdown
                         };
@@ -387,8 +388,15 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                     {showLedger ? 'Hide Stays Breakdown & Occupancy Ledger' : 'View Guest Stays Summary & Occupancy Ledger'}
                                 </button>
                                 
-                                {showLedger && (
-                                    (selectedBooking.generated_json?.roomDaysBreakdown || selectedBooking.breakdown?.roomDaysBreakdown) ? (
+                                {showLedger && (() => {
+                                    const breakdown = selectedBooking.generated_json?.roomDaysBreakdown || selectedBooking.breakdown?.roomDaysBreakdown;
+                                    if (!breakdown) {
+                                        return <p className="text-sm text-slate-400 italic py-4">No detailed guest stays breakdown available yet.</p>;
+                                    }
+                                    if (breakdown.length === 0) {
+                                        return <p className="text-sm text-slate-400 italic py-4">No occupancy records found. The guest may not have checked in to a room yet.</p>;
+                                    }
+                                    return (
                                         <div className="mt-3 border rounded-xl overflow-hidden text-xs max-h-52 overflow-y-auto bg-slate-50 shadow-inner">
                                             <table className="w-full text-left border-collapse">
                                                 <thead>
@@ -400,19 +408,20 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-200">
-                                                    {(selectedBooking.generated_json?.roomDaysBreakdown || selectedBooking.breakdown?.roomDaysBreakdown).map((day, idx) => (
+                                                    {breakdown.map((day, idx) => (
                                                         <tr key={idx} className="hover:bg-slate-100/50">
                                                             <td className="p-2.5 font-semibold text-slate-700">
                                                                 {new Date(day.date).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}
                                                             </td>
                                                             <td className="p-2.5 font-mono font-bold text-indigo-600">{day.room_number}</td>
                                                             <td className="p-2.5 text-slate-600 font-medium">
-                                                                {day.guests.map((g, gIdx) => (
+                                                                {(day.guests || []).map((g, gIdx) => (
                                                                     <div key={gIdx} className="leading-tight py-0.5">
                                                                         • {g.guest_name} 
                                                                         {g.extra_bed && (
                                                                             <span className="bg-amber-100 text-amber-800 text-[8px] px-1 rounded ml-1 font-bold">Extra Bed</span>
                                                                         )}
+                                                                        <span className="text-slate-400 ml-1">(₹{g.tariff})</span>
                                                                     </div>
                                                                 ))}
                                                             </td>
@@ -422,10 +431,8 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                                 </tbody>
                                             </table>
                                         </div>
-                                    ) : (
-                                        <p className="text-sm text-slate-400 italic py-4">No detailed guest stays breakdown available in generated invoice.</p>
-                                    )
-                                )}
+                                    );
+                                })()}
                             </div>
 
                             <form onSubmit={handleConfirm}>

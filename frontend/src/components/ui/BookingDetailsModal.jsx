@@ -222,17 +222,39 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
     };
 
     const renderExtensionTimeline = (booking) => {
-        if (!booking.pending_extension_datetime) return null;
+        const hasExtensionRequests = booking.stay_extension_requests && booking.stay_extension_requests.length > 0;
+        if (!booking.pending_extension_datetime && !hasExtensionRequests) return null;
+
+        const requestDate = booking.pending_extension_datetime || (hasExtensionRequests ? booking.stay_extension_requests[0].created_at : null);
 
         const steps = [
-            { id: 1, title: 'Requested', description: new Date(booking.pending_extension_datetime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) },
+            { id: 1, title: 'Requested', description: requestDate ? new Date(requestDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Extension Requested' },
             { id: 2, title: 'Authority', description: getApproverDesignation(booking) },
             { id: 3, title: 'Admin', description: 'Verification & Payment' },
             { id: 4, title: 'Applied', description: 'Dates Updated' }
         ];
 
-        let currentStep = 2; // Extensions start directly at the Authority (Step 2)
-        if (booking.booking_state === 'PENDING_ADMIN') currentStep = 3;
+        let currentStep = 2; // Default: waiting at Authority (Step 2)
+        
+        if (hasExtensionRequests) {
+            const allApproved = booking.stay_extension_requests.every(e => e.status === 'APPROVED');
+            const allRejected = booking.stay_extension_requests.every(e => e.status === 'REJECTED');
+            
+            if (allApproved && !booking.pending_extension_datetime) {
+                // Admin already approved and dates applied
+                currentStep = 5;
+            } else if (allApproved && booking.pending_extension_datetime) {
+                // Authority approved, waiting for admin
+                currentStep = 3;
+            } else if (booking.booking_state === 'PENDING_ADMIN') {
+                // Self-approved authority or authority approved, now at admin
+                currentStep = 3;
+            } else if (allRejected) {
+                currentStep = 2; // Rejected at authority
+            }
+        } else if (booking.booking_state === 'PENDING_ADMIN' && booking.pending_extension_datetime) {
+            currentStep = 3;
+        }
 
         return (
             <div className="w-full pt-6 pb-10 px-6 border-b border-slate-100 bg-violet-50/50">
@@ -457,14 +479,41 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                 )}
 
                                 {/* Stay Extension Alert Banner */}
-                                {booking.pending_extension_datetime && (
+                                {(booking.pending_extension_datetime || (booking.stay_extension_requests && booking.stay_extension_requests.some(e => e.status === 'PENDING'))) && (
                                     <div className="bg-violet-50 p-4 border border-violet-200 rounded-xl mb-2">
-                                        <p className="font-bold text-violet-800 flex items-center">
+                                        <p className="font-bold text-violet-800 flex items-center mb-2">
                                             <AlertCircle className="w-5 h-5 mr-2" /> Stay Extension Request
                                         </p>
-                                        <p className="text-sm text-violet-700 mt-1 ml-7">
-                                            Applicant is requesting an extension until <strong>{new Date(booking.pending_extension_datetime).toLocaleString()}</strong> beyond the original departure date.
-                                        </p>
+                                        {booking.stay_extension_requests && booking.stay_extension_requests.some(e => e.status === 'PENDING') ? (
+                                            <div className="ml-7 text-sm text-violet-800">
+                                                <p className="mb-2">Applicant has requested to extend stays for the following guests:</p>
+                                                <div className="bg-white rounded-lg border border-violet-100 overflow-hidden text-xs">
+                                                    <table className="w-full text-left">
+                                                        <thead className="bg-violet-50">
+                                                            <tr>
+                                                                <th className="p-2 font-bold text-violet-700">Guest Name</th>
+                                                                <th className="p-2 font-bold text-violet-700">Requested Checkout</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-violet-50">
+                                                            {booking.stay_extension_requests.filter(e => e.status === 'PENDING').map(ext => {
+                                                                const guest = booking.guests?.find(g => g.guest_id === ext.guest_id);
+                                                                return (
+                                                                    <tr key={ext.extension_id}>
+                                                                        <td className="p-2 font-semibold text-slate-700">{guest?.guest_name || 'Unknown Guest'}</td>
+                                                                        <td className="p-2 font-bold text-violet-700">{new Date(ext.requested_departure).toLocaleString()}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-violet-700 mt-1 ml-7">
+                                                Applicant is requesting an extension until <strong>{new Date(booking.pending_extension_datetime).toLocaleString()}</strong> beyond the original departure date.
+                                            </p>
+                                        )}
                                     </div>
                                 )}
 

@@ -11,6 +11,9 @@ export const receptionService = {
   checkInGuest: async (guestId) => api.post(`/reception/guests/${guestId}/check-in`),
   checkOut: async (id, payload = null) => api.post(`/reception/${id}/check-out`, payload),
   checkOutStay: async (stayId, payload = null) => api.post(`/reception/stays/${stayId}/check-out`, payload),
+  getPendingExtensionAllocations: async () => api.get('/reception/extensions/pending-allocation'),
+  allocateExtensionRoom: async (guestId, newRoomId, isSameRoom) => api.post('/reception/extensions/allocate', { guestId, newRoomId, isSameRoom }),
+  executeRoomTransfer: async (guestId) => api.post('/reception/operations/transfer-room', { guestId }),
   updateGuestTimes: async (guestId, arrivalDatetime, departureDatetime, pendingExtensionDatetime) => 
     api.patch(`/reception/guests/${guestId}`, {
       arrival_datetime: arrivalDatetime,

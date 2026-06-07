@@ -42,7 +42,12 @@ exports.createBookingSchema = z.object({
 
 exports.stayExtensionSchema = z.object({
     body: z.object({
-        new_departure_datetime: z.string().datetime(),
+        guest_extensions: z.array(
+            z.object({
+                guest_id: z.string().uuid('Invalid guest id'),
+                new_departure_datetime: z.string().datetime()
+            })
+        ).min(1, 'At least one guest extension is required')
     }),
     params: z.object({
         id: z.string().uuid('Invalid booking id'),

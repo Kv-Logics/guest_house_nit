@@ -5,10 +5,8 @@ exports.requestLogger = (req, res, next) => {
     res.on('finish', () => {
         const duration = Date.now() - start;
         const message = `${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`;
-        const meta = {
-            body: req.body,
-            headers: req.headers,
-        };
+        // Only attach body on errors to reduce noise in normal operation
+        const meta = res.statusCode >= 400 ? { body: req.body } : undefined;
         logger.info(message, meta);
     });
     next();

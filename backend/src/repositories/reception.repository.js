@@ -28,7 +28,7 @@ exports.getFrontDeskBookings = async (overrideNow = null) => {
         JOIN users u ON b.user_id = u.user_id
         WHERE (
             (
-                b.booking_state IN ($1, $2)
+                b.booking_state IN ($1, $2) AND b.checked_in_at IS NULL
             )
             OR (b.booking_state = $3)
             OR (
@@ -37,10 +37,9 @@ exports.getFrontDeskBookings = async (overrideNow = null) => {
                 AND (b.checked_out_at::date = COALESCE($7::date, CURRENT_DATE))
             )
             OR (
-                b.booking_state IN ($5, $6)
+                b.booking_state IN ($5, $6, $1, $2)
                 AND b.checked_in_at IS NOT NULL
                 AND b.checked_out_at IS NULL
-                AND b.pending_extension_datetime IS NOT NULL
             )
         )
         ORDER BY b.arrival_datetime ASC
@@ -131,7 +130,7 @@ exports.getRoomsWithStays = async (overrideNow = null) => {
     const activeStaysRes = await db.query(`
         SELECT grs.stay_id, grs.booking_id, grs.guest_id, grs.room_id, grs.checked_in_at, grs.checked_out_at, grs.stay_status,
                grs.occupancy_type, grs.extra_bed, grs.operational_room_type, grs.operational_tariff, grs.operational_notes,
-               g.guest_name, g.relation_to_applicant, g.arrival_datetime AS guest_arrival_datetime, g.departure_datetime AS guest_departure_datetime,
+               g.guest_name, g.relation_to_applicant, g.arrival_datetime AS guest_arrival_datetime, g.departure_datetime AS guest_departure_datetime, g.expected_departure,
                u.full_name AS applicant_name, b.arrival_datetime, b.departure_datetime AS booking_departure_datetime, b.booking_state, b.pending_extension_datetime, b.payment_state, b.payment_responsible, b.category_id,
                b.formatted_id, b.booking_seq,
                (SELECT json_agg(row_to_json(fp)) FROM guest_food_preferences fp WHERE fp.guest_id = g.guest_id) as food_preferences
@@ -267,6 +266,7 @@ exports.getRoomsWithStays = async (overrideNow = null) => {
                      is_late: isLate,
                      arrival_datetime: s.guest_arrival_datetime || s.arrival_datetime,
                      departure_datetime: departureTime,
+                     expected_departure: s.expected_departure,
                      food_preferences: s.food_preferences
                 };
             });
@@ -350,7 +350,7 @@ exports.extendStay = async (bookingId, newDepartureDatetime) => {
         UPDATE booking_requests
         SET departure_datetime = $1,
             updated_at = CURRENT_TIMESTAMP
-        WHERE booking_id = $2
+        WHERE booking_id = $2 AND booking_state != 'CHECKED_OUT'
         RETURNING *
     `;
     const bookingResult = await db.query(bookingQuery, [newDepartureDatetime, bookingId]);
@@ -361,8 +361,11 @@ exports.extendStay = async (bookingId, newDepartureDatetime) => {
     await db.query(`
         UPDATE guests
         SET departure_datetime = $1,
+            expected_departure = CASE WHEN expected_departure IS NOT NULL THEN $1 ELSE expected_departure END,
             updated_at = CURRENT_TIMESTAMP
-        WHERE booking_id = $2
+        WHERE booking_id = $2 AND guest_id NOT IN (
+            SELECT guest_id FROM guest_room_stays WHERE booking_id = $2 AND stay_status = 'CHECKED_OUT'
+        )
     `, [newDepartureDatetime, bookingId]);
 
     return updatedBooking;
@@ -587,6 +590,9 @@ exports.updateInstitutionConfig = async (payload, client = null) => {
             sac_code = COALESCE($8, sac_code),
             financial_year = COALESCE($9, financial_year),
             booking_prefix = COALESCE($10, booking_prefix),
+            enable_time_machine = COALESCE($11, enable_time_machine),
+            show_invoice_applicant = COALESCE($12, show_invoice_applicant),
+            enable_extend_stay_applicant = COALESCE($13, enable_extend_stay_applicant),
             updated_at = CURRENT_TIMESTAMP
         WHERE config_id = 1
         RETURNING *
@@ -594,7 +600,8 @@ exports.updateInstitutionConfig = async (payload, client = null) => {
     const params = [
         payload.legal_name, payload.gstin, payload.pan, payload.address,
         payload.signatory_name, payload.signatory_designation, payload.invoice_prefix, payload.sac_code,
-        payload.financial_year, payload.booking_prefix
+        payload.financial_year, payload.booking_prefix,
+        payload.enable_time_machine, payload.show_invoice_applicant, payload.enable_extend_stay_applicant
     ];
     const result = await db.query(sql, params);
     return result.rows[0];

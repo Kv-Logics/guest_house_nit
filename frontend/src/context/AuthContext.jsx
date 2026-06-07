@@ -13,6 +13,13 @@ export const AuthProvider = ({ children }) => {
       const res = await authService.getProfile();
       if (res.success) {
         setUser(res.data);
+        // Only fetch system config once we know the session is valid
+        authService.getSystemConfig().then(cfgRes => {
+          if (cfgRes && cfgRes.success) {
+            localStorage.setItem('sys-config', JSON.stringify(cfgRes.data));
+            window.dispatchEvent(new Event('sys-config-updated'));
+          }
+        }).catch(() => {}); // Silently ignore — not critical
       } else {
         setUser(null);
       }

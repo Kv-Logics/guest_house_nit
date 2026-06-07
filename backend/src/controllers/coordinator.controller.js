@@ -60,9 +60,33 @@ const generateFinalBill = async (req, res) => {
     }
 };
 
+const getAllTariffs = async (req, res) => {
+    try {
+        const tariffs = await coordinatorService.getAllTariffsWithCategories();
+        res.json({ success: true, data: tariffs });
+    } catch (err) {
+        console.error('Coordinator get tariffs error:', err);
+        res.status(500).json({ error: 'Failed to fetch tariffs', details: err.message });
+    }
+};
+
+const updateTariff = async (req, res) => {
+    try {
+        const { tariffId } = req.params;
+        const payload = req.body;
+        const updatedTariff = await coordinatorService.updateTariff(tariffId, payload);
+        res.json({ success: true, data: updatedTariff, message: 'Tariff successfully updated' });
+    } catch (err) {
+        console.error('Coordinator update tariff error:', err);
+        res.status(500).json({ error: 'Failed to update tariff', details: err.message });
+    }
+};
+
 module.exports = {
     getBookingForOverride,
     getModifiableBookings,
     overrideBooking,
-    generateFinalBill
+    generateFinalBill,
+    getAllTariffs,
+    updateTariff
 };

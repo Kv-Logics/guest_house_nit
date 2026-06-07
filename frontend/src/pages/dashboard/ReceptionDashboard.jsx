@@ -13,6 +13,7 @@ import RoomAssignmentModal from '../../components/reception/RoomAssignmentModal'
 import RoomTransferModal from '../../components/reception/RoomTransferModal';
 import PaymentsTab from '../../components/reception/PaymentsTab';
 import BulkRoomsTab from '../../components/reception/BulkRoomsTab';
+import ExtensionsTab from '../../components/reception/ExtensionsTab';
 
 // Default Pricing Configuration
 const PRICING_CONFIG = {
@@ -116,6 +117,7 @@ const translateRoomsFromBackend = (rooms) => {
                         actualCheckOut: g.checked_out_at,
                         rawCheckIn: g.arrival_datetime,
                         rawCheckOut: g.departure_datetime,
+                        expected_departure: g.expected_departure,
                         operational_room_type: g.operational_room_type,
                         operational_tariff: g.operational_tariff,
                         extra_bed: g.extra_bed,
@@ -148,6 +150,7 @@ const translateRoomsFromBackend = (rooms) => {
                         actualCheckOut: null,
                         rawCheckIn: g.arrival_datetime,
                         rawCheckOut: g.departure_datetime,
+                        expected_departure: g.expected_departure,
                         operational_room_type: null,
                         operational_tariff: null,
                         extra_bed: false,
@@ -218,7 +221,14 @@ export default function ReceptionDashboard() {
 
 
     // Time machine clock mock state
-    const isTimeMachineEnabled = import.meta.env.VITE_ENABLE_TIME_MACHINE === 'true';
+    let isTimeMachineEnabled = import.meta.env.VITE_ENABLE_TIME_MACHINE === 'true';
+    try {
+        const sysConfigStr = localStorage.getItem('sys-config');
+        if (sysConfigStr) {
+            isTimeMachineEnabled = JSON.parse(sysConfigStr).enable_time_machine !== false;
+        }
+    } catch(e) {}
+    
     const [isMockActive, setIsMockActive] = useState(isTimeMachineEnabled && localStorage.getItem('mock-system-date-active') === 'true');
     const [mockDateStr, setMockDateStr] = useState(localStorage.getItem('mock-system-date') || '');
     const [now, setNow] = useState(new Date());
@@ -920,9 +930,22 @@ export default function ReceptionDashboard() {
                 >
                     <CreditCard className="w-4 h-4" /> Payments
                 </button>
+                <button
+                    onClick={() => setActiveTab('extensions')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
+                        activeTab === 'extensions' 
+                            ? 'bg-indigo-600 text-white shadow-md' 
+                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                >
+                    <ArrowLeftRight className="w-4 h-4" /> Extensions
+                </button>
             </div>
 
             <div className="w-full">
+                {activeTab === 'extensions' && (
+                    <ExtensionsTab />
+                )}
                 {activeTab === 'arrivals' && (
                     <ArrivalsTab
                         receivedApplications={receivedApplications}

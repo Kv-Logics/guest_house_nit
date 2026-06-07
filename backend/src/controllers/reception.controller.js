@@ -278,3 +278,34 @@ exports.checkInBulkGuest = async (req, res, next) => {
         next(error);
     }
 };
+
+exports.getPendingExtensionAllocations = async (req, res, next) => {
+    try {
+        const data = await receptionService.getPendingExtensionAllocations();
+        return sendSuccess(res, 'Pending extension allocations retrieved successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.allocateExtensionRoom = async (req, res, next) => {
+    try {
+        const userId = req.user?.user_id || req.user?.id;
+        const { guestId, newRoomId, isSameRoom } = req.body;
+        const data = await receptionService.allocateExtensionRoom(guestId, newRoomId, isSameRoom, userId);
+        return sendSuccess(res, 'Extension room allocated successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.executeRoomTransfer = async (req, res, next) => {
+    try {
+        const userId = req.user?.user_id || req.user?.id;
+        const { guestId } = req.body;
+        const data = await receptionService.executeRoomTransfer(guestId, userId);
+        return sendSuccess(res, 'Room transfer executed successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};

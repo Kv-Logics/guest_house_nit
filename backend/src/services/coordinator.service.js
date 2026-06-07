@@ -156,3 +156,28 @@ exports.generateFinalBillSnapshot = async (bookingId, payload, userId) => {
         client.release();
     }
 };
+
+exports.getAllTariffsWithCategories = async () => {
+    const res = await db.query(`
+        SELECT rt.*, cr.category_code, cr.description as category_description 
+        FROM room_tariffs rt
+        JOIN category_rules cr ON rt.category_id = cr.category_id
+        ORDER BY rt.category_id ASC, rt.room_type ASC
+    `);
+    return res.rows;
+};
+
+exports.updateTariff = async (tariffId, payload) => {
+    const { single_occupancy, double_occupancy, extra_bed } = payload;
+    const res = await db.query(`
+        UPDATE room_tariffs
+        SET single_occupancy = $1, double_occupancy = $2, extra_bed = $3, updated_at = CURRENT_TIMESTAMP
+        WHERE tariff_id = $4
+        RETURNING *
+    `, [single_occupancy, double_occupancy, extra_bed, tariffId]);
+    
+    if (res.rows.length === 0) {
+        throw new Error('Tariff not found');
+    }
+    return res.rows[0];
+};

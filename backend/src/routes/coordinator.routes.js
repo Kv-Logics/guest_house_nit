@@ -20,4 +20,8 @@ router.put('/bookings/:bookingId/override', coordinatorController.overrideBookin
 // Generate final bill snapshot and lock it for Reception
 router.post('/bookings/:bookingId/generate-bill', coordinatorController.generateFinalBill);
 
+// Tariff Management
+router.get('/tariffs', coordinatorController.getAllTariffs);
+router.put('/tariffs/:tariffId', coordinatorController.updateTariff);
+
 module.exports = router;

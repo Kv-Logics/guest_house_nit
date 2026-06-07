@@ -5,6 +5,8 @@ export const bookingService = {
   getMyBookings: async () => api.get('/bookings/my'),
   getBookingById: async (id) => api.get(`/bookings/${id}`),
   cancelBooking: async (id) => api.patch(`/bookings/${id}/cancel`),
-  requestStayExtension: async (id, new_departure_datetime) =>
-    api.post(`/bookings/${id}/stay-extension`, { new_departure_datetime }),
+  requestStayExtension: async (id, guest_extensions) =>
+  api.post(`/bookings/${id}/stay-extension`, {
+    guest_extensions
+  }),
 };

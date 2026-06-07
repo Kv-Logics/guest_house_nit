@@ -3,11 +3,18 @@ const db = require('../db/db');
 const logger = require('../utils/logger');
 
 const getCalendarDays = (start, end) => {
+    if (!start || !end) return [];
     const s = new Date(start);
     s.setHours(0, 0, 0, 0);
     const e = new Date(end);
     e.setHours(0, 0, 0, 0);
-    if (e <= s) {
+    
+    // If end is before start, just return start day to ensure at least 1 day is billed
+    if (e < s) {
+        return [new Date(s)];
+    }
+    
+    if (e.getTime() === s.getTime()) {
         e.setDate(e.getDate() + 1);
     }
     const days = [];
@@ -253,6 +260,10 @@ exports.checkInGuest = async (guestId, checkedInBy, overrideNow = null) => {
             if (extraBed) {
                 operationalTariff += Number(t.extra_bed) || 400;
             }
+        } else {
+            // No tariff found — log a warning but do not block check-in
+            // Billing will fall back to tariff table at payment time via calculateBookingBilling
+            console.warn(`[TARIFF WARNING] No tariff found for category_id=${booking.category_id}, room_type=${room.room_type}. operational_tariff saved as 0; billing will use tariff table fallback.`);
         }
 
         const now = overrideNow ? new Date(overrideNow) : new Date();
@@ -988,6 +999,25 @@ exports.calculateBookingBilling = async (bookingId, client, overrideNow = null) 
         };
     }
 
+    // Load tariff table for this booking's category as a fallback
+    // This ensures billing always has a price even if operational_tariff was saved as 0
+    const bookingCatRes = await (client || db).query(
+        `SELECT b.category_id, rt.room_type, rt.single_occupancy, rt.double_occupancy, rt.extra_bed
+         FROM booking_requests b
+         JOIN room_tariffs rt ON rt.category_id = b.category_id
+         WHERE b.booking_id = $1`,
+        [bookingId]
+    );
+    // Build map: room_type -> { single, double, extra_bed }
+    const tariffLookup = {};
+    for (const row of bookingCatRes.rows) {
+        tariffLookup[row.room_type] = {
+            single: Number(row.single_occupancy),
+            double: Number(row.double_occupancy),
+            extra_bed: Number(row.extra_bed) || 400
+        };
+    }
+
     // Find all occupied rooms in these stays
     const roomsMap = {};
     for (const s of allStays) {
@@ -1029,7 +1059,23 @@ exports.calculateBookingBilling = async (bookingId, client, overrideNow = null) 
             let roomDayCost = 0;
             const guestBreakdowns = [];
             for (const s of staysOnDay) {
-                const guestTariff = Number(s.operational_tariff);
+                let guestTariff = Number(s.operational_tariff);
+
+                // If operational_tariff was never set or is 0, fall back to tariff table
+                if (!guestTariff || guestTariff === 0) {
+                    const roomType = s.operational_room_type || 'Standard Room';
+                    const tariff = tariffLookup[roomType];
+                    const occupancy = s.occupancy_type || 'single';
+                    if (tariff) {
+                        guestTariff = occupancy === 'single' ? tariff.single : tariff.double / 2;
+                        if (s.extra_bed) guestTariff += tariff.extra_bed;
+                    } else {
+                        // Hard fallback if tariff table is missing a row for this category
+                        guestTariff = occupancy === 'single' ? 1000 : 800;
+                        if (s.extra_bed) guestTariff += 400;
+                    }
+                }
+
                 roomDayCost += guestTariff;
                 guestBreakdowns.push({
                     guest_id: s.guest_id,
@@ -1248,6 +1294,12 @@ exports.roomTransfer = async (stayId, newRoomNumber, transferredBy, remarks, isG
                 SET allocated_room_numbers = $1, updated_at = CURRENT_TIMESTAMP
                 WHERE booking_id = $2
             `, [currentRooms, bId]);
+            
+            // Generate auto audit log
+            await client.query(`
+                INSERT INTO audit_logs (user_id, action, target_entity, target_id, remarks)
+                VALUES ($1, $2, $3, $4, $5)
+            `, [transferredBy, 'ROOM_TRANSFER', 'GUEST_ROOM_STAY', stayId, `Transferred ${staysToTransfer.length} guest(s) to Room ${newRoomNumber}. Remarks: ${remarks || ''}`]);
         }
 
         await client.query('COMMIT');
@@ -1497,6 +1549,181 @@ exports.checkInBulkGuest = async (bookingId, roomId, guestData, userId) => {
         
         await client.query('COMMIT');
         return sRes.rows[0];
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+};
+
+exports.getPendingExtensionAllocations = async () => {
+    const res = await db.query(`
+        SELECT g.guest_id, g.guest_name, ext.requested_departure as new_checkout,
+               b.booking_id, b.formatted_id, b.category_id, b.arrival_datetime,
+               r.room_id, r.room_number as current_room, r.room_type as current_room_type,
+               (SELECT MAX(allocated_to) FROM booking_rooms WHERE booking_id = g.booking_id AND room_id = r.room_id) as old_checkout
+        FROM stay_extension_requests ext
+        JOIN guests g ON ext.guest_id = g.guest_id
+        JOIN guest_room_stays grs ON g.guest_id = grs.guest_id AND grs.stay_status = 'CHECKED_IN'
+        JOIN rooms r ON grs.room_id = r.room_id
+        JOIN booking_requests b ON g.booking_id = b.booking_id
+        WHERE ext.status = 'APPROVED' AND ext.is_allocated = false
+    `);
+    return res.rows;
+};
+
+exports.allocateExtensionRoom = async (guestId, newRoomId, isSameRoom, allocatedBy) => {
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+
+        // 1. Get the pending extension details
+        const gRes = await client.query(`
+            SELECT g.guest_id, ext.requested_departure as new_checkout_time, g.booking_id,
+                   grs.room_id as current_room_id, r.room_type as current_room_type,
+                   (SELECT MAX(allocated_to) FROM booking_rooms WHERE booking_id = g.booking_id AND room_id = grs.room_id) as old_checkout_time
+            FROM guests g
+            JOIN stay_extension_requests ext ON ext.guest_id = g.guest_id AND ext.status = 'APPROVED' AND ext.is_allocated = false
+            JOIN guest_room_stays grs ON g.guest_id = grs.guest_id AND grs.stay_status = 'CHECKED_IN'
+            JOIN rooms r ON grs.room_id = r.room_id
+            WHERE g.guest_id = $1
+        `, [guestId]);
+        if (!gRes.rows.length) throw new Error('Guest or active stay not found');
+        
+        const guest = gRes.rows[0];
+        
+        if (isSameRoom) {
+            // Check if current room is available for the extended period
+            const overlapRes = await client.query(`
+                SELECT 1 FROM booking_rooms 
+                WHERE room_id = $1 AND booking_id != $2
+                AND allocated_from < $3 AND allocated_to > $4
+            `, [guest.current_room_id, guest.booking_id, guest.new_checkout_time, guest.old_checkout_time]);
+            
+            if (overlapRes.rows.length > 0) {
+                throw new Error('Current room is blocked by another booking for the extended period.');
+            }
+
+            // Extend the allocation
+            await client.query(`
+                UPDATE booking_rooms 
+                SET allocated_to = $1, updated_at = CURRENT_TIMESTAMP
+                WHERE booking_id = $2 AND room_id = $3 AND allocated_to = $4
+            `, [guest.new_checkout_time, guest.booking_id, guest.current_room_id, guest.old_checkout_time]);
+
+            // Extend guest_room_stays checkout prediction if needed (optional since stay_status='CHECKED_IN')
+            // No action needed for guest_room_stays right now, it will just end later.
+
+        } else {
+            if (!newRoomId) throw new Error('New room ID is required for a room transfer.');
+            
+            // Check if new room is available
+            const overlapRes = await client.query(`
+                SELECT 1 FROM booking_rooms 
+                WHERE room_id = $1 
+                AND allocated_from < $2 AND allocated_to > $3
+            `, [newRoomId, guest.new_checkout_time, guest.old_checkout_time]);
+            
+            if (overlapRes.rows.length > 0) {
+                throw new Error('Selected new room is already blocked for the extended period.');
+            }
+
+            // Enforce "same room type only" rule
+            const newRoomRes = await client.query('SELECT room_type FROM rooms WHERE room_id = $1', [newRoomId]);
+            if (!newRoomRes.rows.length) throw new Error('New room not found');
+            if (newRoomRes.rows[0].room_type !== guest.current_room_type) {
+                throw new Error(`Extension transfers must be to the same room type (${guest.current_room_type}).`);
+            }
+
+            // Allocate the new room from old_checkout_time to new_checkout_time
+            await client.query(`
+                INSERT INTO booking_rooms (booking_id, room_id, allocated_from, allocated_to, allocation_status, allocated_by)
+                VALUES ($1, $2, $3, $4, 'reserved', $5)
+            `, [guest.booking_id, newRoomId, guest.old_checkout_time, guest.new_checkout_time, allocatedBy]);
+        }
+
+        await client.query(`
+            UPDATE stay_extension_requests 
+            SET is_allocated = true, updated_at = CURRENT_TIMESTAMP
+            WHERE guest_id = $1 AND status = 'APPROVED' AND is_allocated = false
+        `, [guestId]);
+
+        await client.query('COMMIT');
+        return { success: true };
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+};
+
+exports.executeRoomTransfer = async (guestId, transferredBy) => {
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+
+        // Get the active stay
+        const stayRes = await client.query(`
+            SELECT * FROM guest_room_stays 
+            WHERE guest_id = $1 AND stay_status = 'CHECKED_IN'
+        `, [guestId]);
+        if (!stayRes.rows.length) throw new Error('No active stay found for guest');
+        const activeStay = stayRes.rows[0];
+
+        // Find the newly allocated room that starts around now (we allow some leeway)
+        const newAllocationRes = await client.query(`
+            SELECT * FROM booking_rooms
+            WHERE booking_id = $1 AND room_id != $2
+            AND allocated_from <= CURRENT_TIMESTAMP + INTERVAL '1 hour'
+            AND allocated_to > CURRENT_TIMESTAMP
+            ORDER BY allocated_from ASC LIMIT 1
+        `, [activeStay.booking_id, activeStay.room_id]);
+
+        if (!newAllocationRes.rows.length) {
+            throw new Error('No upcoming room allocation found to transfer into. Ensure room is allocated for the extension.');
+        }
+        const newRoomId = newAllocationRes.rows[0].room_id;
+
+        // End current stay
+        await client.query(`
+            UPDATE guest_room_stays 
+            SET checked_out_at = CURRENT_TIMESTAMP, stay_status = 'CHECKED_OUT', checked_out_by = $1
+            WHERE stay_id = $2
+        `, [transferredBy, activeStay.stay_id]);
+
+        // Unmark old room occupied if no other stays are active in it
+        const otherStays = await client.query(`SELECT 1 FROM guest_room_stays WHERE room_id = $1 AND stay_status = 'CHECKED_IN'`, [activeStay.room_id]);
+        if (otherStays.rows.length === 0) {
+            await client.query(`UPDATE rooms SET current_status = 'available' WHERE room_id = $1`, [activeStay.room_id]);
+        }
+
+        // Create new stay for the new room
+        const newStayRes = await client.query(`
+            INSERT INTO guest_room_stays (
+                booking_id, guest_id, room_id, checked_in_at, occupancy_type, extra_bed,
+                operational_room_type, operational_tariff, checked_in_by, stay_status
+            ) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5, $6, $7, $8, 'CHECKED_IN')
+            RETURNING *
+        `, [
+            activeStay.booking_id, guestId, newRoomId, 
+            activeStay.occupancy_type, activeStay.extra_bed,
+            activeStay.operational_room_type, activeStay.operational_tariff,
+            transferredBy
+        ]);
+
+        // Mark new room occupied
+        await client.query(`UPDATE rooms SET current_status = 'occupied' WHERE room_id = $1`, [newRoomId]);
+
+        // Audit log
+        await client.query(`
+            INSERT INTO audit_logs (user_id, action, target_entity, target_id, remarks)
+            VALUES ($1, 'ROOM_TRANSFER', 'guests', $2, $3)
+        `, [transferredBy, guestId, `Transferred from room_id ${activeStay.room_id} to ${newRoomId}`]);
+
+        await client.query('COMMIT');
+        return newStayRes.rows[0];
     } catch (err) {
         await client.query('ROLLBACK');
         throw err;

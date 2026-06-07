@@ -6,7 +6,17 @@ exports.getBookingsByUserId = async (userId) => {
                a.department as assigned_approver_department,
                (SELECT r.role_name FROM roles r JOIN user_roles ur ON ur.role_id = r.role_id WHERE ur.user_id = a.user_id LIMIT 1) as assigned_approver_role,
                (
-                   SELECT json_agg(g)
+                   SELECT json_agg(
+                       row_to_json(g)::jsonb
+                       || jsonb_build_object(
+                           'stay_status', (
+                               SELECT grs.stay_status FROM guest_room_stays grs
+                               WHERE grs.guest_id = g.guest_id AND grs.booking_id = b.booking_id
+                               ORDER BY grs.checked_in_at DESC LIMIT 1
+                           ),
+                           'expected_departure', g.expected_departure
+                       )
+                   )
                    FROM guests g WHERE g.booking_id = b.booking_id
                ) as guests
         FROM booking_requests b
@@ -38,7 +48,10 @@ exports.getAllBookingsWithDetails = async (limit = null, offset = 0, statusFilte
                ) as documents,
                (
                    SELECT row_to_json(fb) FROM final_bills fb WHERE fb.booking_id = b.booking_id
-               ) as final_bill
+               ) as final_bill,
+               (
+                   SELECT json_agg(row_to_json(e)) FROM stay_extension_requests e WHERE e.booking_id = b.booking_id
+               ) as stay_extension_requests
         FROM booking_requests b
         JOIN users u ON b.user_id = u.user_id
         LEFT JOIN users a ON b.assigned_approver_id = a.user_id
@@ -173,7 +186,10 @@ exports.getBookingDetailsById = async (bookingId) => {
                ) as documents,
                (
                    SELECT row_to_json(fb) FROM final_bills fb WHERE fb.booking_id = b.booking_id
-               ) as final_bill
+               ) as final_bill,
+               (
+                   SELECT json_agg(row_to_json(e)) FROM stay_extension_requests e WHERE e.booking_id = b.booking_id
+               ) as stay_extension_requests
         FROM booking_requests b
         JOIN users u ON b.user_id = u.user_id
         LEFT JOIN users a ON b.assigned_approver_id = a.user_id

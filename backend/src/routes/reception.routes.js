@@ -22,6 +22,9 @@ router.post(
   receptionController.confirmPayment
 );
 
+// --- SYSTEM SETTINGS (All Authenticated Users) ---
+router.get('/institution-config', receptionController.getInstitutionConfig);
+
 // --- GENERAL RECEPTION/COORDINATOR/ADMIN ROUTES ---
 router.use(requireRole(['reception_staff', 'gh_coordinator', 'super_admin', 'guest_house_admin']));
 
@@ -37,10 +40,13 @@ router.get('/bookings/:bookingId/override-logs', receptionController.getBillingO
 router.post('/bookings/:bookingId/extend', receptionController.extendStay);
 router.get('/bookings/:bookingId/preview-bill', receptionController.previewBill);
 
+router.get('/extensions/pending-allocation', receptionController.getPendingExtensionAllocations);
+router.post('/extensions/allocate', receptionController.allocateExtensionRoom);
+router.post('/operations/transfer-room', receptionController.executeRoomTransfer);
+
 router.post('/stays/:stayId/check-out', receptionController.checkOutStay);
 
 // --- NEW POS / BILLING & BULK ROOM ROUTES ---
-router.get('/institution-config', receptionController.getInstitutionConfig);
 router.post('/institution-config', receptionController.updateInstitutionConfig);
 router.get('/pending-payments', receptionController.getPendingPayments);
 router.get('/completed-payments', receptionController.getCompletedPayments);

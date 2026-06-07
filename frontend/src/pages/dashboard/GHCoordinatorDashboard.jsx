@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Search, Loader2, Save, Printer, ShieldCheck, AlertCircle, Users, BedDouble, Calendar, CreditCard, ChevronRight, QrCode } from 'lucide-react';
+import { Search, Loader2, Save, Printer, ShieldCheck, AlertCircle, Users, BedDouble, Calendar, CreditCard, ChevronRight, QrCode, Settings } from 'lucide-react';
 import api from '../../services/api';
 import QRScannerModal from '../../components/ui/QRScannerModal';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
 import InstitutionConfigForm from '../../components/reception/InstitutionConfigForm';
+import TariffConfigForm from '../../components/coordinator/TariffConfigForm';
 import { getFormattedBookingId } from '../../utils/booking';
 import { calculateHotelNights } from '../../utils/date';
 
@@ -254,13 +255,13 @@ export default function GHCoordinatorDashboard() {
                 </button>
                 <button
                     onClick={() => setActiveTab('config')}
-                    className={`px-5 py-2.5 rounded-xl font-bold transition-all ${
+                    className={`px-5 py-2.5 rounded-xl font-bold transition-all flex items-center ${
                         activeTab === 'config' 
                             ? 'bg-indigo-600 text-white shadow-md' 
                             : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                     }`}
                 >
-                    <Save className="w-4 h-4 inline-block mr-2" /> Billing Config
+                    <Settings className="w-4 h-4 inline-block mr-2" /> System Config
                 </button>
             </div>
 
@@ -290,7 +291,10 @@ export default function GHCoordinatorDashboard() {
             />
 
             {activeTab === 'config' && (
-                <InstitutionConfigForm />
+                <div className="space-y-6">
+                    <InstitutionConfigForm />
+                    <TariffConfigForm />
+                </div>
             )}
 
             {activeTab === 'operations' && (

@@ -5,4 +5,5 @@ export const authService = {
   verifyOtp: async (email, otp) => api.post('/auth/verify-otp', { email, otp }),
   logout: async () => api.post('/auth/logout'),
   getProfile: async () => api.get('/auth/me'),
+  getSystemConfig: async () => api.get('/reception/institution-config'),
 };
