@@ -804,13 +804,13 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
         }
 
         // 5. Update room status to cleaning if no other active stay exists in this room
-        const otherStaysRes = await client.query(`
+        const roomRemainingStaysRes = await client.query(`
             SELECT 1 FROM guest_room_stays
             WHERE room_id = $1 AND stay_status = 'CHECKED_IN'
             LIMIT 1
         `, [stay.room_id]);
 
-        if (otherStaysRes.rows.length === 0) {
+        if (roomRemainingStaysRes.rows.length === 0) {
             // Change room status to cleaning
             await client.query(`
                 UPDATE rooms
