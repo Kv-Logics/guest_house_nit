@@ -786,7 +786,9 @@ export default function ReceptionDashboard() {
                 onScanSuccess={(decodedText) => {
                     setIsQRScannerOpen(false);
                     let cleanText = String(decodedText || '').trim();
+                    let roomSuffix = null;
                     if (cleanText.includes(':')) {
+                        roomSuffix = cleanText.split(':')[1].trim();
                         cleanText = cleanText.split(':')[0].trim();
                     }
 
@@ -805,15 +807,25 @@ export default function ReceptionDashboard() {
                         return;
                     }
                     // Search in rooms
-                    const room = bookingData.rooms.find(r => {
+                    const matchingRooms = bookingData.rooms.filter(r => {
                         const bId = (r.activeBookingId || '').toUpperCase();
                         const fId = (r.active_booking?.formatted_id || '').toUpperCase();
                         return (bId && (bId.includes(cleanText) || cleanText.includes(bId))) || 
                                (fId && (fId.includes(cleanText) || cleanText.includes(fId)));
                     });
-                    if (room) {
+                    
+                    if (matchingRooms.length > 0) {
                         setActiveTab('rooms');
-                        setActiveRoomId(room.roomId);
+                        
+                        let targetRoom = matchingRooms[0];
+                        if (roomSuffix && !isNaN(roomSuffix)) {
+                            const index = parseInt(roomSuffix) - 1;
+                            if (index >= 0 && index < matchingRooms.length) {
+                                targetRoom = matchingRooms[index];
+                            }
+                        }
+                        
+                        setActiveRoomId(targetRoom.roomId);
                         return;
                     }
 
