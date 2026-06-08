@@ -786,11 +786,14 @@ export default function ReceptionDashboard() {
                         cleanText = cleanText.split(':')[0].trim();
                     }
 
+                    if (!cleanText) return;
+
                     // Search in arrivals
                     const arrival = bookingData.arrivals.find(a => {
                         const bId = (a.bookingId || '').toUpperCase();
                         const fId = (a.formattedId || '').toUpperCase();
-                        return bId.includes(cleanText) || fId.includes(cleanText) || cleanText.includes(bId) || cleanText.includes(fId);
+                        return (bId && (bId.includes(cleanText) || cleanText.includes(bId))) || 
+                               (fId && (fId.includes(cleanText) || cleanText.includes(fId)));
                     });
                     if (arrival) {
                         setActiveTab('arrivals');
@@ -801,7 +804,8 @@ export default function ReceptionDashboard() {
                     const room = bookingData.rooms.find(r => {
                         const bId = (r.activeBookingId || '').toUpperCase();
                         const fId = (r.active_booking?.formatted_id || '').toUpperCase();
-                        return bId && (bId.includes(cleanText) || fId.includes(cleanText) || cleanText.includes(bId) || cleanText.includes(fId));
+                        return (bId && (bId.includes(cleanText) || cleanText.includes(bId))) || 
+                               (fId && (fId.includes(cleanText) || cleanText.includes(fId)));
                     });
                     if (room) {
                         setActiveTab('rooms');
