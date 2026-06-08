@@ -276,6 +276,9 @@ export default function GHCoordinatorDashboard() {
                         const fakeEvent = { preventDefault: () => {} };
                         // We use decodedText directly in case state hasn't flushed
                         let cleanId = decodedText.trim().toUpperCase();
+                        if (cleanId.includes(':')) {
+                            cleanId = cleanId.split(':')[0].trim();
+                        }
                         if (cleanId.startsWith('APP-')) cleanId = cleanId.replace('APP-', '').trim();
                         else if (cleanId.startsWith('APP ')) cleanId = cleanId.replace('APP ', '').trim();
                         

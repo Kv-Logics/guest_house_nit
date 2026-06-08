@@ -781,7 +781,10 @@ export default function ReceptionDashboard() {
                 onClose={() => setIsQRScannerOpen(false)}
                 onScanSuccess={(decodedText) => {
                     setIsQRScannerOpen(false);
-                    const cleanText = String(decodedText || '').trim();
+                    let cleanText = String(decodedText || '').trim();
+                    if (cleanText.includes(':')) {
+                        cleanText = cleanText.split(':')[0].trim();
+                    }
                     const shortId = cleanText.includes('/') 
                         ? cleanText.split('/').pop().toUpperCase() 
                         : cleanText.split('-')[0].toUpperCase();
