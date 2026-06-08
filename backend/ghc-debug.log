@@ -103,3 +103,11 @@
 -> LIST SUCCESS, count: 5
 [GET /bookings LIST] req.user: {"id":"5ed8a6a0-9085-442b-a790-b0c8cf750695","user_id":"5ed8a6a0-9085-442b-a790-b0c8cf750695","email":"admin@nitt.edu","role":"super_admin","iat":1780841325,"exp":1781446125}
 -> LIST SUCCESS, count: 5
+[GET /bookings LIST] req.user: {"id":"a40c9ad5-c396-4cdb-b6f4-007b4799ef00","user_id":"a40c9ad5-c396-4cdb-b6f4-007b4799ef00","email":"Guesthouse@nitt.edu","role":"gh_coordinator","iat":1780898933,"exp":1781503733}
+-> LIST SUCCESS, count: 6
+[GET /bookings/927bdb51-2d11-4131-97c7-9ff2f56d6ce0] req.user: {"id":"a40c9ad5-c396-4cdb-b6f4-007b4799ef00","user_id":"a40c9ad5-c396-4cdb-b6f4-007b4799ef00","email":"Guesthouse@nitt.edu","role":"gh_coordinator","iat":1780898933,"exp":1781503733}
+-> SUCCESS!
+[GET /bookings/5bc36417-bf6f-446f-8198-d8f139e5fc84] req.user: {"id":"a40c9ad5-c396-4cdb-b6f4-007b4799ef00","user_id":"a40c9ad5-c396-4cdb-b6f4-007b4799ef00","email":"Guesthouse@nitt.edu","role":"gh_coordinator","iat":1780898933,"exp":1781503733}
+-> SUCCESS!
+[GET /bookings LIST] req.user: {"id":"5ed8a6a0-9085-442b-a790-b0c8cf750695","user_id":"5ed8a6a0-9085-442b-a790-b0c8cf750695","email":"admin@nitt.edu","role":"super_admin","iat":1780899403,"exp":1781504203}
+-> LIST SUCCESS, count: 6

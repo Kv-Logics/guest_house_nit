@@ -11,6 +11,7 @@ export default function ApproverDashboard() {
     const [actionModal, setActionModal] = useState({ isOpen: false, id: null, action: null });
     const [remarks, setRemarks] = useState('');
     const [previewId, setPreviewId] = useState(null);
+    const [sortBy, setSortBy] = useState('app_desc');
 
     const { data, isLoading } = useQuery({
         queryKey: ['pendingApprovals'],
@@ -46,6 +47,14 @@ export default function ApproverDashboard() {
     if (isLoading) return <div className="p-8 text-center text-slate-500 font-bold">Loading queue...</div>;
 
     const approvals = data?.data || [];
+
+    const sortedApprovals = [...approvals].sort((a, b) => {
+        if (sortBy === 'app_desc') return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+        if (sortBy === 'app_asc') return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+        if (sortBy === 'arr_asc') return new Date(a.arrival_datetime || 0) - new Date(b.arrival_datetime || 0);
+        if (sortBy === 'arr_desc') return new Date(b.arrival_datetime || 0) - new Date(a.arrival_datetime || 0);
+        return 0;
+    });
 
     return (
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 animate-fade-in">
