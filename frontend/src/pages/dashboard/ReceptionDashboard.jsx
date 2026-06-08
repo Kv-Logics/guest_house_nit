@@ -785,14 +785,12 @@ export default function ReceptionDashboard() {
                     if (cleanText.includes(':')) {
                         cleanText = cleanText.split(':')[0].trim();
                     }
-                    const shortId = cleanText.includes('/') 
-                        ? cleanText.split('/').pop().toUpperCase() 
-                        : cleanText.split('-')[0].toUpperCase();
 
                     // Search in arrivals
                     const arrival = bookingData.arrivals.find(a => {
-                        const aShort = (a.bookingId || '').split('-')[0].toUpperCase();
-                        return aShort === shortId;
+                        const bId = (a.bookingId || '').toUpperCase();
+                        const fId = (a.formattedId || '').toUpperCase();
+                        return bId.includes(cleanText) || fId.includes(cleanText) || cleanText.includes(bId) || cleanText.includes(fId);
                     });
                     if (arrival) {
                         setActiveTab('arrivals');
@@ -801,15 +799,17 @@ export default function ReceptionDashboard() {
                     }
                     // Search in rooms
                     const room = bookingData.rooms.find(r => {
-                        if (!r.active_booking) return false;
-                        const bShort = (r.active_booking.booking_id || '').split('-')[0].toUpperCase();
-                        return bShort === shortId;
+                        const bId = (r.activeBookingId || '').toUpperCase();
+                        const fId = (r.active_booking?.formatted_id || '').toUpperCase();
+                        return bId && (bId.includes(cleanText) || fId.includes(cleanText) || cleanText.includes(bId) || cleanText.includes(fId));
                     });
                     if (room) {
                         setActiveTab('rooms');
-                        setActiveRoomId(room.roomId || room.room_number);
+                        setActiveRoomId(room.roomId);
+                        setPreviewArrival(room.active_booking);
                         return;
                     }
+
                     alert("Application ID not found in today's arrivals or active rooms.");
                 }}
             />
