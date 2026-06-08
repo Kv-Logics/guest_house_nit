@@ -17,6 +17,7 @@ export default function RoomsTab({
     handleSendToCleaning,
     handleOpenHistory,
     handleCheckInGuest,
+    handlePreviewBill,
     timeline,
     totalBill
 }) {
@@ -62,6 +63,7 @@ export default function RoomsTab({
                             onSendToCleaning={handleSendToCleaning}
                             onOpenHistory={handleOpenHistory}
                             onCheckInGuest={handleCheckInGuest}
+                            onPreviewBill={handlePreviewBill}
                         />
 
                         <PricingLedger 

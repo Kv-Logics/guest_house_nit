@@ -558,7 +558,7 @@ exports.getRoomHistory = async (roomNumber, page, limit) => {
         SELECT grs.stay_id, grs.booking_id, grs.guest_id, grs.room_id, grs.checked_in_at, grs.checked_out_at, grs.stay_status,
                grs.occupancy_type, grs.extra_bed, grs.operational_room_type, grs.operational_tariff, grs.operational_notes,
                g.guest_name, g.relation_to_applicant, g.arrival_datetime AS guest_arrival_datetime, g.departure_datetime AS guest_departure_datetime,
-               u.full_name AS applicant_name, b.arrival_datetime, b.departure_datetime AS booking_departure_datetime, b.booking_state
+               u.full_name AS applicant_name, b.arrival_datetime, b.departure_datetime AS booking_departure_datetime, b.booking_state, b.formatted_id, b.booking_seq, b.category_id
         FROM guest_room_stays grs
         JOIN guests g ON grs.guest_id = g.guest_id
         JOIN booking_requests b ON grs.booking_id = b.booking_id
@@ -597,6 +597,7 @@ exports.updateInstitutionConfig = async (payload, client = null) => {
             enable_time_machine = COALESCE($11, enable_time_machine),
             show_invoice_applicant = COALESCE($12, show_invoice_applicant),
             enable_extend_stay_applicant = COALESCE($13, enable_extend_stay_applicant),
+            always_regenerate_invoices = COALESCE($14, always_regenerate_invoices),
             updated_at = CURRENT_TIMESTAMP
         WHERE config_id = 1
         RETURNING *
@@ -605,7 +606,8 @@ exports.updateInstitutionConfig = async (payload, client = null) => {
         payload.legal_name, payload.gstin, payload.pan, payload.address,
         payload.signatory_name, payload.signatory_designation, payload.invoice_prefix, payload.sac_code,
         payload.financial_year, payload.booking_prefix,
-        payload.enable_time_machine, payload.show_invoice_applicant, payload.enable_extend_stay_applicant
+        payload.enable_time_machine, payload.show_invoice_applicant, payload.enable_extend_stay_applicant,
+        payload.always_regenerate_invoices
     ];
     const result = await db.query(sql, params);
     return result.rows[0];
@@ -639,13 +641,15 @@ exports.confirmPayment = async (bookingId, paymentData, client) => {
             amount_received = $2,
             transaction_ref = $3,
             received_by = $4,
-            invoice_number = $5
-        WHERE booking_id = $6
+            invoice_number = $5,
+            payment_comments = $6,
+            payment_proof_path = $7
+        WHERE booking_id = $8
         RETURNING *
     `;
     const params = [
         paymentData.payment_mode, paymentData.amount_received, paymentData.transaction_ref,
-        paymentData.received_by, paymentData.invoice_number, bookingId
+        paymentData.received_by, paymentData.invoice_number, paymentData.payment_comments, paymentData.payment_proof_path, bookingId
     ];
     const result = await runQuery(client, sql, params);
     return result.rows[0];

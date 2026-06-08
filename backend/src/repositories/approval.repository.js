@@ -35,3 +35,29 @@ exports.getPendingApprovalsByRole = async (pendingState, userRole, userId) => {
     const result = await db.query(query, [pendingState, userRole, userId]);
     return result.rows;
 };
+
+exports.getApprovalHistoryByApprover = async (approverId, actionFilter) => {
+    // actionFilter will be 'APPROVED' or 'REJECTED'
+    const query = `
+        SELECT DISTINCT ON (b.booking_id) b.*, c.category_code, u.full_name as applicant_name,
+               (
+                   SELECT json_agg(g)
+                   FROM guests g WHERE g.booking_id = b.booking_id
+               ) as guests,
+               (
+                   SELECT json_agg(row_to_json(e)) FROM stay_extension_requests e WHERE e.booking_id = b.booking_id
+               ) as stay_extension_requests,
+               al.action as approver_action,
+               al.created_at as action_date
+        FROM booking_requests b
+        JOIN category_rules c ON b.category_id = c.category_id
+        JOIN users u ON b.user_id = u.user_id
+        JOIN approval_logs al ON b.booking_id = al.booking_id
+        WHERE al.approver_id = $1 AND al.action = $2
+        ORDER BY b.booking_id, al.created_at DESC
+    `;
+    const result = await db.query(query, [approverId, actionFilter]);
+    
+    // Sort overall results by action_date descending
+    return result.rows.sort((a, b) => new Date(b.action_date) - new Date(a.action_date));
+};

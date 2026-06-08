@@ -467,6 +467,17 @@ CREATE TABLE final_bills (
     subtotal NUMERIC NOT NULL,
     gst NUMERIC NOT NULL,
     total NUMERIC NOT NULL,
+    billing_type VARCHAR(20) DEFAULT 'B2C' CHECK (billing_type IN ('B2C', 'B2B')),
+    company_name VARCHAR(255),
+    gstin VARCHAR(50),
+    company_address TEXT,
+    payment_mode VARCHAR(50),
+    transaction_ref VARCHAR(100),
+    payment_comments TEXT,
+    payment_proof_path VARCHAR(512),
+    amount_received NUMERIC,
+    received_by UUID REFERENCES users(user_id),
+    invoice_number VARCHAR(100),
     generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     generated_by UUID REFERENCES users(user_id)
 );

@@ -1,0 +1,173 @@
+<style>
+:root {
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f8fafc;
+  --color-background-success: #f0fdf4;
+  --color-text-success: #166534;
+  --color-background-info: #f0f4ff;
+  --color-text-info: #312e81;
+  --color-border-info: #c7d2fe;
+  --color-background-warning: #fffbeb;
+  --color-text-warning: #b45309;
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #475569;
+  --color-text-tertiary: #64748b;
+  --color-border-secondary: #cbd5e1;
+  --color-border-tertiary: #e2e8f0;
+  --border-radius-lg: 8px;
+  --border-radius-md: 4px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body {font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-print-color-adjust: exact; margin: 0; height: 100vh;}
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+.inv{background:var(--color-background-primary);max-width:100%;margin:0;font-size:13px;color:var(--color-text-primary);height:100vh;display:flex;flex-direction:column;box-sizing:border-box;}
+.inv-head{padding:20px 24px 14px;border-bottom:1px solid var(--color-border-tertiary);text-align:center}
+.inv-head h1{font-size:17px;font-weight:600;margin-bottom:3px;color:var(--color-text-primary)}
+.inv-head .sub{font-size:12px;color:var(--color-text-secondary);line-height:1.6}
+.inv-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:3px 10px;border-radius:var(--border-radius-md);background:var(--color-background-success);color:var(--color-text-success);margin-top:8px}
+.meta{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--color-border-tertiary)}
+.meta-col{padding:12px 24px}
+.meta-col:first-child{border-right:1px solid var(--color-border-tertiary)}
+.meta-label{font-size:11px;color:var(--color-text-tertiary);margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em}
+.meta-val{font-size:13px;color:var(--color-text-primary);font-weight:500}
+.meta-val.muted{font-weight:400;color:var(--color-text-secondary)}
+.section{padding:14px 24px;border-bottom:1px solid var(--color-border-tertiary)}
+.section-title{font-size:11px;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+.party-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.party-box{background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:10px 14px}
+.party-name{font-weight:500;font-size:13px;margin-bottom:3px;color:var(--color-text-primary)}
+.party-detail{font-size:12px;color:var(--color-text-secondary);line-height:1.6}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead tr{background:var(--color-background-secondary)}
+th{padding:7px 8px;text-align:left;font-weight:500;font-size:11px;color:var(--color-text-secondary);border-bottom:1px solid var(--color-border-tertiary)}
+th.r{text-align:right}
+td{padding:8px 8px;border-bottom:1px solid var(--color-border-tertiary);color:var(--color-text-primary);vertical-align:middle}
+td.r{text-align:right}
+td.muted{color:var(--color-text-secondary);font-size:11px}
+.occ-badge{display:inline-block;font-size:10px;padding:1px 7px;border-radius:var(--border-radius-md);background:var(--color-background-info);color:var(--color-text-info)}
+.cat-badge{display:inline-block;font-size:10px;padding:1px 7px;border-radius:var(--border-radius-md);background:var(--color-background-secondary);color:var(--color-text-secondary);border:1px solid var(--color-border-tertiary)}
+.totals{padding:12px 24px 4px;border-bottom:1px solid var(--color-border-tertiary)}
+.tot-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px}
+.tot-row.sub{color:var(--color-text-secondary)}
+.tot-row.gst-line{color:var(--color-text-secondary)}
+.tot-row.divider{border-top:1px solid var(--color-border-secondary);margin-top:6px;padding-top:10px;padding-bottom:8px}
+.tot-row.grand{font-weight:600;font-size:15px;color:var(--color-text-primary)}
+.gst-tag{font-size:10px;padding:1px 6px;border-radius:var(--border-radius-md);background:var(--color-background-warning);color:var(--color-text-warning);margin-left:5px}
+.words{padding:4px 24px 14px;font-size:11px;color:var(--color-text-secondary);font-style:italic;border-bottom:1px solid var(--color-border-tertiary)}
+.pay-section{padding:12px 24px;border-bottom:1px solid var(--color-border-tertiary);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pay-pill{display:flex;align-items:center;gap:5px;font-size:12px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:5px 11px;color:var(--color-text-primary);border:1px solid var(--color-border-tertiary)}
+.pay-pill i{font-size:15px;color:var(--color-text-secondary)}
+.footer{padding:14px 24px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;margin-top:auto;}
+.footer-note{font-size:11px;color:var(--color-text-tertiary);line-height:1.7}
+.signatory{text-align:right;font-size:12px;color:var(--color-text-secondary)}
+.sig-line{height:28px;border-bottom:1px solid var(--color-border-tertiary);margin-bottom:6px;width:150px;margin-left:auto}
+.sig-name{font-weight:500;color:var(--color-text-primary);font-size:13px}
+</style>
+
+<h2 class="sr-only">GST tax invoice for {{INSTITUTION_LEGAL_NAME}}</h2>
+
+<div class="inv">
+
+  <div class="inv-head">
+    <h1>{{INSTITUTION_LEGAL_NAME}}</h1>
+    <p class="sub">
+      {{INSTITUTION_ADDRESS}}<br>
+      GSTIN: {{INSTITUTION_GSTIN}} &nbsp;·&nbsp; PAN: {{INSTITUTION_PAN}} &nbsp;·&nbsp; SAC: {{INSTITUTION_SAC_CODE}}
+    </p>
+    <span class="inv-badge"><i class="ti ti-file-invoice" aria-hidden="true"></i>&nbsp; Tax invoice</span>
+  </div>
+
+  <div class="meta">
+    <div class="meta-col">
+      <div class="meta-label">Invoice no.</div>
+      <div class="meta-val">{{INVOICE_NO}}</div>
+      <div style="height:10px"></div>
+      <div class="meta-label">Invoice date</div>
+      <div class="meta-val">{{INVOICE_DATE}}</div>
+      <div style="height:10px"></div>
+      <div class="meta-label">Booking ID</div>
+      <div class="meta-val muted">{{BOOKING_ID}}</div>
+    </div>
+    <div class="meta-col">
+      <div class="meta-label">Check-in</div>
+      <div class="meta-val">{{CHECK_IN}}</div>
+      <div style="height:10px"></div>
+      <div class="meta-label">Check-out</div>
+      <div class="meta-val">{{CHECK_OUT}}</div>
+      <div style="height:10px"></div>
+      <div class="meta-label">Duration</div>
+      <div class="meta-val muted">{{DURATION_NIGHTS}} night(s)</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Parties</div>
+    <div class="party-grid">
+      <div class="party-box">
+        <div class="meta-label" style="margin-bottom:6px">Billed by</div>
+        <div class="party-name">{{INSTITUTION_LEGAL_NAME}}</div>
+        <div class="party-detail">
+          {{INSTITUTION_ADDRESS}}<br>
+          GSTIN: {{INSTITUTION_GSTIN}}
+        </div>
+      </div>
+      <div class="party-box">
+        <div class="meta-label" style="margin-bottom:6px">Billed to</div>
+        <div class="party-name">{{RECIPIENT_NAME}}</div>
+        <div class="party-detail">
+          {{RECIPIENT_DETAIL}}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Room charges</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:36%">Room &amp; type</th>
+          <th>Category</th>
+          <th>Occupancy</th>
+          <th class="r">Nights</th>
+          <th class="r">Rate/night (₹)</th>
+          <th class="r">Amount (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ROOM_ROWS}}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="totals">
+    {{TOTALS_SECTION}}
+  </div>
+
+  <div class="words">
+    {{AMOUNT_IN_WORDS}}
+  </div>
+
+  <div class="pay-section">
+    <span style="font-size:12px;color:var(--color-text-secondary)">Payment:</span>
+    <div class="pay-pill"><i class="ti ti-credit-card" aria-hidden="true"></i>{{PAYMENT_MODE}}</div>
+    <div class="pay-pill"><i class="ti ti-hash" aria-hidden="true"></i>{{TRANSACTION_REF}}</div>
+    <div class="pay-pill"><i class="ti ti-calendar-check" aria-hidden="true"></i>{{SETTLED_DATE}}</div>
+    <div class="pay-pill"><i class="ti ti-user" aria-hidden="true"></i>{{SETTLED_BY}}</div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-note">
+      System-generated invoice — valid without physical signature.<br>
+      GST per Notification No. 11/2017-CT(Rate) dated 28 Jun 2017.<br>
+      Queries: guesthouse@nitt.edu &nbsp;·&nbsp; +91-431-250-3000
+    </div>
+    <div class="signatory">
+      <div class="sig-line"></div>
+      <div class="sig-name">{{SIGNATORY_NAME}}</div>
+      <div>{{SIGNATORY_DESIGNATION}}</div>
+      <div>{{INSTITUTION_LEGAL_NAME}}</div>
+    </div>
+  </div>
+
+</div>

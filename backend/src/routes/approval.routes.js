@@ -11,6 +11,7 @@ router.use(requireAuth);
 router.use(requireRole(['director', 'registrar', 'dean', 'hod', 'faculty', 'staff']));
 
 router.get('/pending', approvalController.getPendingApprovals);
+router.get('/history', approvalController.getApprovalHistory);
 router.post('/:id', validate(approvalActionSchema), approvalController.approveBooking);
 
 module.exports = router;

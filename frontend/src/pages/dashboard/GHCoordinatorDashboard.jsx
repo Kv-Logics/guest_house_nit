@@ -6,8 +6,10 @@ import QRScannerModal from '../../components/ui/QRScannerModal';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
 import InstitutionConfigForm from '../../components/reception/InstitutionConfigForm';
 import TariffConfigForm from '../../components/coordinator/TariffConfigForm';
+import RoomMatrixTab from '../../components/reception/RoomMatrixTab';
 import { getFormattedBookingId } from '../../utils/booking';
 import { calculateHotelNights } from '../../utils/date';
+import { receptionService } from '../../services/reception.service';
 
 export default function GHCoordinatorDashboard() {
     const { user } = useAuth();
@@ -23,6 +25,28 @@ export default function GHCoordinatorDashboard() {
     const [liveTotals, setLiveTotals] = useState({ rooms: 0, extraBeds: 0, total: 0 });
     const [showDemoBill, setShowDemoBill] = useState(false);
     const [sortBy, setSortBy] = useState('app_desc');
+    const [rooms, setRooms] = useState([]);
+    const [loadingRooms, setLoadingRooms] = useState(false);
+    const [activeTab, setActiveTab] = useState('operations'); // 'operations' | 'config' | 'room_matrix'
+
+    useEffect(() => {
+        if (activeTab === 'room_matrix') {
+            const fetchRooms = async () => {
+                setLoadingRooms(true);
+                try {
+                    const res = await receptionService.getRooms();
+                    if (res.success) {
+                        setRooms(res.data || []);
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch rooms', err);
+                } finally {
+                    setLoadingRooms(false);
+                }
+            };
+            fetchRooms();
+        }
+    }, [activeTab]);
 
     useEffect(() => {
         fetchModifiableBookings();
@@ -203,7 +227,7 @@ export default function GHCoordinatorDashboard() {
         }
     };
 
-    const [activeTab, setActiveTab] = useState('operations'); // 'operations' | 'config'
+
 
     if (loading) {
         return (
@@ -263,7 +287,42 @@ export default function GHCoordinatorDashboard() {
                 >
                     <Settings className="w-4 h-4 inline-block mr-2" /> System Config
                 </button>
+                <button
+                    onClick={() => setActiveTab('room_matrix')}
+                    className={`px-5 py-2.5 rounded-xl font-bold transition-all flex items-center ${
+                        activeTab === 'room_matrix' 
+                            ? 'bg-indigo-600 text-white shadow-md' 
+                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                >
+                    <Calendar className="w-4 h-4 inline-block mr-2" /> Room Matrix
+                </button>
             </div>
+
+            {activeTab === 'room_matrix' && (
+                loadingRooms ? (
+                    <div className="p-8 text-center text-slate-500 font-bold">Loading Room Matrix...</div>
+                ) : (
+                    <RoomMatrixTab 
+                        allRooms={rooms} 
+                        isRoomAvailableForDates={(room, checkInDate, checkOutDate) => {
+                            if (!checkInDate || !checkOutDate) return true;
+                            const start = new Date(checkInDate).getTime();
+                            const end = new Date(checkOutDate).getTime();
+                            if (room.future_allocations && room.future_allocations.length > 0) {
+                                for (const alloc of room.future_allocations) {
+                                    const allocStart = new Date(alloc.allocated_from).getTime();
+                                    const allocEnd = new Date(alloc.allocated_to).getTime();
+                                    if (start < allocEnd && end > allocStart) {
+                                        return false;
+                                    }
+                                }
+                            }
+                            return true;
+                        }} 
+                    />
+                )
+            )}
 
             <QRScannerModal 
                 isOpen={isQRScannerOpen}
@@ -559,8 +618,43 @@ export default function GHCoordinatorDashboard() {
                                             <p className="text-lg font-black text-white">₹{liveTotals.total.toFixed(2)}</p>
                                         </div>
                                     </div>
-                                    <p className="text-[11px] text-indigo-700/80 font-semibold">* The 'Total Estimated Amount' above is automatically synced with this value, but can be manually overridden if you need to apply a custom discount or lump sum.</p>
+                                    <p className="text-[11px] text-indigo-700/80 font-semibold">* The &apos;Total Estimated Amount&apos; above is automatically synced with this value, but can be manually overridden if you need to apply a custom discount or lump sum.</p>
                                 </div>
+
+                                {/* Payment Verification from Reception */}
+                                {selectedBooking.final_bill && (selectedBooking.final_bill.transaction_ref || selectedBooking.final_bill.payment_comments || selectedBooking.final_bill.payment_proof_path) && (
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 shadow-sm mt-4">
+                                        <h3 className="text-sm font-black text-emerald-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                            <ShieldCheck className="w-5 h-5 text-emerald-600" /> Payment Verification Details (From Reception)
+                                        </h3>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-emerald-800">
+                                            {selectedBooking.final_bill.transaction_ref && (
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-emerald-600 uppercase">Transaction / UTR</p>
+                                                    <p className="font-medium bg-white px-3 py-1.5 rounded-lg border border-emerald-100 mt-1">{selectedBooking.final_bill.transaction_ref}</p>
+                                                </div>
+                                            )}
+                                            {selectedBooking.final_bill.payment_comments && (
+                                                <div className="col-span-full">
+                                                    <p className="text-[10px] font-bold text-emerald-600 uppercase">Comments</p>
+                                                    <p className="font-medium bg-white px-3 py-1.5 rounded-lg border border-emerald-100 mt-1">{selectedBooking.final_bill.payment_comments}</p>
+                                                </div>
+                                            )}
+                                            {selectedBooking.final_bill.payment_proof_path && (
+                                                <div className="col-span-full mt-2">
+                                                    <a
+                                                        href={`http://localhost:5000${selectedBooking.final_bill.payment_proof_path}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-xs hover:bg-emerald-700 shadow-sm transition-colors"
+                                                    >
+                                                        <Printer className="w-4 h-4 mr-2" /> View Uploaded Proof of Transaction
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
 
 
                                 {/* Security Justification */}

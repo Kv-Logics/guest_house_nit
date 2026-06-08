@@ -97,7 +97,7 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
                                     </div>
                                     <div className="mb-4">
                                         <p className="text-xs text-slate-500 font-bold mb-1">Submitted At: <span className="font-medium text-slate-700">{new Date(latestProof.created_at).toLocaleString()}</span></p>
-                                        {latestProof.remarks && <p className="text-xs text-slate-500 font-bold">Remarks: <span className="font-medium text-slate-700 italic">"{latestProof.remarks}"</span></p>}
+                                        {latestProof.remarks && <p className="text-xs text-slate-500 font-bold">Remarks: <span className="font-medium text-slate-700 italic">&quot;{latestProof.remarks}&quot;</span></p>}
                                     </div>
                                     <a href={`${API_BASE_URL.replace('/api', '')}/${latestProof.file_path}`} target="_blank" rel="noreferrer" className="flex items-center justify-center w-full py-3 bg-white border border-slate-300 rounded-xl text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors shadow-sm">
                                         <ExternalLink className="w-4 h-4 mr-2" /> Open Document
@@ -175,7 +175,7 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
                                                 <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider bg-amber-200/50 px-2 py-0.5 rounded">Level {w.warning_level}</span>
                                                 <span className="text-[10px] font-bold text-slate-500">{new Date(w.created_at).toLocaleString()}</span>
                                             </div>
-                                            <p className="text-xs text-amber-950 font-medium italic">"{w.message}"</p>
+                                            <p className="text-xs text-amber-950 font-medium italic">&quot;{w.message}&quot;</p>
                                         </div>
                                     ))}
                                 </div>

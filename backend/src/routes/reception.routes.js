@@ -1,17 +1,32 @@
 const express = require('express');
 const router = express.Router();
 
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
 const receptionController = require('../controllers/reception.controller');
 const invoiceController = require('../billing/invoice.controller');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/role.middleware');
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const dir = path.join(process.cwd(), 'uploads/documents');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.]/g, '_'));
+    }
+});
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 router.use(requireAuth);
 
 // --- INVOICE DOWNLOAD (Admin, Coordinator, Receptionist, User) ---
 router.get(
   '/billing/invoice/:bookingId',
-  requireRole(['super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff', 'user']),
   invoiceController.downloadInvoice
 );
 
@@ -19,6 +34,14 @@ router.get(
 router.post(
   '/bookings/:bookingId/confirm-payment',
   requireRole(['reception_staff']),
+  upload.single('payment_proof'),
+  (req, res, next) => {
+      if (req.body.payload) {
+          try { req.body = { ...req.body, ...JSON.parse(req.body.payload) }; } 
+          catch (e) { return res.status(400).json({ success: false, message: 'Invalid JSON payload' }); }
+      }
+      next();
+  },
   receptionController.confirmPayment
 );
 
@@ -30,6 +53,7 @@ router.use(requireRole(['reception_staff', 'gh_coordinator', 'super_admin', 'gue
 
 router.get('/arrivals', receptionController.getTodayArrivals);
 router.get('/rooms', receptionController.getRoomsWithStays);
+router.get('/occupancy', receptionController.getOccupancyStats);
 router.get('/rooms/:roomNumber/history', receptionController.getRoomHistory);
 router.post('/rooms/:roomNumber/status', receptionController.updateRoomStatus);
 
@@ -50,6 +74,12 @@ router.post('/stays/:stayId/check-out', receptionController.checkOutStay);
 router.post('/institution-config', receptionController.updateInstitutionConfig);
 router.get('/pending-payments', receptionController.getPendingPayments);
 router.get('/completed-payments', receptionController.getCompletedPayments);
+
+router.post(
+  '/bookings/:bookingId/update-bill',
+  requireRole(['gh_coordinator', 'super_admin', 'guest_house_admin']),
+  receptionController.updateBill
+);
 
 router.get('/bulk-blocks', receptionController.getActiveBulkBlocks);
 router.post('/bulk-blocks', receptionController.createBulkBlock);

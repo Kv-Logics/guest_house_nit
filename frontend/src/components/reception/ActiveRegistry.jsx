@@ -1,4 +1,4 @@
-import { Users, LogOut, ArrowLeftRight, Clock, Shield } from 'lucide-react';
+import { Users, LogOut, ArrowLeftRight, Clock, Shield, Receipt } from 'lucide-react';
 import { getFormattedBookingId } from '../../utils/booking';
 
 export default function ActiveRegistry({ 
@@ -9,7 +9,8 @@ export default function ActiveRegistry({
     onOpenTransfer, 
     onSendToCleaning, 
     onOpenHistory,
-    onCheckInGuest 
+    onCheckInGuest,
+    onPreviewBill
 }) {
     if (!selectedRoom) return null;
 
@@ -126,33 +127,7 @@ export default function ActiveRegistry({
                                             <div className="flex items-center justify-end gap-2">
                                                 {(() => {
                                                     const booking = selectedRoom.active_booking;
-                                                    const isUnpaidGuest = booking && booking.payment_responsible === 'guest' && booking.payment_state !== 'PAID';
-                                                    const isAdmin = ['super_admin', 'guest_house_admin'].includes(userRole);
-                                                    const otherCheckedInGuestsCount = selectedRoom.guests.filter(g => (g.status || g.stay_status) === 'CHECKED_IN' && g !== guest).length;
-                                                    
-                                                    if (isUnpaidGuest && otherCheckedInGuestsCount === 0) {
-                                                        if (isAdmin) {
-                                                            return (
-                                                                <button
-                                                                    onClick={() => onCheckOutStay(guest, selectedRoom.roomId, booking, true)}
-                                                                    className="px-2.5 py-1 text-[10px] font-extrabold bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200 flex items-center gap-1 shadow-sm uppercase tracking-wider"
-                                                                    title="Force checkout (unpaid bill)"
-                                                                >
-                                                                    <Shield className="w-3.5 h-3.5 text-amber-600" /> Force Out
-                                                                </button>
-                                                            );
-                                                        } else {
-                                                            return (
-                                                                <button
-                                                                    disabled
-                                                                    className="p-2 text-slate-300 bg-slate-50 border border-slate-200 rounded-xl cursor-not-allowed"
-                                                                    title="Settle bill first (Guest responsible)"
-                                                                >
-                                                                    <LogOut className="w-4 h-4" />
-                                                                </button>
-                                                            );
-                                                        }
-                                                    }
+                                                    // Unpaid check removed to allow checkout before payment
                                                     
                                                     return (
                                                         <div className="flex gap-1">
@@ -165,6 +140,13 @@ export default function ActiveRegistry({
                                                                     <ArrowLeftRight className="w-4 h-4" />
                                                                 </button>
                                                             )}
+                                                            <button
+                                                                onClick={() => onPreviewBill && onPreviewBill(booking?.booking_id)}
+                                                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-200"
+                                                                title="Preview Bill"
+                                                            >
+                                                                <Receipt className="w-4 h-4" />
+                                                            </button>
                                                             <button
                                                                 onClick={() => onCheckOutStay(guest, selectedRoom.roomId, booking, false)}
                                                                 className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-transparent hover:border-rose-200"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar, User, Clock, Loader2, ArrowRight } from 'lucide-react';
 import { receptionService } from '../../services/reception.service';
+import { getFormattedBookingId } from '../../utils/booking';
 
 export default function RoomHistoryDrawer({ roomNumber, isOpen, onClose }) {
     const [history, setHistory] = useState([]);
@@ -101,7 +102,7 @@ export default function RoomHistoryDrawer({ roomNumber, isOpen, onClose }) {
                         <div className="h-48 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
                             <Clock className="w-10 h-10 text-slate-300 mb-2" />
                             <p className="text-sm font-bold text-slate-600">No History Available</p>
-                            <p className="text-xs text-slate-400 mt-1">This room doesn't have any checked-out stay logs yet.</p>
+                            <p className="text-xs text-slate-400 mt-1">This room doesn&apos;t have any checked-out stay logs yet.</p>
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -110,7 +111,7 @@ export default function RoomHistoryDrawer({ roomNumber, isOpen, onClose }) {
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
                                             <span className="text-[10px] font-mono font-bold text-slate-400 block mb-0.5">
-                                                STAY: {stay.stay_id?.split('-')[0].toUpperCase()}
+                                                BK: {getFormattedBookingId(stay)}
                                             </span>
                                             <span className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
                                                 <User className="w-3.5 h-3.5 text-slate-400" />

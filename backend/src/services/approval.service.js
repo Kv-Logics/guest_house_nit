@@ -7,6 +7,10 @@ exports.getPendingApprovals = async (userRole, userId) => {
     return await approvalRepository.getPendingApprovalsByRole(BOOKING_STATUS.PENDING_APPROVER, userRole, userId);
 };
 
+exports.getApprovalHistory = async (userId, actionFilter) => {
+    return await approvalRepository.getApprovalHistoryByApprover(userId, actionFilter);
+};
+
 exports.approveBooking = async (bookingId, approverId, action, remarks) => {
     const client = await db.getClient();
     try {

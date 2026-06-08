@@ -118,6 +118,15 @@ exports.updateRoomStatus = async (req, res, next) => {
     }
 };
 
+exports.getOccupancyStats = async (req, res, next) => {
+    try {
+        const data = await receptionService.getOccupancyStats();
+        return sendSuccess(res, 'Occupancy stats retrieved successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
 exports.roomTransfer = async (req, res, next) => {
     try {
         const userId = req.user?.user_id || req.user?.id;
@@ -242,7 +251,14 @@ exports.getCompletedPayments = async (req, res, next) => {
 exports.confirmPayment = async (req, res, next) => {
     try {
         const userId = req.user?.user_id || req.user?.id;
-        const data = await receptionService.confirmPayment(req.params.bookingId, req.body, userId);
+        let payloadData = req.body;
+        
+        // Handle multer file upload
+        if (req.file) {
+            payloadData.payment_proof_path = `/uploads/documents/${req.file.filename}`;
+        }
+        
+        const data = await receptionService.confirmPayment(req.params.bookingId, payloadData, userId);
         return sendSuccess(res, 'Payment confirmed successfully', data);
     } catch (error) {
         next(error);
@@ -305,6 +321,16 @@ exports.executeRoomTransfer = async (req, res, next) => {
         const { guestId } = req.body;
         const data = await receptionService.executeRoomTransfer(guestId, userId);
         return sendSuccess(res, 'Room transfer executed successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.updateBill = async (req, res, next) => {
+    try {
+        const userId = req.user?.user_id || req.user?.id;
+        const data = await receptionService.updateBill(req.params.bookingId, req.body, userId);
+        return sendSuccess(res, 'Bill updated successfully', data);
     } catch (error) {
         next(error);
     }

@@ -1,38 +1,78 @@
 const invoiceService = require('./invoice.service');
 const receptionRepo = require('../repositories/reception.repository');
+const path = require('path');
+const fs = require('fs');
 
 /**
  * GET /api/billing/invoice/:bookingId
  * Streams the stored PDF or generates on-demand if not stored.
  */
 exports.downloadInvoice = async (req, res) => {
-  const { bookingId } = req.params;
   try {
+    const { bookingId } = req.params;
+    const db = require('../db/db');
+    const bookingRes = await db.query('SELECT user_id, booking_state FROM booking_requests WHERE booking_id = $1', [bookingId]);
+    if (bookingRes.rows.length === 0) return res.status(404).json({ error: 'Booking not found.' });
+
+    // Allow any authenticated logged-in user to access the checkout invoice
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized: Please login.' });
+    }
+
+    const bookingState = bookingRes.rows[0].booking_state;
+    
+    // If the booking is currently CHECKED_IN (i.e. stay might have been extended or shortened),
+    // dynamically recalculate and update the bill snapshot before generating the PDF.
+    if (bookingState === 'CHECKED_IN') {
+        const receptionService = require('../services/reception.service');
+        const client = await db.getClient();
+        try {
+            const billing = await receptionService.calculateBookingBilling(bookingId, client);
+            await receptionRepo.insertFinalBill({
+                booking_id: bookingId,
+                generated_json: billing.breakdown,
+                subtotal: billing.subtotal,
+                gst: billing.gst,
+                total: billing.total,
+                generated_by: req.user.user_id
+            }, client);
+        } catch (e) {
+            console.error('[Invoice] Dynamic pre-calc failed:', e.message);
+        } finally {
+            client.release();
+        }
+    }
+
     const bill = await receptionRepo.getFinalBillByBooking(bookingId);
     if (!bill) {
-      return res.status(404).json({ error: 'Invoice not found for this booking.' });
-    }
-    const { db } = require('../config/database');
-    const bookingRes = await db.query('SELECT user_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
-    if (bookingRes.rows.length === 0) return res.status(404).json({ error: 'Booking not found.' });
-    const bookingOwner = bookingRes.rows[0].user_id;
-
-    if (req.user.role === 'user' && bookingOwner !== req.user.id) {
-      return res.status(403).json({ error: 'Forbidden: You do not have permission to view this invoice.' });
+      return res.status(404).json({ error: 'Invoice not found or cannot be generated yet.' });
     }
 
-    if (bill.payment_mode === null) {
-      return res.status(400).json({ error: 'Payment not yet confirmed. Invoice unavailable.' });
+    const invoicesDir = path.join(process.cwd(), 'uploads/invoices');
+    const filePath = path.join(invoicesDir, `${bookingId}.pdf`);
+
+    // Fetch config to check the always_regenerate_invoices toggle
+    const configRes = await db.query('SELECT always_regenerate_invoices FROM institution_configs WHERE config_id = 1');
+    const forceRegenerate = configRes.rows.length > 0 && configRes.rows[0].always_regenerate_invoices !== false;
+
+    // Determine if we need to generate or regenerate the PDF
+    let shouldGenerate = true;
+    if (!forceRegenerate && fs.existsSync(filePath)) {
+        const stats = fs.statSync(filePath);
+        // If the file is newer than or equal to the bill's generated timestamp, we don't need to regenerate.
+        if (new Date(stats.mtime).getTime() >= new Date(bill.generated_at).getTime()) {
+            shouldGenerate = false;
+        }
     }
 
-    // Generate PDF on the fly
-    const pdfBuffer = await invoiceService.generateGSTInvoice(bookingId, null);
+    if (shouldGenerate) {
+        await invoiceService.saveInvoiceToDisk(bookingId);
+    }
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 
-      `attachment; filename="invoice-${bill.invoice_number ? bill.invoice_number.replace(/\//g, '_') : bookingId}.pdf"`);
-    res.setHeader('Content-Length', pdfBuffer.length);
-    res.end(pdfBuffer);
+    res.setHeader('Content-Disposition', `inline; filename="invoice-${bill.invoice_number ? bill.invoice_number.replace(/\//g, '_') : bookingId}.pdf"`);
+    const stream = fs.createReadStream(filePath);
+    stream.pipe(res);
   } catch (err) {
     console.error('[Invoice] Download failed:', err);
     res.status(500).json({ error: 'Failed to generate invoice.' });

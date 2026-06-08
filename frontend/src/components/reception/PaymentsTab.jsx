@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, CheckCircle, CreditCard, Banknote, Search, Calendar, User, Receipt } from 'lucide-react';
+import { DollarSign, CheckCircle, CreditCard, Banknote, Search, Calendar, User, Receipt, Edit3, Eye, Download } from 'lucide-react';
 import { receptionService } from '../../services/reception.service';
 import { getFormattedBookingId } from '../../utils/booking';
+import EditBillModal from './EditBillModal';
 
 const PaymentsTab = ({ onBillGenerated }) => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const isGHC = user.role === 'gh_coordinator' || user.role === 'super_admin' || user.role === 'guest_house_admin';
     const [subTab, setSubTab] = useState('pending'); // 'pending' | 'completed'
     const [pending, setPending] = useState([]);
     const [completed, setCompleted] = useState([]);
@@ -12,11 +15,14 @@ const PaymentsTab = ({ onBillGenerated }) => {
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [paymentMode, setPaymentMode] = useState('POS');
     const [transactionRef, setTransactionRef] = useState('');
+    const [comments, setComments] = useState('');
+    const [proofFile, setProofFile] = useState(null);
     const [processing, setProcessing] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [showLedger, setShowLedger] = useState(false);
     const [pageOffset, setPageOffset] = useState(0);
     const [hasMoreCompleted, setHasMoreCompleted] = useState(true);
+    const [editingBillBooking, setEditingBillBooking] = useState(null);
 
     const loadPendingPayments = async () => {
         try {
@@ -77,6 +83,8 @@ const PaymentsTab = ({ onBillGenerated }) => {
         setSelectedBooking(booking);
         setPaymentMode('POS');
         setTransactionRef('');
+        setComments('');
+        setProofFile(null);
         setShowLedger(isLedger);
 
         if (booking.bill_missing && !booking.breakdown) {
@@ -108,9 +116,21 @@ const PaymentsTab = ({ onBillGenerated }) => {
             const payload = {
                 payment_mode: paymentMode,
                 amount_received: getDisplayTotal(selectedBooking),
-                transaction_ref: paymentMode === 'POS' ? transactionRef : null
+                transaction_ref: (paymentMode === 'POS' || paymentMode === 'Online Transfer') ? transactionRef : null,
+                payment_comments: comments
             };
-            const res = await receptionService.confirmPayment(selectedBooking.booking_id, payload);
+            
+            let finalData;
+            if (proofFile) {
+                const formData = new FormData();
+                formData.append('payment_proof', proofFile);
+                formData.append('payload', JSON.stringify(payload));
+                finalData = formData;
+            } else {
+                finalData = payload;
+            }
+
+            const res = await receptionService.confirmPayment(selectedBooking.booking_id, finalData);
             if (res.success) {
                 // Remove from pending list
                 setPending(prev => prev.filter(p => p.booking_id !== selectedBooking.booking_id));
@@ -229,7 +249,7 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                     <td className="px-6 py-4 font-bold text-indigo-700">
                                         ₹{getDisplayTotal(p).toLocaleString('en-IN')}
                                     </td>
-                                    <td className="px-6 py-4 flex gap-2">
+                                    <td className="px-6 py-4 flex flex-wrap gap-2">
                                         <button 
                                             onClick={() => handleOpenModal(p, false)}
                                             className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold text-sm transition-colors shadow-sm"
@@ -244,6 +264,16 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                             <Receipt className="h-4 w-4 text-slate-500" />
                                             Ledger
                                         </button>
+                                        {isGHC && !p.bill_missing && (
+                                            <button 
+                                                onClick={() => setEditingBillBooking(p)}
+                                                className="px-3 py-2 border border-amber-200 text-amber-700 bg-amber-50 rounded-xl hover:bg-amber-100 font-bold text-sm transition-colors flex items-center gap-1 shadow-sm"
+                                                title="Edit Bill Parameters"
+                                            >
+                                                <Edit3 className="h-4 w-4" />
+                                                Edit Bill
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -267,7 +297,12 @@ const PaymentsTab = ({ onBillGenerated }) => {
                             ) : filteredCompleted.map(p => (
                                 <tr key={p.booking_id} className="hover:bg-slate-50 transition-colors">
                                     <td className="px-6 py-4">
-                                        <span className="font-mono text-sm font-bold text-slate-700">{p.invoice_number}</span>
+                                        <div className="flex flex-col">
+                                            <span className="font-mono text-sm font-bold text-slate-700">{p.invoice_number}</span>
+                                            {p.transaction_ref && (
+                                                <span className="text-[10px] text-slate-500 font-mono mt-1">Ref: {p.transaction_ref}</span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className="font-mono text-xs font-medium text-slate-500">{getFormattedBookingId(p)}</span>
@@ -279,8 +314,16 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                             {p.payment_mode}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-sm text-slate-500 font-medium">
+                                    <td className="px-6 py-4 text-sm text-slate-500 font-medium flex gap-2 items-center">
                                         {new Date(p.paid_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                        {p.payment_proof_path && (
+                                            <a href={`http://localhost:5000${p.payment_proof_path}`} target="_blank" rel="noopener noreferrer" className="ml-2 text-blue-600 hover:text-blue-800" title="View Proof">
+                                                <Eye className="h-4 w-4" />
+                                            </a>
+                                        )}
+                                        <button onClick={() => onBillGenerated(p.booking_id)} className="ml-2 text-indigo-600 hover:text-indigo-800" title="Download Invoice">
+                                            <Download className="h-4 w-4" />
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -438,7 +481,7 @@ const PaymentsTab = ({ onBillGenerated }) => {
                             <form onSubmit={handleConfirm}>
                                 <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Payment Mode</label>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-3 gap-4">
                                         <button
                                             type="button"
                                             onClick={() => setPaymentMode('POS')}
@@ -453,12 +496,19 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                         >
                                             <Banknote className="h-5 w-5 mr-2" /> Cash
                                         </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPaymentMode('Online Transfer')}
+                                            className={`flex items-center justify-center p-3 border rounded-lg font-medium transition-colors ${paymentMode === 'Online Transfer' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'hover:bg-gray-50 text-gray-600'}`}
+                                        >
+                                            <Banknote className="h-5 w-5 mr-2" /> Online Transfer
+                                        </button>
                                     </div>
                                 </div>
 
-                                {paymentMode === 'POS' && (
-                                    <div className="mb-6">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">POS Slip Reference / UTR Number</label>
+                                {(paymentMode === 'POS' || paymentMode === 'Online Transfer') && (
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Reference / UTR Number</label>
                                         <input 
                                             type="text" 
                                             required 
@@ -469,6 +519,26 @@ const PaymentsTab = ({ onBillGenerated }) => {
                                         />
                                     </div>
                                 )}
+
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Proof of Transaction (Optional)</label>
+                                    <input 
+                                        type="file" 
+                                        className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                        onChange={(e) => setProofFile(e.target.files[0])}
+                                    />
+                                </div>
+
+                                <div className="mb-6">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Comments (Optional)</label>
+                                    <textarea 
+                                        rows="2"
+                                        className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                        value={comments}
+                                        onChange={(e) => setComments(e.target.value)}
+                                        placeholder="Add any remarks..."
+                                    ></textarea>
+                                </div>
 
                                 <button 
                                     type="submit" 
@@ -486,6 +556,17 @@ const PaymentsTab = ({ onBillGenerated }) => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {editingBillBooking && (
+                <EditBillModal 
+                    booking={editingBillBooking}
+                    onClose={() => setEditingBillBooking(null)}
+                    onSave={() => {
+                        setEditingBillBooking(null);
+                        loadPendingPayments();
+                    }}
+                />
             )}
         </div>
     );

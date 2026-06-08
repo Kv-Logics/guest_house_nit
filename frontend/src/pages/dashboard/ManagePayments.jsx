@@ -530,7 +530,7 @@ const ManagePayments = () => {
                 booking={overrideBooking}
                 onOverrideComplete={() => {
                     setOverrideBooking(null);
-                    fetchPendingPayments();
+                    loadPendingPayments(0, false);
                 }}
             />
             

@@ -148,6 +148,15 @@ exports.generateFinalBillSnapshot = async (bookingId, payload, userId) => {
         `, [total, bookingId]);
 
         await client.query('COMMIT');
+
+        // Delete stale PDF so it regenerates on next GET
+        const fs = require('fs');
+        const path = require('path');
+        const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${bookingId}.pdf`);
+        if (fs.existsSync(stalePdfPath)) {
+            fs.unlinkSync(stalePdfPath);
+        }
+
         return { success: true, total };
     } catch (err) {
         await client.query('ROLLBACK');

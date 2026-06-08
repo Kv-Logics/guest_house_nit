@@ -10,15 +10,20 @@ import {
   CreditCard,
   Receipt,
   Filter,
-  Database
+  Database,
+  Calendar
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
+import PaymentProofModal from '../../components/ui/PaymentProofModal';
 import MyBookingsTable from './MyBookingsTable';
 import ApprovalQueueTable from './ApprovalQueueTable';
 import SystemLogs from './SystemLogs';
+import RoomMatrixTab from '../../components/reception/RoomMatrixTab';
+import OccupancyStats from '../../components/admin/OccupancyStats';
 import { getFormattedBookingId } from '../../utils/booking';
+import { receptionService } from '../../services/reception.service';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -26,10 +31,12 @@ export default function AdminDashboard() {
   const [adminPending, setAdminPending] = useState([]);
   const [adminApproved, setAdminApproved] = useState([]);
   const [adminRejected, setAdminRejected] = useState([]);
-  const [activeTab, setActiveTab] = useState('approvals'); // 'approvals', 'approved_requests', 'rejected_requests'
+  const [rooms, setRooms] = useState([]);
+  const [activeTab, setActiveTab] = useState('approvals'); // 'approvals', 'approved_requests', 'rejected_requests', 'room_matrix'
   const [previewId, setPreviewId] = useState(null);
   const [actionModal, setActionModal] = useState({ isOpen: false, id: null, action: null });
   const [remarks, setRemarks] = useState('');
+  const [paymentModalBooking, setPaymentModalBooking] = useState(null);
   
   // Search & Pagination State
   const [searchTermInput, setSearchTermInput] = useState('');
@@ -38,6 +45,7 @@ export default function AdminDashboard() {
   const [hasMore, setHasMore] = useState({ approvals: true, approved_requests: true, rejected_requests: true });
   const [loading, setLoading] = useState(false);
   const [monthFilter, setMonthFilter] = useState('current'); // 'current' | 'archive'
+  const [sortBy, setSortBy] = useState('arr_asc'); // 'arr_asc', 'arr_desc', 'app_asc', 'app_desc'
 
   const navigate = useNavigate();
 
@@ -56,10 +64,28 @@ export default function AdminDashboard() {
 
   useEffect(() => {
       if (!isApprover) return;
+      if (activeTab === 'room_matrix') {
+          fetchRooms();
+          return;
+      }
       // When tab or search changes, reset offset and load fresh
       setOffsets(prev => ({ ...prev, [activeTab]: 0 }));
       loadTabBookings(activeTab, 0, false, activeSearchTerm);
-  }, [activeTab, activeSearchTerm, isApprover, monthFilter]);
+  }, [activeTab, activeSearchTerm, isApprover, monthFilter, sortBy]);
+
+  const fetchRooms = async () => {
+      try {
+          setLoading(true);
+          const res = await receptionService.getRooms();
+          if (res.success) {
+              setRooms(res.data || []);
+          }
+      } catch (error) {
+          console.error('Failed to fetch rooms:', error);
+      } finally {
+          setLoading(false);
+      }
+  };
 
   const fetchMyBookings = async () => {
     try {
@@ -85,7 +111,7 @@ export default function AdminDashboard() {
       const limit = offset === 0 ? 50 : 100;
       const statusFilter = getStatusFilterForTab(tab);
       const response = await api.get(`/bookings/admin/all`, {
-          params: { limit, offset, status: statusFilter, search, month_filter: monthFilter }
+          params: { limit, offset, status: statusFilter, search, month_filter: monthFilter, sortBy }
       });
       
       if (response.success) {
@@ -217,6 +243,22 @@ export default function AdminDashboard() {
                   {monthFilter === 'archive' ? 'Viewing Archive' : 'View Archive'}
               </button>
           )}
+          {isApprover && (
+              <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              >
+                  <option value="arr_asc">Arrival (Earliest)</option>
+                  <option value="arr_desc">Arrival (Latest)</option>
+                  <option value="app_desc">Applied (Newest)</option>
+                  <option value="app_asc">Applied (Oldest)</option>
+                  <option value="book_desc">Booking ID (Newest)</option>
+                  <option value="book_asc">Booking ID (Oldest)</option>
+                  <option value="cat_asc">Category (A-Z)</option>
+                  <option value="cat_desc">Category (Z-A)</option>
+              </select>
+          )}
           <button
             onClick={() => navigate('/book')}
             className="hidden sm:flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
@@ -243,6 +285,18 @@ export default function AdminDashboard() {
               >
                 <XCircle className="w-4 h-4 mr-2" /> Rejected
               </button>
+              <button
+                onClick={() => setActiveTab('room_matrix')}
+                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'room_matrix' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <Calendar className="w-4 h-4 mr-2" /> Room Matrix
+              </button>
+              <button
+                onClick={() => setActiveTab('occupancy')}
+                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'occupancy' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <FileText className="w-4 h-4 mr-2" /> Occupancy
+              </button>
               {isSuperAdmin && (
                 <button
                   onClick={() => setActiveTab('master_logs')}
@@ -255,6 +309,27 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
+
+      {activeTab === 'room_matrix' && (
+          <RoomMatrixTab 
+              allRooms={rooms} 
+              isRoomAvailableForDates={(room, checkInDate, checkOutDate) => {
+                  if (!checkInDate || !checkOutDate) return true;
+                  const start = new Date(checkInDate).getTime();
+                  const end = new Date(checkOutDate).getTime();
+                  if (room.future_allocations && room.future_allocations.length > 0) {
+                      for (const alloc of room.future_allocations) {
+                          const allocStart = new Date(alloc.allocated_from).getTime();
+                          const allocEnd = new Date(alloc.allocated_to).getTime();
+                          if (start < allocEnd && end > allocStart) {
+                              return false;
+                          }
+                      }
+                  }
+                  return true;
+              }} 
+          />
+      )}
 
       {activeTab === 'my_bookings' && (
         <MyBookingsTable
@@ -331,6 +406,10 @@ export default function AdminDashboard() {
           <SystemLogs />
       )}
 
+      {activeTab === 'occupancy' && (
+          <OccupancyStats />
+      )}
+
       {previewId && (
         <BookingDetailsModal bookingId={previewId} onClose={() => setPreviewId(null)} />
       )}
@@ -372,6 +451,9 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+      )}
+      {paymentModalBooking && (
+        <PaymentProofModal booking={paymentModalBooking} onClose={() => setPaymentModalBooking(null)} />
       )}
     </div>
   );

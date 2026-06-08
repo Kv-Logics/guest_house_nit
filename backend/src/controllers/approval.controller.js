@@ -14,6 +14,17 @@ exports.getPendingApprovals = async (req, res, next) => {
     }
 };
 
+exports.getApprovalHistory = async (req, res, next) => {
+    try {
+        const userId = req.user.user_id || req.user.id;
+        const { action } = req.query; // 'APPROVED' or 'REJECTED'
+        const history = await approvalService.getApprovalHistory(userId, action);
+        return sendSuccess(res, 'History retrieved', history);
+    } catch (error) {
+        next(error);
+    }
+};
+
 exports.approveBooking = async (req, res, next) => {
     try {
         const { action, remarks } = req.body;

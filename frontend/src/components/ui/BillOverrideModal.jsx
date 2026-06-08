@@ -2,14 +2,24 @@ import React, { useState } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 
 const BillOverrideModal = ({ isOpen, onClose, booking, onOverrideComplete }) => {
-    if (!isOpen || !booking) return null;
-
-    const [subtotal, setSubtotal] = useState(booking.subtotal || 0);
-    const [gst, setGst] = useState(booking.gst || 0);
-    const [total, setTotal] = useState(booking.total || 0);
+    const [subtotal, setSubtotal] = useState(0);
+    const [gst, setGst] = useState(0);
+    const [total, setTotal] = useState(0);
     const [reason, setReason] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+
+    React.useEffect(() => {
+        if (booking) {
+            setSubtotal(booking.subtotal || 0);
+            setGst(booking.gst || 0);
+            setTotal(booking.total || 0);
+            setReason('');
+            setError('');
+        }
+    }, [booking, isOpen]);
+
+    if (!isOpen || !booking) return null;
 
     // Auto-calculate total if subtotal/gst changes
     const handleSubtotalChange = (val) => {

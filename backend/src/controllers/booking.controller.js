@@ -24,11 +24,11 @@ exports.getMyBookings = async (req, res, next) => {
 
 exports.getAllBookingsForAdmin = async (req, res, next) => {
     try {
-        const { limit = 20, offset = 0, status, search, month_filter } = req.query;
+        const { limit = 20, offset = 0, status, search, month_filter, sortBy } = req.query;
         const parsedLimit = parseInt(limit, 10);
         const parsedOffset = parseInt(offset, 10);
         
-        const data = await bookingService.getAllBookingsForAdmin(parsedLimit, parsedOffset, status, search, month_filter);
+        const data = await bookingService.getAllBookingsForAdmin(parsedLimit, parsedOffset, status, search, month_filter, sortBy);
         return sendSuccess(res, 'Admin bookings retrieved successfully', data);
     } catch (error) {
         next(error);

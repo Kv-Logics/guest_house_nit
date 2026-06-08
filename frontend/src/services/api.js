@@ -24,7 +24,9 @@ api.interceptors.request.use((config) => {
           const sysConfig = JSON.parse(sysConfigStr);
           isTimeMachineEnabled = sysConfig.enable_time_machine !== false;
       }
-  } catch(e) {}
+  } catch (e) {
+      // config not set
+  }
 
   const isMockActive = localStorage.getItem('mock-system-date-active') === 'true';
   const mockDate = localStorage.getItem('mock-system-date');

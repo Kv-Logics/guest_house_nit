@@ -24,6 +24,7 @@ export default function PreviewPage() {
   const { formData, user, authorities, tariffs = [] } = location.state || {};
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [selectedBillingRoomType, setSelectedBillingRoomType] = useState(formData?.room_type || 'Standard Room');
 
   // Ensure the page always starts at the very top when navigating from the form
   useEffect(() => {
@@ -91,7 +92,7 @@ export default function PreviewPage() {
     days = calculateHotelNights(earliestArrival, latestDeparture);
   }
 
-  const [selectedBillingRoomType, setSelectedBillingRoomType] = useState(formData.room_type || 'Standard Room');
+
 
   const activeTariff = tariffs.find(t => String(t.category_id) === String(formData.category_id) && t.room_type === selectedBillingRoomType) || tariffs.find(t => String(t.category_id) === String(formData.category_id));
   
@@ -575,7 +576,7 @@ export default function PreviewPage() {
               </div>
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase mb-1">Purpose of Visit</p>
-                <p className="text-slate-700 italic">"{formData.purpose_of_visit}"</p>
+                <p className="text-slate-700 italic">&quot;{formData.purpose_of_visit}&quot;</p>
               </div>
               {(formData.document_1 || formData.document_2) && (
                 <div className="pt-3 border-t border-slate-100">

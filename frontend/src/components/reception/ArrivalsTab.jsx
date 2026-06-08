@@ -26,6 +26,10 @@ export default function ArrivalsTab({
             case 'app_asc': return aApp !== bApp ? aApp - bApp : String(a.bookingId).localeCompare(String(b.bookingId));
             case 'arr_asc': return aArr - bArr;
             case 'arr_desc': return bArr - aArr;
+            case 'book_desc': return String(b.bookingId || '').localeCompare(String(a.bookingId || ''));
+            case 'book_asc': return String(a.bookingId || '').localeCompare(String(b.bookingId || ''));
+            case 'cat_asc': return String(a.category || '').localeCompare(String(b.category || ''));
+            case 'cat_desc': return String(b.category || '').localeCompare(String(a.category || ''));
             default: return bApp - aApp;
         }
     };
@@ -48,6 +52,10 @@ export default function ArrivalsTab({
                         <option value="app_asc">Application Date (Oldest)</option>
                         <option value="arr_asc">Arrival Date (Soonest)</option>
                         <option value="arr_desc">Arrival Date (Latest)</option>
+                        <option value="book_desc">Booking ID (Newest)</option>
+                        <option value="book_asc">Booking ID (Oldest)</option>
+                        <option value="cat_asc">Category (A-Z)</option>
+                        <option value="cat_desc">Category (Z-A)</option>
                     </select>
                 </div>
             </div>
@@ -95,48 +103,92 @@ export default function ArrivalsTab({
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h2 className="text-lg font-bold text-slate-800 mb-4 border-b pb-3">Pending Arrivals</h2>
                 
-                {sortedPending.length === 0 ? (
-                    <p className="text-slate-500 text-center py-8">No guests pending check-in today.</p>
-                ) : (
-                    <div className="space-y-4">
-                        {sortedPending.map(arr => {
-                            const isExpanded = !!expandedArrivals[arr.bookingId];
-                            return (
-                            <div key={arr.bookingId} className="border border-slate-200 rounded-xl p-5 shadow-sm bg-white">
-                                <div 
-                                    className="flex justify-between items-start mb-3 cursor-pointer group"
-                                    onClick={() => setExpandedArrivals(prev => ({ ...prev, [arr.bookingId]: !prev[arr.bookingId] }))}
-                                >
-                                    <div>
-                                        <span className="inline-block font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 break-all mb-1 group-hover:border-indigo-300 transition-colors">
-                                            {getFormattedBookingId(arr)}
-                                        </span>
-                                        <h3 className="font-bold text-lg text-slate-800">{arr.applicant}</h3>
+                {(() => {
+                    const roomArrivals = [];
+                    sortedPending.forEach(arr => {
+                        const roomNumbersStr = arr.allocatedRoomNumbers || '';
+                        const roomNumbers = roomNumbersStr.split(',').map(r => r.trim()).filter(Boolean);
+                        if (roomNumbers.length === 0 || !arr.rawGuests || arr.rawGuests.length === 0) {
+                            const pendingGuests = (arr.rawGuests || []).filter(guest => {
+                                return !(bookingData.rooms || []).some(room => 
+                                    room.guests && room.guests.some(g => g.guest_id === guest.guest_id && g.stay_status === 'CHECKED_IN')
+                                );
+                            });
+                            if (pendingGuests.length > 0) {
+                                roomArrivals.push({ ...arr, displayRoom: 'Unassigned', displayGuests: pendingGuests });
+                            }
+                            return;
+                        }
+                        
+                        const uniqueIndices = Array.from(new Set(arr.rawGuests.map(g => g.room_index || 0))).sort((a,b)=>a-b);
+                        
+                        roomNumbers.forEach((roomNo, i) => {
+                            const roomGuests = arr.rawGuests.filter(g => {
+                                const mappedIdx = uniqueIndices.indexOf(g.room_index || 0);
+                                return (mappedIdx % roomNumbers.length) === i;
+                            });
+                            
+                            const pendingRoomGuests = roomGuests.filter(guest => {
+                                return !(bookingData.rooms || []).some(room => 
+                                    room.guests && room.guests.some(g => g.guest_id === guest.guest_id && g.stay_status === 'CHECKED_IN')
+                                );
+                            });
+
+                            if (pendingRoomGuests.length > 0) {
+                                roomArrivals.push({
+                                    ...arr,
+                                    originalBookingId: arr.bookingId,
+                                    bookingId: `${arr.bookingId}:${roomNo}`,
+                                    displayRoom: roomNo,
+                                    displayGuests: pendingRoomGuests,
+                                    roomIndex: i
+                                });
+                            }
+                        });
+                    });
+
+                    if (roomArrivals.length === 0) {
+                        return <p className="text-slate-500 text-center py-8">No guests pending check-in today.</p>;
+                    }
+
+                    return (
+                        <div className="space-y-4">
+                            {roomArrivals.map(arr => {
+                                const isExpanded = !!expandedArrivals[arr.bookingId];
+                                return (
+                                <div key={arr.bookingId} className="border border-slate-200 rounded-xl p-5 shadow-sm bg-white">
+                                    <div 
+                                        className="flex justify-between items-start mb-3 cursor-pointer group"
+                                        onClick={() => setExpandedArrivals(prev => ({ ...prev, [arr.bookingId]: !prev[arr.bookingId] }))}
+                                    >
+                                        <div>
+                                            <span className="inline-block font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 break-all mb-1 group-hover:border-indigo-300 transition-colors">
+                                                {getFormattedBookingId(arr)}
+                                            </span>
+                                            <h3 className="font-bold text-lg text-slate-800">{arr.applicant}</h3>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-2">
+                                            <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Room Assigned</span>
+                                            <button className="text-slate-400 hover:text-indigo-600 transition-colors">
+                                                {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex flex-col items-end gap-2">
-                                        <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Rooms Assigned</span>
-                                        <button className="text-slate-400 hover:text-indigo-600 transition-colors">
-                                            {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                                        </button>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <div className="text-slate-600 font-mono font-bold">
+                                            Room: {arr.displayRoom}
+                                        </div>
+                                        <div className="flex items-center gap-1 text-xs font-medium text-slate-550">
+                                            <Clock className="w-3.5 h-3.5" /> 
+                                            Arriving: {new Date(arr.rawCheckIn).toLocaleDateString([], { dateStyle: 'medium' })}
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <div className="text-slate-600 font-mono font-bold">
-                                        Rooms: {arr.allocatedRoomNumbers || 'N/A'}
-                                    </div>
-                                    <div className="flex items-center gap-1 text-xs font-medium text-slate-550">
-                                        <Clock className="w-3.5 h-3.5" /> 
-                                        Arriving: {new Date(arr.rawCheckIn).toLocaleDateString([], { dateStyle: 'medium' })}
-                                    </div>
-                                </div>
-                                
-                                {isExpanded && (
-                                    <div className="space-y-2 mt-4 border-t pt-4 border-slate-100 animate-fade-in">
-                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Pending Guests</h4>
-                                        {arr.rawGuests.map(guest => {
-                                            const isCheckedIn = (bookingData.rooms || []).some(room => 
-                                                room.guests && room.guests.some(g => g.guest_id === guest.guest_id && g.stay_status === 'CHECKED_IN')
-                                            );
+                                    
+                                    {isExpanded && (
+                                        <div className="space-y-2 mt-4 border-t pt-4 border-slate-100 animate-fade-in">
+                                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Pending Guests</h4>
+                                            {arr.displayGuests.map(guest => {
+                                                const isCheckedIn = false; // already filtered out
 
                                             return (
                                                 <div key={guest.guest_id} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-lg border border-slate-100">
@@ -179,8 +231,9 @@ export default function ArrivalsTab({
                             </div>
                             );
                         })}
-                    </div>
-                )}
+                        </div>
+                    );
+                })()}
             </div>
         </div>
     </div>

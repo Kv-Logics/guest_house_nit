@@ -204,7 +204,7 @@ export default function PaymentsTable({ bookings, handleManage, refresh }) {
               <AlertTriangle className="w-6 h-6 mr-2 text-amber-500" /> Bulk Payment Warning
             </h3>
             <p className="text-sm text-slate-500 mb-6">
-              You are about to send a Payment Warning to <strong>{selectedIds.length}</strong> applicant(s). The system will dynamically append "This is your nth warning" to each message.
+              You are about to send a Payment Warning to <strong>{selectedIds.length}</strong> applicant(s). The system will dynamically append &quot;This is your nth warning&quot; to each message.
             </p>
             <div className="mb-6">
               <label className="block text-sm font-bold text-slate-700 mb-2">Custom Message *</label>

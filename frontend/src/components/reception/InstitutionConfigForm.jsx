@@ -181,6 +181,16 @@ const InstitutionConfigForm = () => {
                                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                             </label>
                         </div>
+                        <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50/50">
+                            <div>
+                                <h4 className="font-bold text-slate-800">Always Regenerate Invoices</h4>
+                                <p className="text-sm text-slate-500">Unconditionally regenerate the PDF on every download (disable to cache if unmodified).</p>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="always_regenerate_invoices" checked={config.always_regenerate_invoices !== false} onChange={(e) => setConfig({...config, always_regenerate_invoices: e.target.checked})} className="sr-only peer" />
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
                         <div className="flex justify-end pt-4">
                             <button onClick={handleSave} disabled={saving} className="flex items-center px-6 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium transition-colors disabled:opacity-50">
                                 {saving ? 'Saving...' : <><Save className="h-4 w-4 mr-2" /> Save Configuration</>}

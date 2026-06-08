@@ -44,6 +44,7 @@ export default function ApplicantDashboard() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('active');
     const [searchTerm, setSearchTerm] = useState('');
+    const [visibleNotifications, setVisibleNotifications] = useState(20);
     
     // System Configurations
     const [sysConfig, setSysConfig] = useState({ enable_extend_stay_applicant: true, show_invoice_applicant: true });
@@ -58,7 +59,9 @@ export default function ApplicantDashboard() {
             };
             window.addEventListener('sys-config-updated', handleConfigUpdate);
             return () => window.removeEventListener('sys-config-updated', handleConfigUpdate);
-        } catch(e) {}
+        } catch (e) {
+            // ignore error
+        }
     }, []);
 
     // Admins and authorities may need to visit the dashboard to manage their own applications.
@@ -184,6 +187,43 @@ export default function ApplicantDashboard() {
                 </div>
             )}
 
+            {/* Notifications Box */}
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm mb-6 overflow-hidden">
+                <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <Info className="w-5 h-5 text-indigo-500" />
+                        <h3 className="text-sm font-bold text-slate-800">Recent Notifications</h3>
+                    </div>
+                </div>
+                <div className="p-5 max-h-64 overflow-y-auto space-y-3">
+                    {(() => {
+                        const notifications = activeBookings.filter(b => ['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'APPROVER_REJECTED', 'ADMIN_REJECTED'].includes(b.booking_state));
+                        if (notifications.length === 0) {
+                            return <p className="text-sm text-slate-500 italic">No new notifications.</p>;
+                        }
+                        return (
+                            <>
+                                {notifications.slice(0, visibleNotifications).map(b => (
+                                    <div key={b.booking_id} className={`p-3 rounded-xl border text-sm font-medium ${
+                                        b.booking_state.includes('REJECTED') ? 'bg-red-50 border-red-100 text-red-800' : 'bg-emerald-50 border-emerald-100 text-emerald-800'
+                                    }`}>
+                                        Application <span className="font-bold font-mono">{getFormattedBookingId(b)}</span> has been {b.booking_state.includes('REJECTED') ? 'rejected' : 'approved and is ready'}.
+                                    </div>
+                                ))}
+                                {visibleNotifications < notifications.length && (
+                                    <button 
+                                        onClick={() => setVisibleNotifications(prev => prev + 20)}
+                                        className="w-full mt-2 py-2 text-sm font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors"
+                                    >
+                                        View More Notifications ({notifications.length - visibleNotifications} remaining)
+                                    </button>
+                                )}
+                            </>
+                        );
+                    })()}
+                </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
                 <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
                     <button onClick={() => setActiveTab('active')} className={`flex-1 sm:flex-none px-6 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'active' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -305,7 +345,7 @@ export default function ApplicantDashboard() {
                                         <button onClick={() => setPreviewId(b.booking_id)} className="inline-flex items-center px-3 py-1.5 bg-slate-50 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors shadow-sm ml-2">
                                             <Eye className="w-4 h-4 mr-1.5" /> Preview
                                         </button>
-                                        {['PENDING_APPROVER', 'PENDING_ADMIN'].includes(b.booking_state) && !(b.checked_in_at && b.pending_extension_datetime) && (
+                                        {['PENDING_APPROVER', 'PENDING_ADMIN', 'ADMIN_APPROVED', 'READY_FOR_CHECKIN'].includes(b.booking_state) && !(b.checked_in_at && b.pending_extension_datetime) && (
                                             <button
                                                 onClick={() => { if (window.confirm('Are you sure you want to withdraw this application?')) cancelMutation.mutate(b.booking_id); }}
                                                 disabled={cancelMutation.isPending}
@@ -330,15 +370,29 @@ export default function ApplicantDashboard() {
                                                 <CalendarClock className="w-4 h-4 mr-1.5" /> Extend stay
                                             </button>
                                         )}
-                                        {sysConfig.show_invoice_applicant && b.payment_state === 'PAID' && (
-                                            <a
-                                                href={`http://localhost:5000/api/reception/billing/invoice/${b.booking_id}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
+                                        {sysConfig.show_invoice_applicant && b.booking_state === 'CHECKED_OUT' && (
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        const res = await bookingService.downloadInvoice(b.booking_id);
+                                                        const blob = new Blob([res], { type: 'application/pdf' });
+                                                        const url = window.URL.createObjectURL(blob);
+                                                        const formattedId = getFormattedBookingId(b).replace(/[/:]/g, '_').toUpperCase();
+                                                        const link = document.createElement('a');
+                                                        link.href = url;
+                                                        link.setAttribute('download', `invoice-${formattedId}.pdf`);
+                                                        document.body.appendChild(link);
+                                                        link.click();
+                                                        link.parentNode.removeChild(link);
+                                                    } catch (err) {
+                                                        const errMsg = err.response?.data?.error || err.message || 'Failed to download invoice';
+                                                        alert(errMsg);
+                                                    }
+                                                }}
                                                 className="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 shadow-sm ml-2"
                                             >
                                                 <FileText className="w-4 h-4 mr-1.5" /> Invoice
-                                            </a>
+                                            </button>
                                         )}
                                         {((['PENDING_APPROVER', 'APPROVER_REJECTED', 'ADMIN_REJECTED', 'DRAFT'].includes(b.booking_state)) || (b.booking_state === 'PENDING_ADMIN' && String(b.category_id) === '3' && user?.role === 'faculty')) && (
                                             <button

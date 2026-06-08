@@ -468,8 +468,8 @@ exports.getBookingsByUser = async (userId) => {
     return await bookingRepository.getBookingsByUserId(userId);
 };
 
-exports.getAllBookingsForAdmin = async (limit = null, offset = 0, statusFilter = null, searchQuery = null, monthFilter = null) => {
-    return await bookingRepository.getAllBookingsWithDetails(limit, offset, statusFilter, searchQuery, monthFilter);
+exports.getAllBookingsForAdmin = async (limit = null, offset = 0, statusFilter = null, searchQuery = null, monthFilter = null, sortBy = null) => {
+    return await bookingRepository.getAllBookingsWithDetails(limit, offset, statusFilter, searchQuery, monthFilter, sortBy);
 };
 
 exports.getTariffs = async () => {

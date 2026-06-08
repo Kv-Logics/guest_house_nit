@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { bookingService } from '../../services/booking.service';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
-import { X, FileText, Users, Utensils, Paperclip, Loader2, RefreshCw, History, AlertCircle, Receipt, ShieldCheck, Download } from 'lucide-react';
+import { X, FileText, Users, Utensils, Paperclip, Loader2, RefreshCw, History, AlertCircle, Receipt, ShieldCheck, Download, ArrowRight } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import nitLogo from '../../assets/images/nitlogo.png';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
@@ -88,6 +88,15 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
         queryFn: async () => {
             const res = await api.get(`/bookings/${bookingId}/history`);
             return res; // api.js already unwraps response.data
+        },
+        enabled: !!bookingId
+    });
+
+    const { data: overridesRes } = useQuery({
+        queryKey: ['bookingOverrides', bookingId],
+        queryFn: async () => {
+            const res = await api.get(`/bookings/${bookingId}/override-logs`);
+            return res;
         },
         enabled: !!bookingId
     });
@@ -392,6 +401,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
 
     const isAdminApplicant = ['super_admin', 'guest_house_admin'].includes(booking?.applicant_role);
     const isAdminCat2 = isAdminApplicant && String(booking?.category_id) === '2';
+    const overrideLogs = overridesRes?.data || [];
 
     return (
         <div className="fixed inset-0 bg-slate-900/60 flex justify-end z-50 animate-fade-in p-0 overflow-hidden">
@@ -721,6 +731,92 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                         </div>
                                     </div>
                                 )}
+
+                                {/* Audit & Payment History */}
+                                {(booking.final_bill || overrideLogs.length > 0) && (
+                                    <div className="border-t border-slate-100 pt-8 pb-4">
+                                        <h4 className="text-base font-bold text-slate-800 mb-6 flex items-center">
+                                            <Receipt className="w-5 h-5 mr-2 text-emerald-500" /> Audit & Payment History
+                                        </h4>
+                                        <div className="space-y-6">
+                                            {/* Payment Details */}
+                                            {booking.final_bill && (
+                                                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-5 shadow-sm">
+                                                    <h5 className="text-sm font-bold text-emerald-800 mb-3 border-b border-emerald-200/50 pb-2">Final Payment Processed</h5>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                                                        <div>
+                                                            <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 mb-1">Total Paid</p>
+                                                            <p className="font-bold text-slate-800">₹{booking.final_bill.amount_received || booking.final_bill.total_amount}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 mb-1">Mode</p>
+                                                            <p className="font-semibold text-slate-700 capitalize">{booking.final_bill.payment_mode || 'N/A'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 mb-1">Ref / UTR</p>
+                                                            <p className="font-mono text-xs text-slate-700">{booking.final_bill.transaction_ref || 'N/A'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 mb-1">Processed By</p>
+                                                            <p className="font-semibold text-slate-700">{booking.final_bill.received_by_name || 'System'}</p>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {booking.final_bill.payment_comments && (
+                                                        <div className="mt-4 pt-4 border-t border-emerald-200/50">
+                                                            <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 mb-1">Comments / Remarks</p>
+                                                            <p className="text-sm text-emerald-900 italic font-medium">&quot;{booking.final_bill.payment_comments}&quot;</p>
+                                                        </div>
+                                                    )}
+
+                                                    {booking.final_bill.payment_proof_path && (
+                                                        <div className="mt-4 pt-4 border-t border-emerald-200/50">
+                                                            <a 
+                                                                href={`${API_BASE_URL.replace('/api', '')}/${booking.final_bill.payment_proof_path.replace(/\\/g, '/')}`} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-emerald-700 transition-colors"
+                                                            >
+                                                                <FileText className="w-4 h-4" /> View Proof of Transaction
+                                                            </a>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Override Logs */}
+                                            {overrideLogs.length > 0 && (
+                                                <div className="bg-amber-50 border border-amber-200/50 rounded-xl p-5 shadow-sm">
+                                                    <h5 className="text-sm font-bold text-amber-800 mb-3 border-b border-amber-200/50 pb-2">Billing Overrides (GHC)</h5>
+                                                    <div className="space-y-4">
+                                                        {overrideLogs.map((log, idx) => (
+                                                            <div key={idx} className="bg-white rounded-lg p-3 border border-amber-100 shadow-sm text-sm">
+                                                                <div className="flex justify-between items-start mb-2">
+                                                                    <div>
+                                                                        <span className="font-bold text-amber-900">Tariff Overridden</span>
+                                                                        <div className="text-xs text-amber-700 mt-1">
+                                                                            <span className="line-through opacity-70">₹{log.previous_tariff}</span>
+                                                                            <ArrowRight className="w-3 h-3 inline mx-2" />
+                                                                            <span className="font-bold">₹{log.new_tariff}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <span className="text-[10px] font-bold text-amber-600 block">{new Date(log.created_at).toLocaleString()}</span>
+                                                                        <span className="text-xs font-medium text-amber-800">By: {log.overridden_by_name}</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="bg-amber-50 rounded p-2 text-xs italic text-amber-800 border border-amber-100/50 mt-2">
+                                                                    &quot;{log.override_reason}&quot;
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
                             </div>
                         </>
                     )}

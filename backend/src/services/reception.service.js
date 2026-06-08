@@ -26,6 +26,37 @@ const getCalendarDays = (start, end) => {
     return days;
 };
 
+exports.getOccupancyStats = async () => {
+    const client = await db.getClient();
+    try {
+        const roomsRes = await client.query('SELECT current_status FROM rooms');
+        const rooms = roomsRes.rows;
+        const totalRooms = rooms.length;
+        const occupiedRooms = rooms.filter(r => r.current_status === 'occupied').length;
+        const availableRooms = rooms.filter(r => r.current_status === 'available').length;
+        
+        const todayRes = await client.query(`
+            SELECT 
+                COUNT(*) FILTER (WHERE date_trunc('day', arrival_datetime) = date_trunc('day', CURRENT_DATE)) as todays_arrivals,
+                COUNT(*) FILTER (WHERE date_trunc('day', departure_datetime) = date_trunc('day', CURRENT_DATE)) as todays_departures,
+                COUNT(*) FILTER (WHERE booking_state = 'READY_FOR_CHECKIN' AND date_trunc('day', arrival_datetime) < date_trunc('day', CURRENT_DATE)) as no_shows
+            FROM booking_requests
+            WHERE booking_state NOT IN ('CANCELLED', 'REJECTED', 'ADMIN_REJECTED', 'APPROVER_REJECTED')
+        `);
+
+        return {
+            totalRooms,
+            occupiedRooms,
+            availableRooms,
+            todaysArrivals: parseInt(todayRes.rows[0].todays_arrivals || 0, 10),
+            todaysDepartures: parseInt(todayRes.rows[0].todays_departures || 0, 10),
+            noShows: parseInt(todayRes.rows[0].no_shows || 0, 10)
+        };
+    } finally {
+        client.release();
+    }
+};
+
 exports.getTodayArrivals = async (overrideNow = null) => {
     return await receptionRepository.getFrontDeskBookings(overrideNow);
 };
@@ -535,19 +566,9 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
         }
 
         // --- PAYMENT GATE ENFORCEMENT ---
+        // (Removed to allow check-out without prior payment. Payment collected via Reception Payments Tab)
         const ADMIN_ROLES = ['super_admin', 'guest_house_admin'];
         const isForceCheckout = payload?.force === true && ADMIN_ROLES.includes(payload?.userRole);
-
-        if (booking.payment_responsible === 'guest' && !isForceCheckout) {
-            const billRes = await client.query(`SELECT * FROM final_bills WHERE booking_id = $1`, [bookingId]);
-            const bill = billRes.rows[0];
-            
-            if (!bill || bill.payment_mode === null) {
-                const error = new Error('PAYMENT_REQUIRED');
-                error.status = 402;
-                throw error;
-            }
-        }
 
         // If force checkout by admin — write override log entry
         if (isForceCheckout) {
@@ -561,6 +582,14 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
                     payload.userId || checkedOutBy
                 ]
             );
+
+            // Delete stale PDF so it regenerates
+            const fs = require('fs');
+            const path = require('path');
+            const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${bookingId}.pdf`);
+            if (fs.existsSync(stalePdfPath)) {
+                fs.unlinkSync(stalePdfPath);
+            }
         }
 
         // 2. Fetch and lock active stays for this booking
@@ -648,6 +677,10 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
             subtotal: billing.subtotal,
             gst: billing.gst,
             total: billing.total,
+            billing_type: payload?.billing_type || 'B2C',
+            company_name: payload?.company_name || null,
+            gstin: payload?.gstin || null,
+            company_address: payload?.company_address || null,
             generated_by: checkedOutBy || null
         }, client);
 
@@ -713,9 +746,10 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
             if (billCheck.rows.length === 0) {
                 const billing = await exports.calculateBookingBilling(bookingId, null, overrideNow);
                 await db.query(`
-                    INSERT INTO final_bills (booking_id, generated_json, subtotal, gst, total, generated_by)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                `, [bookingId, JSON.stringify(billing.breakdown), billing.subtotal, billing.gst, billing.total, checkedOutBy]);
+                    INSERT INTO final_bills (booking_id, generated_json, subtotal, gst, total, billing_type, company_name, gstin, company_address, generated_by)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                `, [bookingId, JSON.stringify(billing.breakdown), billing.subtotal, billing.gst, billing.total,
+                    payload?.billing_type || 'B2C', payload?.company_name || null, payload?.gstin || null, payload?.company_address || null, checkedOutBy]);
             }
         }
     }
@@ -744,6 +778,7 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
         }
 
         // --- PAYMENT GATE ENFORCEMENT ---
+        // (Removed to allow check-out without prior payment. Payment collected via Reception Payments Tab)
         const ADMIN_ROLES = ['super_admin', 'guest_house_admin'];
         const isForceCheckout = payload?.force === true && ADMIN_ROLES.includes(payload?.userRole);
         const bookingId = stay.booking_id;
@@ -754,17 +789,6 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
             WHERE booking_id = $1 AND stay_status = 'CHECKED_IN' AND stay_id != $2
         `, [bookingId, stayId]);
         const otherActiveStaysCount = Number(otherStaysRes.rows[0].active_count);
-
-        if (stay.payment_responsible === 'guest' && !isForceCheckout && otherActiveStaysCount === 0) {
-            const billRes = await client.query(`SELECT * FROM final_bills WHERE booking_id = $1`, [bookingId]);
-            const bill = billRes.rows[0];
-            
-            if (!bill || bill.payment_mode === null) {
-                const error = new Error('PAYMENT_REQUIRED');
-                error.status = 402;
-                throw error;
-            }
-        }
 
         // If force checkout by admin — write override log entry
         if (isForceCheckout) {
@@ -778,6 +802,14 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
                     payload.userId || checkedOutBy
                 ]
             );
+
+            // Delete stale PDF so it regenerates
+            const fs = require('fs');
+            const path = require('path');
+            const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${bookingId}.pdf`);
+            if (fs.existsSync(stalePdfPath)) {
+                fs.unlinkSync(stalePdfPath);
+            }
         }
 
         // 2. Rule 7: check if final bill exists
@@ -1350,6 +1382,14 @@ exports.overrideStayBilling = async (overrideData) => {
             overridden_by: overriddenBy
         }, client);
 
+        // Delete stale PDF so it regenerates
+        const fs = require('fs');
+        const path = require('path');
+        const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${stay.booking_id}.pdf`);
+        if (fs.existsSync(stalePdfPath)) {
+            fs.unlinkSync(stalePdfPath);
+        }
+
         // 4. Update the stay
         const updatedStay = await receptionRepository.updateGuestStayStatus(stayId, {
             operational_room_type: newRoomType || null,
@@ -1462,6 +1502,15 @@ exports.confirmPayment = async (bookingId, paymentData, userId) => {
             [userId, bookingId, JSON.stringify(paymentData), modeLabel]);
 
         await client.query('COMMIT');
+        
+        // Delete stale PDF so it regenerates on next GET
+        const fs = require('fs');
+        const path = require('path');
+        const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${bookingId}.pdf`);
+        if (fs.existsSync(stalePdfPath)) {
+            fs.unlinkSync(stalePdfPath);
+        }
+
         return updatedBill;
     } catch (err) {
         await client.query('ROLLBACK');
@@ -1727,6 +1776,55 @@ exports.executeRoomTransfer = async (guestId, transferredBy) => {
     } catch (err) {
         await client.query('ROLLBACK');
         throw err;
+    } finally {
+        client.release();
+    }
+};
+
+exports.updateBill = async (bookingId, payload, userId) => {
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+        
+        const billRes = await client.query('SELECT * FROM final_bills WHERE booking_id = $1 FOR UPDATE', [bookingId]);
+        if (!billRes.rows.length) throw new Error('Bill not found');
+        const existingBill = billRes.rows[0];
+        
+        // Ensure only authorized edits. The payload contains new subtotal, gst, total, and updated JSON.
+        const updatedBillJson = payload.generatedJson;
+        const newSubtotal = payload.subtotal;
+        const newGst = payload.gst;
+        const newTotal = payload.total;
+        
+        const updateRes = await client.query(
+            `UPDATE final_bills 
+             SET generated_json = $1, subtotal = $2, gst = $3, total = $4, 
+                 billing_type = $5, company_name = $6, gstin = $7, company_address = $8
+             WHERE booking_id = $9 RETURNING *`,
+            [
+                updatedBillJson, 
+                newSubtotal, 
+                newGst, 
+                newTotal,
+                payload.billingType || existingBill.billing_type,
+                payload.companyName || existingBill.company_name,
+                payload.gstin || existingBill.gstin,
+                payload.companyAddress || existingBill.company_address,
+                bookingId
+            ]
+        );
+        
+        // Log the action
+        await client.query(
+            `INSERT INTO approval_logs (booking_id, approver_id, action, comments) VALUES ($1, $2, $3, $4)`,
+            [bookingId, userId, 'BILL_EDITED_BY_GHC', `GHC manually edited the bill parameters.`]
+        );
+
+        await client.query('COMMIT');
+        return updateRes.rows[0];
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
     } finally {
         client.release();
     }

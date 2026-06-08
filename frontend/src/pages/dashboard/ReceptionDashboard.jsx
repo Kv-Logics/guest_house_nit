@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Bed, UserPlus, LogOut, Receipt, Shield, Calendar, Users, DollarSign, Trash2, UserCheck, CheckCircle2, Sliders, Clock, ArrowLeftRight, ChevronDown, ChevronUp, X, Utensils, Activity, CheckCircle, XCircle, ArrowRight, Home, Settings, FileText, User, Bell, Search, Filter, HelpCircle, Loader2, Save, Printer, CreditCard, Plus, QrCode } from 'lucide-react';
 import { receptionService } from '../../services/reception.service';
+import { bookingService } from '../../services/booking.service';
+import { getFormattedBookingId } from '../../utils/booking';
+import api from '../../services/api';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../utils/constants';
@@ -11,9 +14,13 @@ import RoomsTab from '../../components/reception/RoomsTab';
 import FoodTab from '../../components/reception/FoodTab';
 import RoomAssignmentModal from '../../components/reception/RoomAssignmentModal';
 import RoomTransferModal from '../../components/reception/RoomTransferModal';
+import BillingInfoModal from '../../components/reception/BillingInfoModal';
 import PaymentsTab from '../../components/reception/PaymentsTab';
 import BulkRoomsTab from '../../components/reception/BulkRoomsTab';
 import ExtensionsTab from '../../components/reception/ExtensionsTab';
+import RoomMatrixTab from '../../components/reception/RoomMatrixTab';
+import BookingSearchTab from '../../components/reception/BookingSearchTab';
+import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
 
 // Default Pricing Configuration
 const PRICING_CONFIG = {
@@ -182,14 +189,9 @@ export default function ReceptionDashboard() {
     const [filterCategory, setFilterCategory] = useState('ALL');
     const [bookingData, setBookingData] = useState({ category: 'I', arrivals: [], rooms: [] });
     const [loading, setLoading] = useState(true);
-    const [forceCheckoutModal, setForceCheckoutModal] = useState({
-        isOpen: false,
-        bookingId: null,
-        stayId: null,
-        roomNumber: null,
-        guestName: '',
-        isRoomVacate: false
-    });
+    const [forceCheckoutModal, setForceCheckoutModal] = useState({ isOpen: false, bookingId: null, stayId: null, roomNumber: '', guestName: '', isRoomVacate: false });
+    const [billingInfoModal, setBillingInfoModal] = useState({ isOpen: false, stayId: null, bookingId: null, guestName: '', roomNumber: '', isRoomVacate: false });
+    const [confirmDialog, setConfirmDialog] = useState(null);
     const [error, setError] = useState(null);
     const [tariffs, setTariffs] = useState([]);
 
@@ -198,14 +200,13 @@ export default function ReceptionDashboard() {
     const [foodFilterDate, setFoodFilterDate] = useState(new Date().toISOString().split('T')[0]);
     const [isMatrixOpen, setIsMatrixOpen] = useState(false);
     const [historyDrawer, setHistoryDrawer] = useState({ isOpen: false, roomNumber: null });
+    const [viewBookingId, setViewBookingId] = useState(null);
     
     // Check-In Modal State
     const [previewArrival, setPreviewArrival] = useState(null);
     const [assignMode, setAssignMode] = useState(false);
     const [roomAssignments, setRoomAssignments] = useState({});
     
-    // Custom Confirmation Dialog State
-    const [confirmDialog, setConfirmDialog] = useState(null);
 
     // Room Transfer Modal state
     const [transferModal, setTransferModal] = useState({
@@ -227,14 +228,51 @@ export default function ReceptionDashboard() {
         if (sysConfigStr) {
             isTimeMachineEnabled = JSON.parse(sysConfigStr).enable_time_machine !== false;
         }
-    } catch(e) {}
+    } catch (e) {
+        // config not set or invalid JSON
+    }
     
     const [isMockActive, setIsMockActive] = useState(isTimeMachineEnabled && localStorage.getItem('mock-system-date-active') === 'true');
     const [mockDateStr, setMockDateStr] = useState(localStorage.getItem('mock-system-date') || '');
     const [now, setNow] = useState(new Date());
 
-    // Invoice Modal state
-    const [invoiceBookingId, setInvoiceBookingId] = useState(null);
+    const handleDownloadInvoice = async (bookingId) => {
+        try {
+            const res = await bookingService.downloadInvoice(bookingId);
+            const blob = new Blob([res], { type: 'application/pdf' });
+            const url = window.URL.createObjectURL(blob);
+            
+            // Try to find the booking object in our arrivals to get the formatted ID
+            const bookingObj = bookingData.arrivals.find(a => a.booking_id === bookingId || a.bookingId === bookingId);
+            let filename = `invoice-${bookingId.split('-')[0].toUpperCase()}.pdf`;
+            
+            if (bookingObj) {
+                const formattedId = getFormattedBookingId(bookingObj).replace(/[/:]/g, '_').toUpperCase();
+                filename = `invoice-${formattedId}.pdf`;
+            } else {
+                // If not in arrivals, fetch the booking details from the API to get the formatted ID
+                try {
+                    const bookingRes = await api.get(`/bookings/${bookingId}`);
+                    if (bookingRes.success && bookingRes.data) {
+                        const formattedId = getFormattedBookingId(bookingRes.data).replace(/[/:]/g, '_').toUpperCase();
+                        filename = `invoice-${formattedId}.pdf`;
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch booking details for filename:", e);
+                }
+            }
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+        } catch (err) {
+            const errMsg = err.response?.data?.error || err.message || 'Failed to download invoice';
+            alert(errMsg);
+        }
+    };
     const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
     const [pendingExtensionsCount, setPendingExtensionsCount] = useState(0);
 
@@ -490,44 +528,13 @@ export default function ReceptionDashboard() {
             return;
         }
 
-        setConfirmDialog({
-            title: 'Confirm Check-Out',
-            message: `Are you sure you want to Check Out guest ${g.name || g.guest_name} from Room ${roomNumber}?`,
-            isAlert: false,
-            onConfirm: async () => {
-                try {
-                    setConfirmDialog(null);
-                    setLoading(true);
-                    const res = await receptionService.checkOutStay(g.stay_id || g.guestId);
-                    await loadDashboardData();
-                    if (res.data?.bookingFinished && booking.payment_state !== 'PAID') {
-                        setActiveTab('payments');
-                    } else if (res?.data?.bookingFinished && res?.data?.booking?.booking_id) {
-                        setInvoiceBookingId(res.data.booking.booking_id); // Auto-open GST Invoice
-                    }
-                } catch (err) {
-                    if (err.response?.data?.message === 'PAYMENT_REQUIRED' || err.message === 'PAYMENT_REQUIRED') {
-                        setConfirmDialog({
-                            title: "Payment Required",
-                            message: "Payment must be settled before checkout since it is guest responsibility. Redirecting to Payments tab.",
-                            isAlert: true,
-                            onConfirm: () => {
-                                setConfirmDialog(null);
-                                setActiveTab('payments');
-                            }
-                        });
-                    } else {
-                        setConfirmDialog({
-                            title: "Operation Failed",
-                            message: err.response?.data?.message || err.message || "Failed to check out guest stay.",
-                            isAlert: true,
-                            onConfirm: () => setConfirmDialog(null)
-                        });
-                    }
-                } finally {
-                    setLoading(false);
-                }
-            }
+        setBillingInfoModal({
+            isOpen: true,
+            bookingId: booking.booking_id,
+            stayId: g.stay_id || g.guestId,
+            guestName: g.name || g.guest_name,
+            roomNumber: roomNumber,
+            isRoomVacate: false
         });
     };
 
@@ -577,79 +584,13 @@ export default function ReceptionDashboard() {
         const activeRoom = (bookingData.rooms || []).find(r => r.roomId === roomId);
         if (!activeRoom || !activeRoom.activeBookingId) return;
 
-        const booking = activeRoom.active_booking;
-        const needsPayment = booking && booking.payment_responsible === 'guest' && booking.payment_state !== 'PAID' && booking.payment_state !== 'NOT_APPLICABLE';
-        const isAdmin = ['super_admin', 'guest_house_admin'].includes(user?.role);
-
-        if (needsPayment) {
-            if (isAdmin) {
-                setConfirmDialog({
-                    title: 'Payment Required',
-                    message: `Payment must be settled before vacating this room since it is guest responsibility. Alternatively, you can force checkout as Admin.`,
-                    isAlert: false,
-                    onConfirm: () => {
-                        setConfirmDialog(null);
-                        setForceCheckoutModal({
-                            isOpen: true,
-                            bookingId: activeRoom.activeBookingId,
-                            stayId: null,
-                            roomNumber: roomId,
-                            guestName: 'All room guests (Vacate Room)',
-                            isRoomVacate: true
-                        });
-                    }
-                });
-            } else {
-                setConfirmDialog({
-                    title: 'Payment Required',
-                    message: `Payment must be settled before vacating this room since it is guest responsibility. Redirecting to Payments tab.`,
-                    isAlert: true,
-                    onConfirm: () => {
-                        setConfirmDialog(null);
-                        setActiveTab('payments');
-                    }
-                });
-            }
-            return;
-        }
-
-        setConfirmDialog({
-            title: 'Vacate Room',
-            message: 'Vacate this room completely and send to cleaning? All active guest stays will be checked out.',
-            isAlert: false,
-            onConfirm: async () => {
-                try {
-                    setConfirmDialog(null);
-                    setLoading(true);
-                    await receptionService.checkOut(activeRoom.activeBookingId);
-                    await loadDashboardData();
-                    const activeBooking = activeRoom.active_booking;
-                    if (activeBooking && activeBooking.payment_state !== 'PAID') {
-                        setActiveTab('payments');
-                    }
-                } catch (err) {
-                    if (err.response?.data?.message === 'PAYMENT_REQUIRED' || err.message === 'PAYMENT_REQUIRED') {
-                        setConfirmDialog({
-                            title: "Payment Required",
-                            message: "Payment must be settled before vacating this room since it is guest responsibility. Redirecting to Payments tab.",
-                            isAlert: true,
-                            onConfirm: () => {
-                                setConfirmDialog(null);
-                                setActiveTab('payments');
-                            }
-                        });
-                    } else {
-                        setConfirmDialog({
-                            title: "Operation Failed",
-                            message: err.response?.data?.message || err.message || "Failed to vacate room.",
-                            isAlert: true,
-                            onConfirm: () => setConfirmDialog(null)
-                        });
-                    }
-                } finally {
-                    setLoading(false);
-                }
-            }
+        setBillingInfoModal({
+            isOpen: true,
+            bookingId: activeRoom.activeBookingId,
+            stayId: null,
+            guestName: 'All room guests (Vacate Room)',
+            roomNumber: roomId,
+            isRoomVacate: true
         });
     };
 
@@ -785,19 +726,21 @@ export default function ReceptionDashboard() {
                 onClose={() => setIsQRScannerOpen(false)}
                 onScanSuccess={(decodedText) => {
                     setIsQRScannerOpen(false);
-                    let cleanText = String(decodedText || '').trim();
+                    let cleanText = String(decodedText || '').trim().toUpperCase();
                     let roomSuffix = null;
                     if (cleanText.includes(':')) {
                         roomSuffix = cleanText.split(':')[1].trim();
                         cleanText = cleanText.split(':')[0].trim();
                     }
+                    if (cleanText.startsWith('APP-')) cleanText = cleanText.replace('APP-', '').trim();
+                    else if (cleanText.startsWith('APP ')) cleanText = cleanText.replace('APP ', '').trim();
 
                     if (!cleanText) return;
 
                     // Search in arrivals
                     const arrival = bookingData.arrivals.find(a => {
-                        const bId = (a.bookingId || '').toUpperCase();
-                        const fId = (a.formattedId || '').toUpperCase();
+                        const bId = String(a.bookingId || a.booking_id || '').toUpperCase();
+                        const fId = String(a.formattedId || a.formatted_id || '').toUpperCase();
                         return (bId && (bId.includes(cleanText) || cleanText.includes(bId))) || 
                                (fId && (fId.includes(cleanText) || cleanText.includes(fId)));
                     });
@@ -808,8 +751,8 @@ export default function ReceptionDashboard() {
                     }
                     // Search in rooms
                     const matchingRooms = bookingData.rooms.filter(r => {
-                        const bId = (r.activeBookingId || '').toUpperCase();
-                        const fId = (r.active_booking?.formatted_id || '').toUpperCase();
+                        const bId = String(r.activeBookingId || r.active_booking?.booking_id || '').toUpperCase();
+                        const fId = String(r.active_booking?.formatted_id || r.active_booking?.formattedId || '').toUpperCase();
                         return (bId && (bId.includes(cleanText) || cleanText.includes(bId))) || 
                                (fId && (fId.includes(cleanText) || cleanText.includes(fId)));
                     });
@@ -829,7 +772,28 @@ export default function ReceptionDashboard() {
                         return;
                     }
 
-                    alert("Application ID not found in today's arrivals or active rooms.");
+                    // Fallback to fetch from backend if guest has checked out or booking is in another state
+                    api.get(`/bookings/admin/all?search=${cleanText}`)
+                        .then(res => {
+                            if (res.success && res.data.rows && res.data.rows.length > 0) {
+                                const found = res.data.rows.find(b => 
+                                    b.booking_id.toString() === cleanText || 
+                                    (b.formatted_id && b.formatted_id.toUpperCase().includes(cleanText))
+                                );
+                                if (found) {
+                                    if (found.booking_state === 'CHECKED_OUT') {
+                                        alert('Guest left out (Already Checked Out).');
+                                    } else {
+                                        alert(`Application is ${found.booking_state.replace(/_/g, ' ')}.`);
+                                    }
+                                    return;
+                                }
+                            }
+                            alert("Application ID not found in today's arrivals or active rooms.");
+                        })
+                        .catch(() => {
+                            alert("Application ID not found in today's arrivals or active rooms.");
+                        });
                 }}
             />
 
@@ -967,6 +931,16 @@ export default function ReceptionDashboard() {
                         </span>
                     )}
                 </button>
+                <button
+                    onClick={() => setActiveTab('enquiry')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
+                        activeTab === 'enquiry' 
+                            ? 'bg-indigo-600 text-white shadow-md' 
+                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                >
+                    <Search className="w-4 h-4" /> Search & Enquiry
+                </button>
             </div>
 
             <div className="w-full">
@@ -1004,6 +978,7 @@ export default function ReceptionDashboard() {
                         handleSendToCleaning={handleSendToCleaning}
                         handleOpenHistory={(roomId) => setHistoryDrawer({ isOpen: true, roomNumber: roomId })}
                         handleCheckInGuest={handleCheckInGuest}
+                        handlePreviewBill={handleDownloadInvoice}
                         timeline={timeline}
                         totalBill={totalBill}
                     />
@@ -1029,10 +1004,19 @@ export default function ReceptionDashboard() {
 
                 {activeTab === 'payments' && (
                     <PaymentsTab
-                        onBillGenerated={(bookingId) => {
-                            setInvoiceBookingId(bookingId);
-                        }}
+                        onBillGenerated={handleDownloadInvoice}
                     />
+                )}
+                {activeTab === 'enquiry' && (
+                    <div className="space-y-6">
+                        <RoomMatrixTab 
+                            allRooms={bookingData.rooms} 
+                            isRoomAvailableForDates={isRoomAvailableForDates} 
+                        />
+                        <BookingSearchTab 
+                            onViewDetails={(id) => setViewBookingId(id)}
+                        />
+                    </div>
                 )}
             </div>
 
@@ -1107,8 +1091,56 @@ export default function ReceptionDashboard() {
                 loading={loading}
             />
 
-            {/* BILL/INVOICE MODAL */}
-            {invoiceBookingId && <GSTInvoiceModal bookingId={invoiceBookingId} onClose={() => setInvoiceBookingId(null)} />}
+            {/* BILLING INFO MODAL (B2B/B2C) */}
+            <BillingInfoModal
+                isOpen={billingInfoModal.isOpen}
+                onClose={() => setBillingInfoModal({ ...billingInfoModal, isOpen: false })}
+                guestName={billingInfoModal.guestName}
+                roomNumber={billingInfoModal.roomNumber}
+                onConfirm={async (billingData) => {
+                    try {
+                        setLoading(true);
+                        setBillingInfoModal({ ...billingInfoModal, isOpen: false });
+                        
+                        let res;
+                        if (billingInfoModal.isRoomVacate) {
+                            res = await receptionService.checkOut(billingInfoModal.bookingId, billingData);
+                        } else {
+                            res = await receptionService.checkOutStay(billingInfoModal.stayId, billingData);
+                        }
+
+                        await loadDashboardData();
+                        
+                        // Show payment tab or invoice if applicable
+                        if (res.data?.bookingFinished && res.data?.booking?.payment_state !== 'PAID') {
+                            setActiveTab('payments');
+                        } else if (res?.data?.bookingFinished && res?.data?.booking?.booking_id) {
+                            handleDownloadInvoice(res.data.booking.booking_id);
+                        }
+                    } catch (err) {
+                        if (err.response?.data?.message === 'PAYMENT_REQUIRED' || err.message === 'PAYMENT_REQUIRED') {
+                            setConfirmDialog({
+                                title: "Payment Required",
+                                message: "Payment must be settled before checkout since it is guest responsibility. Redirecting to Payments tab.",
+                                isAlert: true,
+                                onConfirm: () => {
+                                    setConfirmDialog(null);
+                                    setActiveTab('payments');
+                                }
+                            });
+                        } else {
+                            setConfirmDialog({
+                                title: "Operation Failed",
+                                message: err.response?.data?.message || err.message || "Failed to check out guest.",
+                                isAlert: true,
+                                onConfirm: () => setConfirmDialog(null)
+                            });
+                        }
+                    } finally {
+                        setLoading(false);
+                    }
+                }}
+            />
 
             {/* FORCE CHECKOUT MODAL */}
             {forceCheckoutModal.isOpen && (
@@ -1234,6 +1266,13 @@ export default function ReceptionDashboard() {
                         </div>
                     </div>
                 </div>
+            )}
+            
+            {viewBookingId && (
+                <BookingDetailsModal 
+                    bookingId={viewBookingId} 
+                    onClose={() => setViewBookingId(null)} 
+                />
             )}
         </div>
     );

@@ -29,7 +29,7 @@ router.use(requireAuth); // Protect all booking routes at the router level
 
 router.get('/tariffs', memoryCache(3600), bookingController.getTariffs);
 router.get('/authorities', memoryCache(3600), bookingController.getAuthorities);
-router.get('/admin/all', requireRole(['super_admin', 'guest_house_admin', 'gh_coordinator']), bookingController.getAllBookingsForAdmin);
+router.get('/admin/all', requireRole(['super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff']), bookingController.getAllBookingsForAdmin);
 
 // Handle multipart/form-data properly, parse JSON payload, then validate
 router.post('/', upload.fields([{ name: 'document_1', maxCount: 1 }, { name: 'document_2', maxCount: 1 }]), (req, res, next) => {

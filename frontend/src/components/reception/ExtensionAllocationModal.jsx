@@ -155,7 +155,7 @@ const ExtensionAllocationModal = ({ guest, onClose, onComplete }) => {
                                 <h4 className="text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider">Option 2: Transfer Room</h4>
                                 <div className="p-5 border border-slate-200 bg-white rounded-xl">
                                     {otherAvailableRooms.length === 0 ? (
-                                        <p className="text-sm text-slate-500 italic text-center py-4">No other rooms of type "{guest.current_room_type}" are available.</p>
+                                        <p className="text-sm text-slate-500 italic text-center py-4">No other rooms of type &quot;{guest.current_room_type}&quot; are available.</p>
                                     ) : (
                                         <>
                                             <p className="text-sm text-slate-600 mb-4">Select an available room to transfer the guest to. The transfer will be scheduled for the original checkout time.</p>

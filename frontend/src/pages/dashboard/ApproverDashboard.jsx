@@ -12,16 +12,29 @@ export default function ApproverDashboard() {
     const [remarks, setRemarks] = useState('');
     const [previewId, setPreviewId] = useState(null);
     const [sortBy, setSortBy] = useState('app_desc');
+    const [activeTab, setActiveTab] = useState('approvals');
 
-    const { data, isLoading } = useQuery({
+    const { data: pendingData, isLoading: isLoadingPending } = useQuery({
         queryKey: ['pendingApprovals'],
         queryFn: approvalService.getPendingApprovals
+    });
+
+    const { data: approvedData, isLoading: isLoadingApproved } = useQuery({
+        queryKey: ['approvedHistory'],
+        queryFn: () => approvalService.getApprovalHistory('APPROVED')
+    });
+
+    const { data: rejectedData, isLoading: isLoadingRejected } = useQuery({
+        queryKey: ['rejectedHistory'],
+        queryFn: () => approvalService.getApprovalHistory('REJECTED')
     });
 
     const mutation = useMutation({
         mutationFn: ({ id, payload }) => approvalService.approveBooking(id, payload),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['pendingApprovals'] });
+            queryClient.invalidateQueries({ queryKey: ['approvedHistory'] });
+            queryClient.invalidateQueries({ queryKey: ['rejectedHistory'] });
             setActionModal({ isOpen: false, id: null, action: null });
             setRemarks('');
         }
@@ -31,6 +44,8 @@ export default function ApproverDashboard() {
         mutationFn: (id) => approvalService.approveBooking(id, { action: 'WITHDRAW', remarks: 'Approval withdrawn by Approving Authority' }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['pendingApprovals'] });
+            queryClient.invalidateQueries({ queryKey: ['approvedHistory'] });
+            queryClient.invalidateQueries({ queryKey: ['rejectedHistory'] });
         },
         onError: (error) => {
             alert(error.response?.data?.message || error.message || 'Failed to withdraw booking.');
@@ -44,30 +59,73 @@ export default function ApproverDashboard() {
         });
     };
 
-    if (isLoading) return <div className="p-8 text-center text-slate-500 font-bold">Loading queue...</div>;
+    let isLoading = false;
+    let approvals = [];
 
-    const approvals = data?.data || [];
+    if (activeTab === 'approvals') {
+        isLoading = isLoadingPending;
+        approvals = pendingData?.data || [];
+    } else if (activeTab === 'approved_requests') {
+        isLoading = isLoadingApproved;
+        approvals = approvedData?.data || [];
+    } else if (activeTab === 'rejected_requests') {
+        isLoading = isLoadingRejected;
+        approvals = rejectedData?.data || [];
+    }
+
+    if (isLoading) return <div className="p-8 text-center text-slate-500 font-bold">Loading queue...</div>;
 
     const sortedApprovals = [...approvals].sort((a, b) => {
         if (sortBy === 'app_desc') return new Date(b.created_at || 0) - new Date(a.created_at || 0);
         if (sortBy === 'app_asc') return new Date(a.created_at || 0) - new Date(b.created_at || 0);
         if (sortBy === 'arr_asc') return new Date(a.arrival_datetime || 0) - new Date(b.arrival_datetime || 0);
         if (sortBy === 'arr_desc') return new Date(b.arrival_datetime || 0) - new Date(a.arrival_datetime || 0);
+        if (sortBy === 'book_desc') return String(b.booking_id || '').localeCompare(String(a.booking_id || ''));
+        if (sortBy === 'book_asc') return String(a.booking_id || '').localeCompare(String(b.booking_id || ''));
+        if (sortBy === 'cat_asc') return String(a.category_id || '').localeCompare(String(b.category_id || ''));
+        if (sortBy === 'cat_desc') return String(b.category_id || '').localeCompare(String(a.category_id || ''));
         return 0;
     });
 
     return (
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 animate-fade-in">
-            <div className="flex items-center justify-between gap-4 mb-8 border-b border-slate-100 pb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 border-b border-slate-100 pb-6">
                 <div className="flex items-center gap-4">
                     <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl shadow-sm border border-indigo-100">
                         <ClipboardCheck className="w-6 h-6" />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Approval Queue</h2>
-                        <p className="text-slate-500 font-medium">Pending requests awaiting your review</p>
+                        <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Approval Dashboard</h2>
+                        <p className="text-slate-500 font-medium">Manage and review your approval history</p>
                     </div>
                 </div>
+                
+                <div className="flex bg-slate-100 p-1 rounded-xl flex-wrap gap-1">
+                    <button
+                        onClick={() => setActiveTab('approvals')}
+                        className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'approvals' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <ClipboardCheck className="w-4 h-4 mr-2" /> Pending
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('approved_requests')}
+                        className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'approved_requests' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <CheckCircle className="w-4 h-4 mr-2" /> Approved
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('rejected_requests')}
+                        className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'rejected_requests' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <XCircle className="w-4 h-4 mr-2" /> Rejected
+                    </button>
+                </div>
+            </div>
+
+            <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-slate-700">
+                    {activeTab === 'approvals' ? 'Pending Requests' : activeTab === 'approved_requests' ? 'Approved History' : 'Rejected History'}
+                </h3>
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sort by:</span>
                     <select 
@@ -79,6 +137,10 @@ export default function ApproverDashboard() {
                         <option value="app_asc">Application Date (Oldest)</option>
                         <option value="arr_asc">Arrival Date (Soonest)</option>
                         <option value="arr_desc">Arrival Date (Latest)</option>
+                        <option value="book_desc">Booking ID (Newest)</option>
+                        <option value="book_asc">Booking ID (Oldest)</option>
+                        <option value="cat_asc">Category (A-Z)</option>
+                        <option value="cat_desc">Category (Z-A)</option>
                     </select>
                 </div>
             </div>
