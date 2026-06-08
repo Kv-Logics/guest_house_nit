@@ -236,6 +236,7 @@ export default function ReceptionDashboard() {
     // Invoice Modal state
     const [invoiceBookingId, setInvoiceBookingId] = useState(null);
     const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+    const [pendingExtensionsCount, setPendingExtensionsCount] = useState(0);
 
     // Load data from backend API
     const loadDashboardData = async () => {
@@ -245,6 +246,7 @@ export default function ReceptionDashboard() {
             const arrivalsRes = await receptionService.getTodayArrivals();
             const roomsRes = await receptionService.getRooms();
             const tariffsRes = await receptionService.getTariffs();
+            const extensionsRes = await receptionService.getPendingExtensionAllocations().catch(() => ({ data: [] }));
 
             const translatedArrivals = translateArrivalsFromBackend(arrivalsRes.data);
             const translatedRooms = translateRoomsFromBackend(roomsRes.data);
@@ -252,6 +254,8 @@ export default function ReceptionDashboard() {
             if (tariffsRes.success) {
                 setTariffs(tariffsRes.data);
             }
+
+            setPendingExtensionsCount((extensionsRes.data || []).length);
 
             setBookingData({
                 category: "I",
@@ -810,7 +814,6 @@ export default function ReceptionDashboard() {
                     if (room) {
                         setActiveTab('rooms');
                         setActiveRoomId(room.roomId);
-                        setPreviewArrival(room.active_booking);
                         return;
                     }
 
@@ -939,13 +942,18 @@ export default function ReceptionDashboard() {
                 </button>
                 <button
                     onClick={() => setActiveTab('extensions')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
+                    className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
                         activeTab === 'extensions' 
                             ? 'bg-indigo-600 text-white shadow-md' 
                             : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                     }`}
                 >
                     <ArrowLeftRight className="w-4 h-4" /> Extensions
+                    {pendingExtensionsCount > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold shadow-sm border-2 border-white">
+                            {pendingExtensionsCount}
+                        </span>
+                    )}
                 </button>
             </div>
 
