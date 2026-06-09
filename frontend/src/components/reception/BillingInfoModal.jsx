@@ -74,7 +74,7 @@ export default function BillingInfoModal({ isOpen, onClose, onConfirm, guestName
                                         value={gstin}
                                         onChange={(e) => setGstin(e.target.value)}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none uppercase"
-                                        placeholder="Enter GSTIN (optional)"
+                                        placeholder="Enter GSTIN"
                                     />
                                 </div>
                                 <div>
@@ -83,7 +83,7 @@ export default function BillingInfoModal({ isOpen, onClose, onConfirm, guestName
                                         value={companyAddress}
                                         onChange={(e) => setCompanyAddress(e.target.value)}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
-                                        placeholder="Enter company address (optional)"
+                                        placeholder="Enter company address"
                                         rows={2}
                                     />
                                 </div>
