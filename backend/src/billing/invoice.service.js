@@ -222,13 +222,8 @@ exports.generateGSTInvoice = async (bookingId, client = null) => {
   if (isB2B) {
     const recipientGstin = bill.gstin || '';
     const recipientStateCode = recipientGstin.substring(0, 2) || '33';
-    const recipientStateName = getStateName(recipientStateCode);
-    const posStateCode = recipientStateCode; // place of supply
     
-    const recipientDetail = `
-      ${bill.company_address || ''}<br>
-      State code: ${recipientStateCode} (billing) &nbsp;·&nbsp; Place of supply: ${posStateCode} (${recipientStateName})
-    `;
+    const recipientDetail = `${bill.company_address || ''}`;
     html = html.replace(/{{RECIPIENT_NAME}}/g, bill.company_name || 'Corporate Guest');
     html = html.replace(/{{RECIPIENT_DETAIL}}/g, recipientDetail);
     html = html.replace(/{{RECIPIENT_GSTIN}}/g, bill.gstin || 'N/A');
