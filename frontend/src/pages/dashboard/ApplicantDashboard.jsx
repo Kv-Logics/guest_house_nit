@@ -370,7 +370,7 @@ export default function ApplicantDashboard() {
                                                 <CalendarClock className="w-4 h-4 mr-1.5" /> Extend stay
                                             </button>
                                         )}
-                                        {sysConfig.show_invoice_applicant && b.booking_state === 'CHECKED_OUT' && (
+                                        {sysConfig.show_invoice_applicant && b.booking_state === 'CHECKED_OUT' && Number(b.category_id) !== 1 && (
                                             <button
                                                 onClick={async () => {
                                                     try {

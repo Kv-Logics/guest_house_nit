@@ -21,6 +21,8 @@ exports.downloadInvoice = async (req, res) => {
 
     const bookingState = bookingRes.rows[0].booking_state;
     
+    let existingBill = await receptionRepo.getFinalBillByBooking(bookingId);
+    
     // If the booking is currently CHECKED_IN (i.e. stay might have been extended or shortened),
     // dynamically recalculate and update the bill snapshot before generating the PDF.
     if (bookingState === 'CHECKED_IN') {
@@ -34,8 +36,13 @@ exports.downloadInvoice = async (req, res) => {
                 subtotal: billing.subtotal,
                 gst: billing.gst,
                 total: billing.total,
+                billing_type: existingBill?.billing_type || 'B2C',
+                company_name: existingBill?.company_name || null,
+                gstin: existingBill?.gstin || null,
+                company_address: existingBill?.company_address || null,
                 generated_by: req.user.user_id
             }, client);
+            existingBill = await receptionRepo.getFinalBillByBooking(bookingId, client);
         } catch (e) {
             console.error('[Invoice] Dynamic pre-calc failed:', e.message);
         } finally {
@@ -43,7 +50,32 @@ exports.downloadInvoice = async (req, res) => {
         }
     }
 
-    const bill = await receptionRepo.getFinalBillByBooking(bookingId);
+    let bill = existingBill;
+    if (!bill) {
+        const receptionService = require('../services/reception.service');
+        const client = await db.getClient();
+        try {
+            const billing = await receptionService.calculateBookingBilling(bookingId, client);
+            await receptionRepo.insertFinalBill({
+                booking_id: bookingId,
+                generated_json: billing.breakdown,
+                subtotal: billing.subtotal,
+                gst: billing.gst,
+                total: billing.total,
+                billing_type: 'B2C',
+                company_name: null,
+                gstin: null,
+                company_address: null,
+                generated_by: req.user.user_id
+            }, client);
+            bill = await receptionRepo.getFinalBillByBooking(bookingId, client);
+        } catch (e) {
+            console.error('[Invoice] Dynamic fallback pre-calc failed:', e.message);
+        } finally {
+            client.release();
+        }
+    }
+
     if (!bill) {
       return res.status(404).json({ error: 'Invoice not found or cannot be generated yet.' });
     }

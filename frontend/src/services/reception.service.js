@@ -41,7 +41,10 @@ export const receptionService = {
   getInstitutionConfig: async () => api.get('/reception/institution-config'),
   updateInstitutionConfig: async (payload) => api.post('/reception/institution-config', payload),
   
+  decodeQrCode: async (code) => api.get(`/reception/decode-qr?code=${encodeURIComponent(code)}`),
+  
   // Bulk Rooms
+
   getActiveBulkBlocks: async () => api.get('/reception/bulk-blocks'),
   createBulkBlock: async (payload) => api.post('/reception/bulk-blocks', payload),
   checkInBulkGuest: async (bookingId, roomId, payload) => api.post(`/reception/bulk-blocks/${bookingId}/rooms/${roomId}/check-in`, payload)

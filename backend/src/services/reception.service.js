@@ -528,12 +528,13 @@ exports.checkIn = async (bookingId, allocatedRoomsStr, checkedInBy, overrideNow 
 exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload = null) => {
     // 0. Pre-check and generate bill if guest-responsible and bill not present
     const stayInfo = await db.query(
-        `SELECT payment_responsible FROM booking_requests WHERE booking_id = $1`,
+        `SELECT payment_responsible, category_id FROM booking_requests WHERE booking_id = $1`,
         [bookingId]
     );
     if (stayInfo.rows.length > 0) {
         const paymentResponsible = stayInfo.rows[0].payment_responsible;
-        if (paymentResponsible === 'guest') {
+        const categoryId = stayInfo.rows[0].category_id;
+        if (paymentResponsible === 'guest' && categoryId !== 1) {
             const billCheck = await db.query('SELECT * FROM final_bills WHERE booking_id = $1', [bookingId]);
             if (billCheck.rows.length === 0) {
                 const billing = await exports.calculateBookingBilling(bookingId, null, overrideNow);
@@ -570,8 +571,8 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
         const ADMIN_ROLES = ['super_admin', 'guest_house_admin'];
         const isForceCheckout = payload?.force === true && ADMIN_ROLES.includes(payload?.userRole);
 
-        // If force checkout by admin — write override log entry
-        if (isForceCheckout) {
+        // If force checkout by admin — write override log entry (skip for category 1)
+        if (isForceCheckout && booking.category_id !== 1) {
             await client.query(
                 `INSERT INTO billing_override_logs 
                   (booking_request_id, override_reason, overridden_by)
@@ -608,7 +609,7 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
 
         const now = overrideNow ? new Date(overrideNow) : new Date();
 
-        // 3. For each active stay: close it, write to occupancy_history, and update room status
+        // 3. For each active stay: close it, write to occupancy_history (skip for category 1), and update room status
         const roomsToClean = new Set();
 
         for (const stay of activeStays) {
@@ -619,21 +620,23 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
                 checked_out_by: checkedOutBy || null
             }, client);
 
-            // Populating occupancy_history day-by-day (Rule 6 / Rule 10)
-            const days = getCalendarDays(stay.checked_in_at, now);
-            for (const day of days) {
-                await receptionRepository.insertOccupancyHistory({
-                    booking_id: bookingId,
-                    guest_id: stay.guest_id,
-                    room_id: stay.room_id,
-                    occupancy_date: day,
-                    occupancy_type: stay.occupancy_type,
-                    guest_count: stay.occupancy_type === 'single' ? 1 : 2,
-                    extra_bed_count: stay.extra_bed ? 1 : 0,
-                    room_type: stay.operational_room_type,
-                    tariff_amount: stay.operational_tariff,
-                    generated_by: checkedOutBy || null
-                }, client);
+            // Populating occupancy_history day-by-day (Rule 6 / Rule 10) (skip for category 1)
+            if (booking.category_id !== 1) {
+                const days = getCalendarDays(stay.checked_in_at, now);
+                for (const day of days) {
+                    await receptionRepository.insertOccupancyHistory({
+                        booking_id: bookingId,
+                        guest_id: stay.guest_id,
+                        room_id: stay.room_id,
+                        occupancy_date: day,
+                        occupancy_type: stay.occupancy_type,
+                        guest_count: stay.occupancy_type === 'single' ? 1 : 2,
+                        extra_bed_count: stay.extra_bed ? 1 : 0,
+                        room_type: stay.operational_room_type,
+                        tariff_amount: stay.operational_tariff,
+                        generated_by: checkedOutBy || null
+                    }, client);
+                }
             }
 
             roomsToClean.add(JSON.stringify({ room_id: stay.room_id, room_number: stay.room_number, current_status: stay.current_status }));
@@ -670,19 +673,21 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
         // 4. Calculate final billing dynamically
         const billing = await exports.calculateBookingBilling(bookingId, client);
 
-        // 5. Generate final bill snapshot (Rule 3)
-        await receptionRepository.insertFinalBill({
-            booking_id: bookingId,
-            generated_json: billing.breakdown,
-            subtotal: billing.subtotal,
-            gst: billing.gst,
-            total: billing.total,
-            billing_type: payload?.billing_type || 'B2C',
-            company_name: payload?.company_name || null,
-            gstin: payload?.gstin || null,
-            company_address: payload?.company_address || null,
-            generated_by: checkedOutBy || null
-        }, client);
+        // 5. Generate final bill snapshot (Rule 3) (skip for category 1)
+        if (booking.category_id !== 1) {
+            await receptionRepository.insertFinalBill({
+                booking_id: bookingId,
+                generated_json: billing.breakdown,
+                subtotal: billing.subtotal,
+                gst: billing.gst,
+                total: billing.total,
+                billing_type: payload?.billing_type || 'B2C',
+                company_name: payload?.company_name || null,
+                gstin: payload?.gstin || null,
+                company_address: payload?.company_address || null,
+                generated_by: checkedOutBy || null
+            }, client);
+        }
 
         // Free up the booking_rooms allocation to the current time so it doesn't block future assignments
         await client.query(`
@@ -697,6 +702,7 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
             SET booking_state = $1,
                 checked_out_at = $2,
                 total_estimated_amount = $3,
+                payment_state = CASE WHEN category_id = 1 THEN 'PAID'::varchar ELSE payment_state END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE booking_id = $4
             RETURNING *
@@ -704,12 +710,12 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
         const updatedBookingRes = await client.query(updateBookingQuery, [
             'CHECKED_OUT',
             now,
-            billing.total,
+            booking.category_id === 1 ? 0 : billing.total,
             bookingId
         ]);
 
         await client.query('COMMIT');
-        logger.info(`Check-out completed successfully and final bill generated for booking: ${bookingId}`);
+        logger.info(`Check-out completed successfully for booking: ${bookingId}`);
         return updatedBookingRes.rows[0];
 
     } catch (error) {
@@ -724,7 +730,7 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
 exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload = null) => {
     // 0. Precheck and generate bill if guest-responsible and bill not present
     const stayInfo = await db.query(
-        `SELECT b.booking_id, b.payment_responsible, b.payment_state
+        `SELECT b.booking_id, b.payment_responsible, b.payment_state, b.category_id
          FROM guest_room_stays grs
          JOIN booking_requests b ON grs.booking_id = b.booking_id
          WHERE grs.stay_id = $1`,
@@ -733,6 +739,7 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
     if (stayInfo.rows.length > 0) {
         const bookingId = stayInfo.rows[0].booking_id;
         const paymentResponsible = stayInfo.rows[0].payment_responsible;
+        const categoryId = stayInfo.rows[0].category_id;
         
         // Check if there are other checked-in stays for this booking
         const otherStaysCheck = await db.query(
@@ -741,7 +748,7 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
         );
         const otherActiveStaysCount = Number(otherStaysCheck.rows[0].active_count);
 
-        if (paymentResponsible === 'guest' && otherActiveStaysCount === 0) {
+        if (paymentResponsible === 'guest' && otherActiveStaysCount === 0 && categoryId !== 1) {
             const billCheck = await db.query('SELECT * FROM final_bills WHERE booking_id = $1', [bookingId]);
             if (billCheck.rows.length === 0) {
                 const billing = await exports.calculateBookingBilling(bookingId, null, overrideNow);
@@ -790,8 +797,8 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
         `, [bookingId, stayId]);
         const otherActiveStaysCount = Number(otherStaysRes.rows[0].active_count);
 
-        // If force checkout by admin — write override log entry
-        if (isForceCheckout) {
+        // If force checkout by admin — write override log entry (skip for category 1)
+        if (isForceCheckout && stay.category_id !== 1) {
             await client.query(
                 `INSERT INTO billing_override_logs 
                   (booking_request_id, override_reason, overridden_by)
@@ -814,7 +821,7 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
 
         // 2. Rule 7: check if final bill exists
         const finalBill = await receptionRepository.getFinalBillByBooking(bookingId, client);
-        if (finalBill && !isForceCheckout) {
+        if (finalBill && !isForceCheckout && stay.category_id !== 1) {
             if (finalBill.payment_mode === null && stay.payment_responsible === 'guest' && otherActiveStaysCount === 0) {
                 throw new Error('This stay cannot be checked out because the final bill has been generated but is unpaid.');
             }
@@ -829,21 +836,23 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
             checked_out_by: checkedOutBy || null
         }, client);
 
-        // 4. Populating occupancy_history day-by-day (Rule 6 / Rule 10)
-        const days = getCalendarDays(stay.checked_in_at, now);
-        for (const day of days) {
-            await receptionRepository.insertOccupancyHistory({
-                booking_id: bookingId,
-                guest_id: stay.guest_id,
-                room_id: stay.room_id,
-                occupancy_date: day,
-                occupancy_type: stay.occupancy_type,
-                guest_count: stay.occupancy_type === 'single' ? 1 : 2,
-                extra_bed_count: stay.extra_bed ? 1 : 0,
-                room_type: stay.operational_room_type,
-                tariff_amount: stay.operational_tariff,
-                generated_by: checkedOutBy || null
-            }, client);
+        // 4. Populating occupancy_history day-by-day (Rule 6 / Rule 10) (skip for category 1)
+        if (stay.category_id !== 1) {
+            const days = getCalendarDays(stay.checked_in_at, now);
+            for (const day of days) {
+                await receptionRepository.insertOccupancyHistory({
+                    booking_id: bookingId,
+                    guest_id: stay.guest_id,
+                    room_id: stay.room_id,
+                    occupancy_date: day,
+                    occupancy_type: stay.occupancy_type,
+                    guest_count: stay.occupancy_type === 'single' ? 1 : 2,
+                    extra_bed_count: stay.extra_bed ? 1 : 0,
+                    room_type: stay.operational_room_type,
+                    tariff_amount: stay.operational_tariff,
+                    generated_by: checkedOutBy || null
+                }, client);
+            }
         }
 
         // 5. Update room status to cleaning if no other active stay exists in this room
@@ -909,15 +918,21 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
                 // Calculate final billing dynamically
                 const billing = await exports.calculateBookingBilling(bookingId, client, overrideNow);
 
-                // Generate final bill snapshot (Rule 3)
-                await receptionRepository.insertFinalBill({
-                    booking_id: bookingId,
-                    generated_json: billing.breakdown,
-                    subtotal: billing.subtotal,
-                    gst: billing.gst,
-                    total: billing.total,
-                    generated_by: checkedOutBy || null
-                }, client);
+                // Generate final bill snapshot (Rule 3) (skip for category 1)
+                if (stay.category_id !== 1) {
+                    await receptionRepository.insertFinalBill({
+                        booking_id: bookingId,
+                        generated_json: billing.breakdown,
+                        subtotal: billing.subtotal,
+                        gst: billing.gst,
+                        total: billing.total,
+                        billing_type: payload?.billing_type || 'B2C',
+                        company_name: payload?.company_name || null,
+                        gstin: payload?.gstin || null,
+                        company_address: payload?.company_address || null,
+                        generated_by: checkedOutBy || null
+                    }, client);
+                }
 
                 // Free up the booking_rooms allocation to the current time so it doesn't block future assignments
                 await client.query(`
@@ -932,6 +947,7 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
                     SET booking_state = $1,
                         checked_out_at = $2,
                         total_estimated_amount = $3,
+                        payment_state = CASE WHEN category_id = 1 THEN 'PAID'::varchar ELSE payment_state END,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE booking_id = $4
                     RETURNING *
@@ -939,7 +955,7 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
                 const updatedBookingRes = await client.query(updateBookingQuery, [
                     'CHECKED_OUT',
                     now,
-                    billing.total,
+                    stay.category_id === 1 ? 0 : billing.total,
                     bookingId
                 ]);
                 updatedBooking = updatedBookingRes.rows[0];
@@ -995,6 +1011,26 @@ exports.extendStay = async (bookingId, newDepartureDatetime) => {
 };
 
 exports.calculateBookingBilling = async (bookingId, client, overrideNow = null) => {
+    // If it's category 1, no payment, no bill
+    const catCheck = await (client || db).query(`SELECT category_id FROM booking_requests WHERE booking_id = $1`, [bookingId]);
+    if (catCheck.rows.length > 0 && catCheck.rows[0].category_id === 1) {
+        return {
+            subtotal: 0,
+            gst: 0,
+            cgst: 0,
+            sgst: 0,
+            total: 0,
+            isFinal: false,
+            breakdown: {
+                roomDaysBreakdown: [],
+                subtotal: 0,
+                cgst: 0,
+                sgst: 0,
+                total: 0
+            }
+        };
+    }
+
     // 1. Check if final bill exists
     const finalBill = await receptionRepository.getFinalBillByBooking(bookingId, client);
     if (finalBill) {
@@ -1327,11 +1363,15 @@ exports.roomTransfer = async (stayId, newRoomNumber, transferredBy, remarks, isG
                 WHERE booking_id = $2
             `, [currentRooms, bId]);
             
-            // Generate auto audit log
-            await client.query(`
-                INSERT INTO audit_logs (user_id, action, target_entity, target_id, remarks)
-                VALUES ($1, $2, $3, $4, $5)
-            `, [transferredBy, 'ROOM_TRANSFER', 'GUEST_ROOM_STAY', stayId, `Transferred ${staysToTransfer.length} guest(s) to Room ${newRoomNumber}. Remarks: ${remarks || ''}`]);
+            // Generate auto audit log (skip for category 1)
+            const catRes = await client.query('SELECT category_id FROM booking_requests WHERE booking_id = $1', [bId]);
+            const isCat1 = catRes.rows.length > 0 && catRes.rows[0].category_id === 1;
+            if (!isCat1) {
+                await client.query(`
+                    INSERT INTO audit_logs (user_id, action, target_entity, target_id, remarks)
+                    VALUES ($1, $2, $3, $4, $5)
+                `, [transferredBy, 'ROOM_TRANSFER', 'GUEST_ROOM_STAY', stayId, `Transferred ${staysToTransfer.length} guest(s) to Room ${newRoomNumber}. Remarks: ${remarks || ''}`]);
+            }
         }
 
         await client.query('COMMIT');
@@ -1366,28 +1406,33 @@ exports.overrideStayBilling = async (overrideData) => {
             throw new Error('Stay cannot be modified because the final bill has already been generated.');
         }
 
-        // 3. Log override to billing_override_logs
-        await receptionRepository.insertBillingOverrideLog({
-            booking_request_id: stay.booking_id,
-            guest_id: stay.guest_id,
-            previous_room_type: stay.operational_room_type,
-            new_room_type: newRoomType || stay.operational_room_type,
-            previous_occupancy: stay.occupancy_type,
-            new_occupancy: newOccupancy || stay.occupancy_type,
-            previous_tariff: stay.operational_tariff,
-            new_tariff: newTariff !== undefined ? newTariff : stay.operational_tariff,
-            previous_extra_bed: stay.extra_bed,
-            new_extra_bed: newExtraBed !== undefined ? newExtraBed : stay.extra_bed,
-            override_reason: overrideReason || 'Manual override',
-            overridden_by: overriddenBy
-        }, client);
+        // 3. Log override to billing_override_logs (skip for category 1)
+        const catRes = await client.query('SELECT category_id FROM booking_requests WHERE booking_id = $1', [stay.booking_id]);
+        const isCat1 = catRes.rows.length > 0 && catRes.rows[0].category_id === 1;
 
-        // Delete stale PDF so it regenerates
-        const fs = require('fs');
-        const path = require('path');
-        const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${stay.booking_id}.pdf`);
-        if (fs.existsSync(stalePdfPath)) {
-            fs.unlinkSync(stalePdfPath);
+        if (!isCat1) {
+            await receptionRepository.insertBillingOverrideLog({
+                booking_request_id: stay.booking_id,
+                guest_id: stay.guest_id,
+                previous_room_type: stay.operational_room_type,
+                new_room_type: newRoomType || stay.operational_room_type,
+                previous_occupancy: stay.occupancy_type,
+                new_occupancy: newOccupancy || stay.occupancy_type,
+                previous_tariff: stay.operational_tariff,
+                new_tariff: newTariff !== undefined ? newTariff : stay.operational_tariff,
+                previous_extra_bed: stay.extra_bed,
+                new_extra_bed: newExtraBed !== undefined ? newExtraBed : stay.extra_bed,
+                override_reason: overrideReason || 'Manual override',
+                overridden_by: overriddenBy
+            }, client);
+
+            // Delete stale PDF so it regenerates
+            const fs = require('fs');
+            const path = require('path');
+            const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${stay.booking_id}.pdf`);
+            if (fs.existsSync(stalePdfPath)) {
+                fs.unlinkSync(stalePdfPath);
+            }
         }
 
         // 4. Update the stay
@@ -1765,11 +1810,15 @@ exports.executeRoomTransfer = async (guestId, transferredBy) => {
         // Mark new room occupied
         await client.query(`UPDATE rooms SET current_status = 'occupied' WHERE room_id = $1`, [newRoomId]);
 
-        // Audit log
-        await client.query(`
-            INSERT INTO audit_logs (user_id, action, target_entity, target_id, remarks)
-            VALUES ($1, 'ROOM_TRANSFER', 'guests', $2, $3)
-        `, [transferredBy, guestId, `Transferred from room_id ${activeStay.room_id} to ${newRoomId}`]);
+        // Audit log (skip for category 1)
+        const catRes = await client.query('SELECT category_id FROM booking_requests WHERE booking_id = $1', [activeStay.booking_id]);
+        const isCat1 = catRes.rows.length > 0 && catRes.rows[0].category_id === 1;
+        if (!isCat1) {
+            await client.query(`
+                INSERT INTO audit_logs (user_id, action, target_entity, target_id, remarks)
+                VALUES ($1, 'ROOM_TRANSFER', 'guests', $2, $3)
+            `, [transferredBy, guestId, `Transferred from room_id ${activeStay.room_id} to ${newRoomId}`]);
+        }
 
         await client.query('COMMIT');
         return newStayRes.rows[0];
@@ -1828,4 +1877,118 @@ exports.updateBill = async (bookingId, payload, userId) => {
     } finally {
         client.release();
     }
+};
+
+exports.decodeQrCode = async (code, overrideNow = null) => {
+    let cleanCode = String(code || '').trim().toUpperCase();
+    let roomSuffix = null;
+    
+    if (cleanCode.includes(':')) {
+        const parts = cleanCode.split(':');
+        cleanCode = parts[0].trim();
+        roomSuffix = parts[1].trim();
+    }
+    
+    if (cleanCode.startsWith('APP-')) cleanCode = cleanCode.replace('APP-', '').trim();
+    else if (cleanCode.startsWith('APP ')) cleanCode = cleanCode.replace('APP ', '').trim();
+    
+    let booking = null;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    if (uuidRegex.test(cleanCode)) {
+        const res = await db.query('SELECT * FROM booking_requests WHERE booking_id = $1', [cleanCode]);
+        if (res.rows.length > 0) booking = res.rows[0];
+    }
+    
+    if (!booking) {
+        const res = await db.query('SELECT * FROM booking_requests WHERE UPPER(formatted_id) = $1', [cleanCode]);
+        if (res.rows.length > 0) booking = res.rows[0];
+    }
+    
+    if (!booking) {
+        if (!isNaN(cleanCode)) {
+            const res = await db.query('SELECT * FROM booking_requests WHERE booking_seq = $1', [parseInt(cleanCode, 10)]);
+            if (res.rows.length > 0) booking = res.rows[0];
+        }
+    }
+    
+    if (!booking) {
+        const res = await db.query('SELECT * FROM booking_requests WHERE UPPER(formatted_id) LIKE $1', [`%${cleanCode}%`]);
+        if (res.rows.length > 0) booking = res.rows[0];
+    }
+    
+    if (!booking) {
+        throw new Error('Application / Booking ID not found.');
+    }
+    
+    const bookingId = booking.booking_id;
+    
+    const fullBookingRes = await db.query(`
+        SELECT b.*, u.full_name as applicant_name, u.email as applicant_email, c.category_code
+        FROM booking_requests b
+        JOIN users u ON b.user_id = u.user_id
+        JOIN category_rules c ON b.category_id = c.category_id
+        WHERE b.booking_id = $1
+    `, [bookingId]);
+    const fullBooking = fullBookingRes.rows[0];
+    
+    const guestsRes = await db.query('SELECT * FROM guests WHERE booking_id = $1', [bookingId]);
+    fullBooking.guests = guestsRes.rows;
+    
+    const staysRes = await db.query(`
+        SELECT grs.*, g.guest_name, g.relation_to_applicant, g.phone, g.email, r.room_number
+        FROM guest_room_stays grs
+        JOIN guests g ON grs.guest_id = g.guest_id
+        LEFT JOIN rooms r ON grs.room_id = r.room_id
+        WHERE grs.booking_id = $1
+    `, [bookingId]);
+    const stays = staysRes.rows;
+    
+    const finalBillRes = await db.query('SELECT * FROM final_bills WHERE booking_id = $1', [bookingId]);
+    const finalBill = finalBillRes.rows[0] || null;
+    fullBooking.final_bill = finalBill;
+    
+    let state = 'other';
+    const bookingState = fullBooking.booking_state;
+    const hasActiveStays = stays.some(s => s.stay_status === 'CHECKED_IN');
+    
+    if (bookingState === 'CHECKED_IN' || hasActiveStays) {
+        state = 'staying';
+    } else if (bookingState === 'CHECKED_OUT' || bookingState === 'COMPLETED') {
+        state = 'checked_out';
+    } else if (['ADMIN_APPROVED', 'CONFIRMED', 'READY_FOR_CHECKIN'].includes(bookingState)) {
+        if (!fullBooking.allocated_room_numbers) {
+            state = 'pending_assignment';
+        } else {
+            state = 'assigned_room';
+        }
+    }
+    
+    let stayLedger = null;
+    if (state === 'checked_out') {
+        if (finalBill) {
+            stayLedger = {
+                roomDaysBreakdown: finalBill.generated_json.roomDaysBreakdown || finalBill.generated_json,
+                subtotal: Number(finalBill.subtotal),
+                gst: Number(finalBill.gst),
+                total: Number(finalBill.total)
+            };
+        } else {
+            const calc = await exports.calculateBookingBilling(bookingId, null, overrideNow);
+            stayLedger = {
+                roomDaysBreakdown: calc.breakdown?.roomDaysBreakdown || [],
+                subtotal: calc.subtotal,
+                gst: calc.gst,
+                total: calc.total
+            };
+        }
+    }
+    
+    return {
+        booking: fullBooking,
+        state,
+        roomSuffix,
+        guestLedger: stays,
+        stayLedger
+    };
 };

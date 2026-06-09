@@ -513,19 +513,32 @@ exports.insertBillingOverrideLog = async (bol, client) => {
 exports.insertFinalBill = async (fb, client) => {
     const sql = `
         INSERT INTO final_bills (
-            booking_id, generated_json, subtotal, gst, total, generated_by
-        ) VALUES ($1, $2, $3, $4, $5, $6)
+            booking_id, generated_json, subtotal, gst, total, billing_type, company_name, gstin, company_address, generated_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ON CONFLICT (booking_id) DO UPDATE SET
             generated_json = EXCLUDED.generated_json,
             subtotal = EXCLUDED.subtotal,
             gst = EXCLUDED.gst,
             total = EXCLUDED.total,
+            billing_type = EXCLUDED.billing_type,
+            company_name = EXCLUDED.company_name,
+            gstin = EXCLUDED.gstin,
+            company_address = EXCLUDED.company_address,
             generated_by = EXCLUDED.generated_by,
             generated_at = CURRENT_TIMESTAMP
         RETURNING *
     `;
     const params = [
-        fb.booking_id, JSON.stringify(fb.generated_json), fb.subtotal, fb.gst, fb.total, fb.generated_by
+        fb.booking_id,
+        JSON.stringify(fb.generated_json),
+        fb.subtotal,
+        fb.gst,
+        fb.total,
+        fb.billing_type || 'B2C',
+        fb.company_name || null,
+        fb.gstin || null,
+        fb.company_address || null,
+        fb.generated_by
     ];
     const result = await runQuery(client, sql, params);
     return result.rows[0];
@@ -686,6 +699,7 @@ exports.getPendingPayments = async (limit = 50, offset = 0, searchQuery = null, 
             (br.booking_state = 'CHECKED_IN' AND fb.booking_id IS NULL AND br.payment_responsible = 'guest')
         )
         AND br.payment_state != 'PAID'
+        AND br.category_id != 1
     `;
     let countSql = `
         SELECT COUNT(*) as total_count
@@ -700,6 +714,7 @@ exports.getPendingPayments = async (limit = 50, offset = 0, searchQuery = null, 
             (br.booking_state = 'CHECKED_IN' AND fb.booking_id IS NULL AND br.payment_responsible = 'guest')
         )
         AND br.payment_state != 'PAID'
+        AND br.category_id != 1
     `;
     const params = [];
     let paramCount = 1;
@@ -747,6 +762,7 @@ exports.getCompletedPayments = async (limit = 50, offset = 0, searchQuery = null
         JOIN final_bills fb ON br.booking_id = fb.booking_id
         LEFT JOIN users u ON br.user_id = u.user_id
         WHERE br.payment_state = 'PAID'
+        AND br.category_id != 1
     `;
     let countSql = `
         SELECT COUNT(*) as total_count
@@ -754,6 +770,7 @@ exports.getCompletedPayments = async (limit = 50, offset = 0, searchQuery = null
         JOIN final_bills fb ON br.booking_id = fb.booking_id
         LEFT JOIN users u ON br.user_id = u.user_id
         WHERE br.payment_state = 'PAID'
+        AND br.category_id != 1
     `;
     const params = [];
     let paramCount = 1;

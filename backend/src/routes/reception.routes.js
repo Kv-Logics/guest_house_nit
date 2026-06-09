@@ -74,9 +74,11 @@ router.post('/stays/:stayId/check-out', receptionController.checkOutStay);
 router.post('/institution-config', receptionController.updateInstitutionConfig);
 router.get('/pending-payments', receptionController.getPendingPayments);
 router.get('/completed-payments', receptionController.getCompletedPayments);
+router.get('/decode-qr', receptionController.decodeQrCode);
 
 router.post(
   '/bookings/:bookingId/update-bill',
+
   requireRole(['gh_coordinator', 'super_admin', 'guest_house_admin']),
   receptionController.updateBill
 );

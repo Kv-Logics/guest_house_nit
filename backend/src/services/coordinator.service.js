@@ -67,11 +67,15 @@ exports.processOverride = async (bookingId, payload, userId) => {
         // Extract payload
         const { newTariff, newRoomType, newArrival, newDeparture, guestsToUpdate, newTotalAmount, overrideReason } = payload;
 
-        // Log the override
-        await client.query(`
-            INSERT INTO audit_logs (user_id, action, target_entity, target_id, new_value, remarks)
-            VALUES ($1, 'COORDINATOR_OVERRIDE', 'booking_requests', $2, $3, $4)
-        `, [userId, bookingId, JSON.stringify(payload), overrideReason]);
+        // Log the override (skip for category 1)
+        const catRes = await client.query('SELECT category_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
+        const isCat1 = catRes.rows.length > 0 && catRes.rows[0].category_id === 1;
+        if (!isCat1) {
+            await client.query(`
+                INSERT INTO audit_logs (user_id, action, target_entity, target_id, new_value, remarks)
+                VALUES ($1, 'COORDINATOR_OVERRIDE', 'booking_requests', $2, $3, $4)
+            `, [userId, bookingId, JSON.stringify(payload), overrideReason]);
+        }
 
         // Update booking core info
         await client.query(`
@@ -127,25 +131,37 @@ exports.generateFinalBillSnapshot = async (bookingId, payload, userId) => {
 
         const { generated_json, subtotal, gst, total } = payload;
 
-        // Upsert into final_bills
-        await client.query(`
-            INSERT INTO final_bills (booking_id, generated_json, subtotal, gst, total, generated_by)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (booking_id) DO UPDATE SET
-                generated_json = EXCLUDED.generated_json,
-                subtotal = EXCLUDED.subtotal,
-                gst = EXCLUDED.gst,
-                total = EXCLUDED.total,
-                generated_by = EXCLUDED.generated_by,
-                generated_at = CURRENT_TIMESTAMP
-        `, [bookingId, generated_json, subtotal, gst, total, userId]);
+        const catRes = await client.query('SELECT category_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
+        const isCat1 = catRes.rows.length > 0 && catRes.rows[0].category_id === 1;
 
-        // Update booking to reflect the absolute final amount
-        await client.query(`
-            UPDATE booking_requests
-            SET total_estimated_amount = $1
-            WHERE booking_id = $2
-        `, [total, bookingId]);
+        if (!isCat1) {
+            // Upsert into final_bills
+            await client.query(`
+                INSERT INTO final_bills (booking_id, generated_json, subtotal, gst, total, generated_by)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (booking_id) DO UPDATE SET
+                    generated_json = EXCLUDED.generated_json,
+                    subtotal = EXCLUDED.subtotal,
+                    gst = EXCLUDED.gst,
+                    total = EXCLUDED.total,
+                    generated_by = EXCLUDED.generated_by,
+                    generated_at = CURRENT_TIMESTAMP
+            `, [bookingId, generated_json, subtotal, gst, total, userId]);
+
+            // Update booking to reflect the absolute final amount
+            await client.query(`
+                UPDATE booking_requests
+                SET total_estimated_amount = $1
+                WHERE booking_id = $2
+            `, [total, bookingId]);
+        } else {
+            // Category 1: force amount to 0
+            await client.query(`
+                UPDATE booking_requests
+                SET total_estimated_amount = 0
+                WHERE booking_id = $1
+            `, [bookingId]);
+        }
 
         await client.query('COMMIT');
 

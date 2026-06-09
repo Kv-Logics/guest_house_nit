@@ -346,7 +346,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
     };
 
     const renderPaymentTimeline = (booking) => {
-        if (booking.payment_responsible === 'institute' || Number(booking.total_estimated_amount) === 0) return null;
+        if (booking.category_id === 1 || booking.payment_responsible === 'institute' || Number(booking.total_estimated_amount) === 0) return null;
 
         const steps = [
             { id: 1, title: 'Pending', description: 'Awaiting Payment' },
@@ -430,7 +430,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                 )}
                             </div>
                             <div className="flex gap-2 mt-1.5">
-                                {booking && booking.payment_state && (
+                                {booking && booking.payment_state && booking.category_id !== 1 && (
                                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-sm uppercase tracking-wider ${booking.payment_state === 'PAID' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
                                             booking.payment_state.includes('PROOF') || booking.payment_state === 'UNDER_REVIEW' ? 'bg-blue-100 text-blue-800 border-blue-200' :
                                                 booking.payment_state.includes('WARNING') || booking.payment_state === 'REJECTED' ? 'bg-red-100 text-red-800 border-red-200' :
@@ -449,7 +449,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                 <FileText className="w-4 h-4 mr-2" /> Edit Application
                             </button>
                         )}
-                        {booking && (booking.payment_state === 'PAID' || booking.booking_state === 'CHECKED_OUT') && (
+                        {booking && booking.category_id !== 1 && (booking.payment_state === 'PAID' || booking.booking_state === 'CHECKED_OUT') && (
                             <button onClick={() => setShowInvoice(true)} className="flex items-center px-4 py-2 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm mr-2">
                                 <Receipt className="w-4 h-4 mr-2" /> Receipt
                             </button>

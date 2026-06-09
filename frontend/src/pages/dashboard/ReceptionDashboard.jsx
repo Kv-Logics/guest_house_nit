@@ -21,6 +21,7 @@ import ExtensionsTab from '../../components/reception/ExtensionsTab';
 import RoomMatrixTab from '../../components/reception/RoomMatrixTab';
 import BookingSearchTab from '../../components/reception/BookingSearchTab';
 import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
+import CheckedOutLedgerModal from '../../components/reception/CheckedOutLedgerModal';
 
 // Default Pricing Configuration
 const PRICING_CONFIG = {
@@ -201,6 +202,7 @@ export default function ReceptionDashboard() {
     const [isMatrixOpen, setIsMatrixOpen] = useState(false);
     const [historyDrawer, setHistoryDrawer] = useState({ isOpen: false, roomNumber: null });
     const [viewBookingId, setViewBookingId] = useState(null);
+    const [checkedOutLedgerData, setCheckedOutLedgerData] = useState(null);
     
     // Check-In Modal State
     const [previewArrival, setPreviewArrival] = useState(null);
@@ -516,6 +518,32 @@ export default function ReceptionDashboard() {
     const handleCheckOutStay = (g, roomNumber, booking, forceInit = false) => {
         if (!booking) return;
 
+        if (booking.category_id === 1) {
+            setConfirmDialog({
+                title: "Confirm Check-Out",
+                message: `Are you sure you want to Check Out guest ${g.name || g.guest_name}?`,
+                isAlert: false,
+                onConfirm: async () => {
+                    try {
+                        setConfirmDialog(null);
+                        setLoading(true);
+                        await receptionService.checkOutStay(g.stay_id || g.guestId);
+                        await loadDashboardData();
+                    } catch (err) {
+                        setConfirmDialog({
+                            title: "Operation Failed",
+                            message: err.response?.data?.message || err.message || "Failed to check out guest.",
+                            isAlert: true,
+                            onConfirm: () => setConfirmDialog(null)
+                        });
+                    } finally {
+                        setLoading(false);
+                    }
+                }
+            });
+            return;
+        }
+
         if (forceInit) {
             setForceCheckoutModal({
                 isOpen: true,
@@ -583,6 +611,33 @@ export default function ReceptionDashboard() {
     const handleSendToCleaning = (roomId) => {
         const activeRoom = (bookingData.rooms || []).find(r => r.roomId === roomId);
         if (!activeRoom || !activeRoom.activeBookingId) return;
+
+        const isCat1 = activeRoom.active_booking && activeRoom.active_booking.category_id === 1;
+        if (isCat1) {
+            setConfirmDialog({
+                title: "Confirm Check-Out",
+                message: `Are you sure you want to Check Out all guests and vacate Room ${activeRoom.roomNumber || roomId}?`,
+                isAlert: false,
+                onConfirm: async () => {
+                    try {
+                        setConfirmDialog(null);
+                        setLoading(true);
+                        await receptionService.checkOut(activeRoom.activeBookingId);
+                        await loadDashboardData();
+                    } catch (err) {
+                        setConfirmDialog({
+                            title: "Operation Failed",
+                            message: err.response?.data?.message || err.message || "Failed to check out guests.",
+                            isAlert: true,
+                            onConfirm: () => setConfirmDialog(null)
+                        });
+                    } finally {
+                        setLoading(false);
+                    }
+                }
+            });
+            return;
+        }
 
         setBillingInfoModal({
             isOpen: true,
@@ -726,73 +781,104 @@ export default function ReceptionDashboard() {
                 onClose={() => setIsQRScannerOpen(false)}
                 onScanSuccess={(decodedText) => {
                     setIsQRScannerOpen(false);
-                    let cleanText = String(decodedText || '').trim().toUpperCase();
-                    let roomSuffix = null;
-                    if (cleanText.includes(':')) {
-                        roomSuffix = cleanText.split(':')[1].trim();
-                        cleanText = cleanText.split(':')[0].trim();
-                    }
-                    if (cleanText.startsWith('APP-')) cleanText = cleanText.replace('APP-', '').trim();
-                    else if (cleanText.startsWith('APP ')) cleanText = cleanText.replace('APP ', '').trim();
-
-                    if (!cleanText) return;
-
-                    // Search in arrivals
-                    const arrival = bookingData.arrivals.find(a => {
-                        const bId = String(a.bookingId || a.booking_id || '').toUpperCase();
-                        const fId = String(a.formattedId || a.formatted_id || '').toUpperCase();
-                        return (bId && (bId.includes(cleanText) || cleanText.includes(bId))) || 
-                               (fId && (fId.includes(cleanText) || cleanText.includes(fId)));
-                    });
-                    if (arrival) {
-                        setActiveTab('arrivals');
-                        setPreviewArrival(arrival);
-                        return;
-                    }
-                    // Search in rooms
-                    const matchingRooms = bookingData.rooms.filter(r => {
-                        const bId = String(r.activeBookingId || r.active_booking?.booking_id || '').toUpperCase();
-                        const fId = String(r.active_booking?.formatted_id || r.active_booking?.formattedId || '').toUpperCase();
-                        return (bId && (bId.includes(cleanText) || cleanText.includes(bId))) || 
-                               (fId && (fId.includes(cleanText) || cleanText.includes(fId)));
-                    });
+                    if (!decodedText || !decodedText.trim()) return;
                     
-                    if (matchingRooms.length > 0) {
-                        setActiveTab('rooms');
-                        
-                        let targetRoom = matchingRooms[0];
-                        if (roomSuffix && !isNaN(roomSuffix)) {
-                            const index = parseInt(roomSuffix) - 1;
-                            if (index >= 0 && index < matchingRooms.length) {
-                                targetRoom = matchingRooms[index];
-                            }
-                        }
-                        
-                        setActiveRoomId(targetRoom.roomId);
-                        return;
-                    }
-
-                    // Fallback to fetch from backend if guest has checked out or booking is in another state
-                    api.get(`/bookings/admin/all?search=${cleanText}`)
+                    setLoading(true);
+                    receptionService.decodeQrCode(decodedText)
                         .then(res => {
-                            if (res.success && res.data.rows && res.data.rows.length > 0) {
-                                const found = res.data.rows.find(b => 
-                                    b.booking_id.toString() === cleanText || 
-                                    (b.formatted_id && b.formatted_id.toUpperCase().includes(cleanText))
-                                );
-                                if (found) {
-                                    if (found.booking_state === 'CHECKED_OUT') {
-                                        alert('Guest left out (Already Checked Out).');
-                                    } else {
-                                        alert(`Application is ${found.booking_state.replace(/_/g, ' ')}.`);
+                            if (res.success && res.data) {
+                                const { booking, state, roomSuffix, guestLedger, stayLedger } = res.data;
+                                
+                                if (state === 'staying') {
+                                    let targetRoomNo = null;
+                                    const activeStays = guestLedger.filter(s => s.stay_status === 'CHECKED_IN');
+                                    if (activeStays.length > 0) {
+                                        if (roomSuffix && !isNaN(roomSuffix)) {
+                                            const idx = parseInt(roomSuffix, 10) - 1;
+                                            if (idx >= 0 && idx < activeStays.length) {
+                                                targetRoomNo = activeStays[idx].room_number;
+                                            }
+                                        }
+                                        if (!targetRoomNo) {
+                                            targetRoomNo = activeStays[0].room_number;
+                                        }
                                     }
-                                    return;
+                                    
+                                    if (targetRoomNo) {
+                                        const roomObj = bookingData.rooms.find(r => 
+                                            String(r.roomNumber) === String(targetRoomNo) || 
+                                            String(r.roomId) === String(targetRoomNo) || 
+                                            String(r.room_number) === String(targetRoomNo)
+                                        );
+                                        if (roomObj) {
+                                            setActiveTab('rooms');
+                                            setActiveRoomId(roomObj.roomId);
+                                            return;
+                                        }
+                                    }
+                                    alert(`Guest is staying, but room details could not be found in active inventory.`);
+                                    
+                                } else if (state === 'pending_assignment') {
+                                    const arrivalData = {
+                                        bookingId: booking.booking_id,
+                                        booking_id: booking.booking_id,
+                                        formatted_id: booking.formatted_id,
+                                        applicant: booking.applicant_name,
+                                        rooms_required: booking.rooms_required,
+                                        room_type: booking.room_type,
+                                        arrival_datetime: booking.arrival_datetime,
+                                        departure_datetime: booking.departure_datetime,
+                                        rawCheckIn: booking.arrival_datetime,
+                                        rawCheckOut: booking.departure_datetime,
+                                        bookingState: booking.booking_state,
+                                        booking_state: booking.booking_state,
+                                        category: booking.category_code || `CAT-${booking.category_id}`,
+                                        categoryId: booking.category_id,
+                                        rooms: booking.guests ? Array.from(new Set(booking.guests.map(g => g.room_index || 0))).map(idx => ({
+                                            roomId: `${booking.booking_id}_room_${idx}`,
+                                            roomIndex: idx,
+                                            roomType: booking.room_type,
+                                            guests: booking.guests.filter(g => g.room_index === idx).map(g => ({
+                                                guestId: g.guest_id,
+                                                guest_id: g.guest_id,
+                                                name: g.guest_name,
+                                                relation: g.relation_to_applicant,
+                                                phone: g.phone,
+                                                email: g.email
+                                            }))
+                                        })) : []
+                                    };
+                                    setActiveTab('arrivals');
+                                    setPreviewArrival(arrivalData);
+                                    
+                                } else if (state === 'assigned_room') {
+                                    setActiveTab('arrivals');
+                                    const expanded = {};
+                                    expanded[booking.booking_id] = true;
+                                    if (booking.allocated_room_numbers) {
+                                        booking.allocated_room_numbers.split(',').forEach(roomNo => {
+                                            expanded[`${booking.booking_id}:${roomNo.trim()}`] = true;
+                                        });
+                                    }
+                                    setExpandedArrivals(prev => ({ ...prev, ...expanded }));
+                                    
+                                } else if (state === 'checked_out') {
+                                    setCheckedOutLedgerData({
+                                        booking,
+                                        guestLedger,
+                                        stayLedger
+                                    });
+                                    
+                                } else {
+                                    alert(`Booking state: ${booking.booking_state.replace(/_/g, ' ')}`);
                                 }
                             }
-                            alert("Application ID not found in today's arrivals or active rooms.");
                         })
-                        .catch(() => {
-                            alert("Application ID not found in today's arrivals or active rooms.");
+                        .catch(err => {
+                            alert(err.response?.data?.message || err.message || "QR Code check failed.");
+                        })
+                        .finally(() => {
+                            setLoading(false);
                         });
                 }}
             />
@@ -1111,8 +1197,10 @@ export default function ReceptionDashboard() {
 
                         await loadDashboardData();
                         
-                        // Show payment tab or invoice if applicable
-                        if (res.data?.bookingFinished && res.data?.booking?.payment_state !== 'PAID') {
+                        // Show payment tab or invoice if applicable (skip download for Category 1)
+                        if (res.data?.bookingFinished && res.data?.booking?.category_id === 1) {
+                            // Category 1: do nothing as no invoice/billing generated
+                        } else if (res.data?.bookingFinished && res.data?.booking?.payment_state !== 'PAID') {
                             setActiveTab('payments');
                         } else if (res?.data?.bookingFinished && res?.data?.booking?.booking_id) {
                             handleDownloadInvoice(res.data.booking.booking_id);
@@ -1274,6 +1362,13 @@ export default function ReceptionDashboard() {
                     onClose={() => setViewBookingId(null)} 
                 />
             )}
+
+            <CheckedOutLedgerModal 
+                isOpen={!!checkedOutLedgerData}
+                onClose={() => setCheckedOutLedgerData(null)}
+                data={checkedOutLedgerData}
+                onDownloadInvoice={handleDownloadInvoice}
+            />
         </div>
     );
 }

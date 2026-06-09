@@ -202,53 +202,168 @@ export default function AdminDashboard() {
   if (!user) return null;
 
   return (
-    <div className="bg-white p-8 md:p-10 rounded-3xl shadow-sm border border-slate-200">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl shadow-sm border border-blue-100">
-            <LayoutDashboard className="w-6 h-6" />
+    <div className="flex flex-col md:flex-row gap-8 min-h-[calc(100vh-10rem)]">
+      {/* Left Sidebar Navbar */}
+      <aside className="w-full md:w-72 flex flex-col gap-6 shrink-0">
+        {/* Profile Card */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center text-center gap-4">
+          <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-sm border border-blue-100">
+            <LayoutDashboard className="w-8 h-8" />
           </div>
           <div>
-            <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Dashboard</h2>
-            <p className="text-slate-500 font-medium capitalize">
-              Welcome, {user.full_name || user.email} ({String(user.role || '').replace(/_/g, ' ')})
+            <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Admin Portal</h2>
+            <p className="text-sm text-slate-400 mt-1 font-semibold capitalize">
+              Welcome, {user.full_name || user.email.split('@')[0]}
+            </p>
+            <p className="text-[11px] font-black text-blue-600 bg-blue-50/60 border border-blue-100 rounded-full px-3 py-1 inline-block mt-3 capitalize tracking-wider">
+              {String(user.role || '').replace(/_/g, ' ')}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          {isApprover && (
-              <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-auto">
+
+        {/* Navigation Sidebar List */}
+        {isApprover && (
+          <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col gap-2">
+            <button
+              onClick={() => setActiveTab('approvals')}
+              className={`flex items-center justify-between px-4 py-3 text-sm font-bold rounded-xl transition-all ${
+                activeTab === 'approvals' 
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+              }`}
+            >
+              <span className="flex items-center gap-3">
+                <ClipboardCheck className="w-5 h-5" />
+                <span>Pending Queue</span>
+              </span>
+              {adminPending.length > 0 && (
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                  activeTab === 'approvals' ? 'bg-white text-blue-600' : 'bg-blue-100 text-blue-600'
+                }`}>
+                  {adminPending.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('approved_requests')}
+              className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all ${
+                activeTab === 'approved_requests' 
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+              }`}
+            >
+              <CheckCircle className="w-5 h-5" />
+              <span>Approved</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('rejected_requests')}
+              className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all ${
+                activeTab === 'rejected_requests' 
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+              }`}
+            >
+              <XCircle className="w-5 h-5" />
+              <span>Rejected</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('room_matrix')}
+              className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all ${
+                activeTab === 'room_matrix' 
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+              }`}
+            >
+              <Calendar className="w-5 h-5" />
+              <span>Room Matrix</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('occupancy')}
+              className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all ${
+                activeTab === 'occupancy' 
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+              }`}
+            >
+              <FileText className="w-5 h-5" />
+              <span>Occupancy</span>
+            </button>
+
+            {isSuperAdmin && (
+              <button
+                onClick={() => setActiveTab('master_logs')}
+                className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all ${
+                  activeTab === 'master_logs' 
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+                }`}
+              >
+                <Database className="w-5 h-5" />
+                <span>Master Logs</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* New Application CTA */}
+        <button
+          onClick={() => navigate('/book')}
+          className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-black rounded-2xl transition-all shadow-md shadow-blue-200 border border-blue-500"
+        >
+          <Plus className="w-5 h-5" />
+          <span>New Application</span>
+        </button>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 bg-white p-8 md:p-10 rounded-3xl border border-slate-200 shadow-sm flex flex-col gap-6">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center border-b border-slate-100 pb-6 gap-4">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight capitalize">
+              {activeTab === 'approvals' ? 'Pending Queue' : activeTab.replace(/_/g, ' ')}
+            </h2>
+            <p className="text-slate-400 text-sm mt-1 font-semibold">
+              Manage and review bookings
+            </p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+            {isApprover && activeTab !== 'room_matrix' && activeTab !== 'occupancy' && activeTab !== 'master_logs' && (
+              <>
+                <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-auto flex-1 sm:flex-none">
                   <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                   <input 
-                      type="text" 
-                      placeholder="Search bookings..." 
-                      className="w-full sm:w-64 pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors shadow-sm"
-                      value={searchTermInput}
-                      onChange={(e) => setSearchTermInput(e.target.value)}
+                    type="text" 
+                    placeholder="Search bookings..." 
+                    className="w-full sm:w-64 pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors shadow-sm"
+                    value={searchTermInput}
+                    onChange={(e) => setSearchTermInput(e.target.value)}
                   />
                   <button type="submit" className="hidden">Search</button>
-              </form>
-          )}
-          {isApprover && (
-              <button
+                </form>
+                
+                <button
                   type="button"
                   onClick={() => setMonthFilter(prev => prev === 'current' ? 'archive' : 'current')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${
-                      monthFilter === 'archive' 
-                          ? 'bg-slate-800 text-white border-slate-800 shadow-md' 
-                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    monthFilter === 'archive' 
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-md' 
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                   }`}
-              >
+                >
                   <Filter className="w-4 h-4" />
                   {monthFilter === 'archive' ? 'Viewing Archive' : 'View Archive'}
-              </button>
-          )}
-          {isApprover && (
-              <select
+                </button>
+
+                <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
                   className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-              >
+                >
                   <option value="arr_asc">Arrival (Earliest)</option>
                   <option value="arr_desc">Arrival (Latest)</option>
                   <option value="app_desc">Applied (Newest)</option>
@@ -257,158 +372,112 @@ export default function AdminDashboard() {
                   <option value="book_asc">Booking ID (Oldest)</option>
                   <option value="cat_asc">Category (A-Z)</option>
                   <option value="cat_desc">Category (Z-A)</option>
-              </select>
-          )}
-          <button
-            onClick={() => navigate('/book')}
-            className="hidden sm:flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4 mr-2" /> New Application
-          </button>
-          {isApprover && (
-            <div className="flex bg-slate-100 p-1 rounded-xl flex-wrap gap-1">
-              <button
-                onClick={() => setActiveTab('approvals')}
-                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'approvals' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                <ClipboardCheck className="w-4 h-4 mr-2" /> Pending
-              </button>
-              <button
-                onClick={() => setActiveTab('approved_requests')}
-                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'approved_requests' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                <CheckCircle className="w-4 h-4 mr-2" /> Approved
-              </button>
-              <button
-                onClick={() => setActiveTab('rejected_requests')}
-                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'rejected_requests' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                <XCircle className="w-4 h-4 mr-2" /> Rejected
-              </button>
-              <button
-                onClick={() => setActiveTab('room_matrix')}
-                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'room_matrix' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                <Calendar className="w-4 h-4 mr-2" /> Room Matrix
-              </button>
-              <button
-                onClick={() => setActiveTab('occupancy')}
-                className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'occupancy' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                <FileText className="w-4 h-4 mr-2" /> Occupancy
-              </button>
-              {isSuperAdmin && (
-                <button
-                  onClick={() => setActiveTab('master_logs')}
-                  className={`flex items-center px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'master_logs' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  <Database className="w-4 h-4 mr-2" /> Master Logs
-                </button>
-              )}
-            </div>
-          )}
+                </select>
+              </>
+            )}
+          </div>
         </div>
-      </div>
 
-      {activeTab === 'room_matrix' && (
+        {activeTab === 'room_matrix' && (
           <RoomMatrixTab 
-              allRooms={rooms} 
-              isRoomAvailableForDates={(room, checkInDate, checkOutDate) => {
-                  if (!checkInDate || !checkOutDate) return true;
-                  const start = new Date(checkInDate).getTime();
-                  const end = new Date(checkOutDate).getTime();
-                  if (room.future_allocations && room.future_allocations.length > 0) {
-                      for (const alloc of room.future_allocations) {
-                          const allocStart = new Date(alloc.allocated_from).getTime();
-                          const allocEnd = new Date(alloc.allocated_to).getTime();
-                          if (start < allocEnd && end > allocStart) {
-                              return false;
-                          }
-                      }
+            allRooms={rooms} 
+            isRoomAvailableForDates={(room, checkInDate, checkOutDate) => {
+              if (!checkInDate || !checkOutDate) return true;
+              const start = new Date(checkInDate).getTime();
+              const end = new Date(checkOutDate).getTime();
+              if (room.future_allocations && room.future_allocations.length > 0) {
+                for (const alloc of room.future_allocations) {
+                  const allocStart = new Date(alloc.allocated_from).getTime();
+                  const allocEnd = new Date(alloc.allocated_to).getTime();
+                  if (start < allocEnd && end > allocStart) {
+                    return false;
                   }
-                  return true;
-              }} 
+                }
+              }
+              return true;
+            }} 
           />
-      )}
+        )}
 
-      {activeTab === 'my_bookings' && (
-        <MyBookingsTable
-          bookings={myBookings}
-          handleOpenPayment={setPaymentModalBooking}
-          handleDelete={handleDelete}
-        />
-      )}
-
-      {activeTab === 'approvals' && (
-        <>
-          <ApprovalQueueTable
-            activeTab={activeTab}
-            bookings={adminPending}
-            setPreviewId={setPreviewId}
-            handleUpdateStatus={handleUpdateStatus}
-            handleMockPay={handleMockPay}
+        {activeTab === 'my_bookings' && (
+          <MyBookingsTable
+            bookings={myBookings}
+            handleOpenPayment={setPaymentModalBooking}
             handleDelete={handleDelete}
-            handleWithdrawDecision={handleWithdrawDecision}
           />
-          {hasMore.approvals && adminPending.length > 0 && !loading && (
-            <div className="p-4 text-center mt-4">
-                <button onClick={handleLoadMore} className="px-6 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl shadow-sm hover:bg-slate-50 transition-colors">
-                    Load More Records
-                </button>
-            </div>
-          )}
-        </>
-      )}
+        )}
 
-      {activeTab === 'approved_requests' && (
-        <>
-          <ApprovalQueueTable
-            activeTab={activeTab}
-            bookings={adminApproved}
-            setPreviewId={setPreviewId}
-            handleUpdateStatus={handleUpdateStatus}
-            handleMockPay={handleMockPay}
-            handleDelete={handleDelete}
-            handleWithdrawDecision={handleWithdrawDecision}
-          />
-          {hasMore.approved_requests && adminApproved.length > 0 && !loading && (
-            <div className="p-4 text-center mt-4">
+        {activeTab === 'approvals' && (
+          <>
+            <ApprovalQueueTable
+              activeTab={activeTab}
+              bookings={adminPending}
+              setPreviewId={setPreviewId}
+              handleUpdateStatus={handleUpdateStatus}
+              handleMockPay={handleMockPay}
+              handleDelete={handleDelete}
+              handleWithdrawDecision={handleWithdrawDecision}
+            />
+            {hasMore.approvals && adminPending.length > 0 && !loading && (
+              <div className="p-4 text-center mt-4">
                 <button onClick={handleLoadMore} className="px-6 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl shadow-sm hover:bg-slate-50 transition-colors">
-                    Load More Records
+                  Load More Records
                 </button>
-            </div>
-          )}
-        </>
-      )}
+              </div>
+            )}
+          </>
+        )}
 
-      {activeTab === 'rejected_requests' && (
-        <>
-          <ApprovalQueueTable
-            activeTab={activeTab}
-            bookings={adminRejected}
-            setPreviewId={setPreviewId}
-            handleUpdateStatus={handleUpdateStatus}
-            handleMockPay={handleMockPay}
-            handleDelete={handleDelete}
-            handleWithdrawDecision={handleWithdrawDecision}
-          />
-          {hasMore.rejected_requests && adminRejected.length > 0 && !loading && (
-            <div className="p-4 text-center mt-4">
+        {activeTab === 'approved_requests' && (
+          <>
+            <ApprovalQueueTable
+              activeTab={activeTab}
+              bookings={adminApproved}
+              setPreviewId={setPreviewId}
+              handleUpdateStatus={handleUpdateStatus}
+              handleMockPay={handleMockPay}
+              handleDelete={handleDelete}
+              handleWithdrawDecision={handleWithdrawDecision}
+            />
+            {hasMore.approved_requests && adminApproved.length > 0 && !loading && (
+              <div className="p-4 text-center mt-4">
                 <button onClick={handleLoadMore} className="px-6 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl shadow-sm hover:bg-slate-50 transition-colors">
-                    Load More Records
+                  Load More Records
                 </button>
-            </div>
-          )}
-        </>
-      )}
+              </div>
+            )}
+          </>
+        )}
 
-      {activeTab === 'master_logs' && isSuperAdmin && (
+        {activeTab === 'rejected_requests' && (
+          <>
+            <ApprovalQueueTable
+              activeTab={activeTab}
+              bookings={adminRejected}
+              setPreviewId={setPreviewId}
+              handleUpdateStatus={handleUpdateStatus}
+              handleMockPay={handleMockPay}
+              handleDelete={handleDelete}
+              handleWithdrawDecision={handleWithdrawDecision}
+            />
+            {hasMore.rejected_requests && adminRejected.length > 0 && !loading && (
+              <div className="p-4 text-center mt-4">
+                <button onClick={handleLoadMore} className="px-6 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl shadow-sm hover:bg-slate-50 transition-colors">
+                  Load More Records
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'master_logs' && isSuperAdmin && (
           <SystemLogs />
-      )}
+        )}
 
-      {activeTab === 'occupancy' && (
+        {activeTab === 'occupancy' && (
           <OccupancyStats />
-      )}
+        )}
+      </main>
 
       {previewId && (
         <BookingDetailsModal bookingId={previewId} onClose={() => setPreviewId(null)} />
@@ -452,6 +521,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
       {paymentModalBooking && (
         <PaymentProofModal booking={paymentModalBooking} onClose={() => setPaymentModalBooking(null)} />
       )}

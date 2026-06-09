@@ -50,6 +50,7 @@ exports.checkOut = async (req, res, next) => {
         const overrideNow = req.headers['x-mock-date'] || req.body?.overrideNow || null;
         
         const payload = {
+            ...req.body,
             force: req.body?.force === true,
             forceReason: req.body?.forceReason || '',
             userRole,
@@ -73,6 +74,7 @@ exports.checkOutStay = async (req, res, next) => {
         const overrideNow = req.headers['x-mock-date'] || req.body?.overrideNow || null;
         
         const payload = {
+            ...req.body,
             force: req.body?.force === true,
             forceReason: req.body?.forceReason || '',
             userRole,
@@ -335,3 +337,17 @@ exports.updateBill = async (req, res, next) => {
         next(error);
     }
 };
+
+exports.decodeQrCode = async (req, res, next) => {
+    try {
+        const { code } = req.query;
+        const overrideNow = req.headers['x-mock-date'] || req.query.overrideNow || null;
+        if (!code) {
+            return res.status(400).json({ success: false, message: 'QR code payload is required' });
+        }
+        const data = await receptionService.decodeQrCode(code, overrideNow);
+        return sendSuccess(res, 'QR code decoded successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
