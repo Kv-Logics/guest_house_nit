@@ -54,6 +54,7 @@ router.use(requireRole(['reception_staff', 'gh_coordinator', 'super_admin', 'gue
 router.get('/arrivals', receptionController.getTodayArrivals);
 router.get('/rooms', receptionController.getRoomsWithStays);
 router.get('/occupancy', receptionController.getOccupancyStats);
+router.get('/rooms/register', receptionController.getGuestStayRegister);
 router.get('/rooms/:roomNumber/history', receptionController.getRoomHistory);
 router.post('/rooms/:roomNumber/status', receptionController.updateRoomStatus);
 

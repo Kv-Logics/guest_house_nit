@@ -59,7 +59,7 @@ export default function PricingLedger({ selectedRoom, timeline, totalBill }) {
                             </div>
 
                             {/* Rows for each active guest */}
-                            {selectedRoom.guests.filter(g => g.status === 'CHECKED_IN' || g.stay_status === 'CHECKED_IN').map((guest) => (
+                            {selectedRoom.guests.filter(g => ['CHECKED_IN', 'CHECKED_OUT', 'checked_in', 'checked_out'].includes(g.status || g.stay_status)).map((guest) => (
                                 <div key={guest.guestId || guest.guest_id} className="flex items-center group">
                                     <div className="w-48 font-bold text-xs text-slate-700 truncate shrink-0 pr-4" title={guest.name || guest.guest_name}>
                                         {guest.name || guest.guest_name}

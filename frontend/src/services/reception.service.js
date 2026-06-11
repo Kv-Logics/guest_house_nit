@@ -47,5 +47,6 @@ export const receptionService = {
 
   getActiveBulkBlocks: async () => api.get('/reception/bulk-blocks'),
   createBulkBlock: async (payload) => api.post('/reception/bulk-blocks', payload),
-  checkInBulkGuest: async (bookingId, roomId, payload) => api.post(`/reception/bulk-blocks/${bookingId}/rooms/${roomId}/check-in`, payload)
+  checkInBulkGuest: async (bookingId, roomId, payload) => api.post(`/reception/bulk-blocks/${bookingId}/rooms/${roomId}/check-in`, payload),
+  getGuestStayRegister: async () => api.get('/reception/rooms/register')
 };

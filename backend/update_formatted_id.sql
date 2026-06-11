@@ -4,8 +4,9 @@ ADD COLUMN IF NOT EXISTS formatted_id VARCHAR(100),
 ADD COLUMN IF NOT EXISTS financial_year VARCHAR(20);
 
 -- 2. Drop the existing SERIAL auto-increment behavior from booking_seq
--- PostgreSQL links SERIAL to a sequence object. We need to drop the default value
+-- PostgreSQL links SERIAL to a sequence object. We need to drop the default value and make it nullable
 ALTER TABLE booking_requests ALTER COLUMN booking_seq DROP DEFAULT;
+ALTER TABLE booking_requests ALTER COLUMN booking_seq DROP NOT NULL;
 
 -- 3. Create the sequence tracker table
 CREATE TABLE IF NOT EXISTS sequence_tracker (

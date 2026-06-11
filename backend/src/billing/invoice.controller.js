@@ -81,7 +81,10 @@ exports.downloadInvoice = async (req, res) => {
     }
 
     const invoicesDir = path.join(process.cwd(), 'uploads/invoices');
-    const filePath = path.join(invoicesDir, `${bookingId}.pdf`);
+    const formattedIdRes = await db.query('SELECT formatted_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
+    const formattedId = formattedIdRes.rows[0]?.formatted_id;
+    const safeFilename = formattedId ? formattedId.replace(/[^a-zA-Z0-9-_]/g, '_') : bookingId;
+    const filePath = path.join(invoicesDir, `${safeFilename}.pdf`);
 
     // Fetch config to check the always_regenerate_invoices toggle
     const configRes = await db.query('SELECT always_regenerate_invoices FROM institution_configs WHERE config_id = 1');

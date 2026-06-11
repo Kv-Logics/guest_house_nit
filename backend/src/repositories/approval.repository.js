@@ -2,7 +2,7 @@ const db = require('../db/db');
 
 exports.getPendingApprovalsByRole = async (pendingState, userRole, userId) => {
     const query = `
-        SELECT b.*, c.category_code, u.full_name as applicant_name,
+        SELECT b.*, c.category_code, COALESCE(b.bulk_booking_metadata->>'applicant_name', u.full_name) as applicant_name,
                (
                    SELECT json_agg(g)
                    FROM guests g WHERE g.booking_id = b.booking_id
@@ -39,7 +39,7 @@ exports.getPendingApprovalsByRole = async (pendingState, userRole, userId) => {
 exports.getApprovalHistoryByApprover = async (approverId, actionFilter) => {
     // actionFilter will be 'APPROVED' or 'REJECTED'
     const query = `
-        SELECT DISTINCT ON (b.booking_id) b.*, c.category_code, u.full_name as applicant_name,
+        SELECT b.*, c.category_code, COALESCE(b.bulk_booking_metadata->>'applicant_name', u.full_name) as applicant_name,
                (
                    SELECT json_agg(g)
                    FROM guests g WHERE g.booking_id = b.booking_id
@@ -47,14 +47,18 @@ exports.getApprovalHistoryByApprover = async (approverId, actionFilter) => {
                (
                    SELECT json_agg(row_to_json(e)) FROM stay_extension_requests e WHERE e.booking_id = b.booking_id
                ) as stay_extension_requests,
-               al.action as approver_action,
-               al.created_at as action_date
+               latest_al.action as approver_action,
+               latest_al.created_at as action_date
         FROM booking_requests b
         JOIN category_rules c ON b.category_id = c.category_id
         JOIN users u ON b.user_id = u.user_id
-        JOIN approval_logs al ON b.booking_id = al.booking_id
-        WHERE al.approver_id = $1 AND al.action = $2
-        ORDER BY b.booking_id, al.created_at DESC
+        JOIN (
+            SELECT DISTINCT ON (booking_id) booking_id, action, created_at
+            FROM approval_logs
+            WHERE approver_id = $1
+            ORDER BY booking_id, created_at DESC
+        ) latest_al ON b.booking_id = latest_al.booking_id
+        WHERE latest_al.action = $2
     `;
     const result = await db.query(query, [approverId, actionFilter]);
     

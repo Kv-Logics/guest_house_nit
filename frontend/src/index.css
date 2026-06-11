@@ -1,9 +1,2 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  body {
-    @apply bg-slate-50 text-slate-900 antialiased;
-  }
-}
+/* Global styles using MUI CssBaseline are now in place. */
+/* Add any custom non-MUI overrides here if necessary. */

@@ -168,7 +168,10 @@ exports.generateFinalBillSnapshot = async (bookingId, payload, userId) => {
         // Delete stale PDF so it regenerates on next GET
         const fs = require('fs');
         const path = require('path');
-        const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${bookingId}.pdf`);
+        const bRes = await client.query('SELECT formatted_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
+        const formattedId = bRes.rows[0]?.formatted_id;
+        const safeFilename = formattedId ? formattedId.replace(/[^a-zA-Z0-9-_]/g, '_') : bookingId;
+        const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${safeFilename}.pdf`);
         if (fs.existsSync(stalePdfPath)) {
             fs.unlinkSync(stalePdfPath);
         }
@@ -206,3 +209,175 @@ exports.updateTariff = async (tariffId, payload) => {
     }
     return res.rows[0];
 };
+
+exports.getUsers = async (searchQuery) => {
+    let query = `
+        SELECT u.*, r.role_name, r.role_id
+        FROM users u
+        LEFT JOIN user_roles ur ON u.user_id = ur.user_id
+        LEFT JOIN roles r ON ur.role_id = r.role_id
+        WHERE u.deleted_at IS NULL
+    `;
+    const params = [];
+    if (searchQuery) {
+        query += ` AND (u.email ILIKE $1 OR u.full_name ILIKE $1 OR u.employee_id ILIKE $1)`;
+        params.push(`%${searchQuery}%`);
+    }
+    query += ` ORDER BY u.created_at DESC LIMIT 100`;
+    
+    const res = await db.query(query, params);
+    return res.rows;
+};
+
+exports.createUser = async (userData) => {
+    const { full_name, email, department, designation, employee_id, role_id } = userData;
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+        
+        // Insert user
+        const uRes = await client.query(`
+            INSERT INTO users (full_name, email, department, designation, employee_id)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *
+        `, [full_name, email, department, designation, employee_id]);
+        
+        const user = uRes.rows[0];
+        
+        // Insert role
+        if (role_id) {
+            await client.query(`
+                INSERT INTO user_roles (user_id, role_id)
+                VALUES ($1, $2)
+            `, [user.user_id, role_id]);
+        }
+        
+        await client.query('COMMIT');
+        return user;
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+};
+
+exports.updateUser = async (userId, userData) => {
+    const { full_name, email, department, designation, employee_id, role_id } = userData;
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+        
+        // Update user details
+        const uRes = await client.query(`
+            UPDATE users
+            SET full_name = COALESCE($1, full_name),
+                email = COALESCE($2, email),
+                department = COALESCE($3, department),
+                designation = COALESCE($4, designation),
+                employee_id = COALESCE($5, employee_id),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = $6
+            RETURNING *
+        `, [full_name, email, department, designation, employee_id, userId]);
+        
+        if (uRes.rows.length === 0) {
+            throw new Error('User not found');
+        }
+        
+        // Update role (delete old, insert new)
+        if (role_id) {
+            await client.query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
+            await client.query(`
+                INSERT INTO user_roles (user_id, role_id)
+                VALUES ($1, $2)
+            `, [userId, role_id]);
+        }
+        
+        await client.query('COMMIT');
+        return uRes.rows[0];
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+};
+
+exports.deleteUser = async (userId) => {
+    // Soft delete or hard delete? Since DB has a deleted_at, let's do soft delete
+    const res = await db.query(`
+        UPDATE users
+        SET deleted_at = CURRENT_TIMESTAMP, is_active = false
+        WHERE user_id = $1
+        RETURNING *
+    `, [userId]);
+    
+    if (res.rows.length === 0) {
+        throw new Error('User not found');
+    }
+    return res.rows[0];
+};
+
+exports.getAllRoles = async () => {
+    const res = await db.query(`SELECT role_id, role_name, description FROM roles ORDER BY role_name ASC`);
+    return res.rows;
+};
+
+exports.addRoom = async (roomData) => {
+    const { room_number, block_name, floor_number, room_type, capacity, has_ac, tariffs } = roomData;
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+
+        // 1. Insert room into rooms table
+        const roomRes = await client.query(`
+            INSERT INTO rooms (room_number, block_name, floor_number, room_type, capacity, has_ac, current_status)
+            VALUES ($1, $2, $3, $4, $5, $6, 'available')
+            ON CONFLICT (room_number) DO UPDATE SET
+                block_name = EXCLUDED.block_name,
+                floor_number = EXCLUDED.floor_number,
+                room_type = EXCLUDED.room_type,
+                capacity = EXCLUDED.capacity,
+                has_ac = EXCLUDED.has_ac
+            RETURNING *
+        `, [room_number, block_name || 'Main Block', Number(floor_number || 0), room_type || 'Standard Room', Number(capacity || 2), has_ac !== false]);
+
+        const room = roomRes.rows[0];
+
+        // 2. Insert/update tariffs for Category 1, 2, 3, 4 if specified
+        if (tariffs) {
+            for (const catId of [1, 2, 3, 4]) {
+                const catTariff = tariffs[catId];
+                if (catTariff) {
+                    const checkTariff = await client.query(`
+                        SELECT tariff_id FROM room_tariffs 
+                        WHERE category_id = $1 AND room_type = $2
+                    `, [catId, room.room_type]);
+
+                    if (checkTariff.rows.length > 0) {
+                        await client.query(`
+                            UPDATE room_tariffs 
+                            SET single_occupancy = $1, double_occupancy = $2, extra_bed = $3, updated_at = CURRENT_TIMESTAMP
+                            WHERE tariff_id = $4
+                        `, [Number(catTariff.single), Number(catTariff.double), Number(catTariff.extra_bed || 400), checkTariff.rows[0].tariff_id]);
+                    } else {
+                        await client.query(`
+                            INSERT INTO room_tariffs (category_id, room_type, single_occupancy, double_occupancy, extra_bed)
+                            VALUES ($1, $2, $3, $4, $5)
+                        `, [catId, room.room_type, Number(catTariff.single), Number(catTariff.double), Number(catTariff.extra_bed || 400)]);
+                    }
+                }
+            }
+        }
+
+        await client.query('COMMIT');
+        return room;
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+};
+

@@ -92,10 +92,29 @@ export default function RoomAssignmentModal({
                         <div className="mt-8 border-t border-slate-200 pt-6">
                             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Select Rooms from Matrix</h3>
                             <RoomMatrix 
-                                rooms={allRooms.map(r => ({
-                                    ...r,
-                                    status: (r.status === 'AVAILABLE' && isRoomAvailableForDates(r, arrivalData.rawCheckIn, arrivalData.rawCheckOut)) ? 'AVAILABLE' : r.status
-                                }))} 
+                                rooms={allRooms.map(r => {
+                                    const matchesAppRoomType = arrivalData.rooms.some(appRoom => !appRoom.roomType || appRoom.roomType === r.roomType);
+                                    
+                                    const start = new Date(arrivalData.rawCheckIn).getTime();
+                                    const end = new Date(arrivalData.rawCheckOut).getTime();
+                                    const hasOverlappingBulk = r.future_allocations && r.future_allocations.some(alloc => {
+                                        if (!alloc.is_bulk) return false;
+                                        const allocStart = new Date(alloc.allocated_from).getTime();
+                                        const allocEnd = new Date(alloc.allocated_to).getTime();
+                                        return start < allocEnd && end > allocStart;
+                                    });
+
+                                    const isFree = r.status === 'AVAILABLE' && isRoomAvailableForDates(r, arrivalData.rawCheckIn, arrivalData.rawCheckOut);
+                                    return {
+                                        ...r,
+                                        status: (isFree && matchesAppRoomType) ? 'AVAILABLE' : (r.status === 'AVAILABLE' ? 'BOOKED' : r.status),
+                                        future_allocations: hasOverlappingBulk ? [{
+                                            is_bulk: true,
+                                            allocated_from: new Date(Date.now() - 86400000).toISOString(),
+                                            allocated_to: new Date(Date.now() + 86400000).toISOString()
+                                        }] : r.future_allocations
+                                    };
+                                })} 
                                 activeRoomIds={Object.values(roomAssignments)}
                                 onRoomClick={(physicalRoomId) => {
                                     const existingSlotId = Object.keys(roomAssignments).find(key => roomAssignments[key] === physicalRoomId);
@@ -108,6 +127,9 @@ export default function RoomAssignmentModal({
 
                                     const physicalRoom = allRooms.find(r => r.roomId === physicalRoomId);
                                     if (!physicalRoom || physicalRoom.status !== 'AVAILABLE' || !isRoomAvailableForDates(physicalRoom, arrivalData.rawCheckIn, arrivalData.rawCheckOut)) return;
+
+                                    const matchesAppRoomType = arrivalData.rooms.some(appRoom => !appRoom.roomType || appRoom.roomType === physicalRoom.roomType);
+                                    if (!matchesAppRoomType) return;
 
                                     const availableSlot = arrivalData.rooms.find(appRoom => {
                                         if (roomAssignments[appRoom.roomId]) return false;

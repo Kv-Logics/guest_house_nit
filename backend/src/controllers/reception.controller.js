@@ -172,8 +172,9 @@ exports.getBillingOverrideLogsByBooking = async (req, res, next) => {
 };
 exports.extendStay = async (req, res, next) => {
     try {
+        const userId = req.user?.user_id || req.user?.id;
         const { departure_datetime } = req.body;
-        const data = await receptionService.extendStay(req.params.bookingId, departure_datetime);
+        const data = await receptionService.extendStay(req.params.bookingId, departure_datetime, userId);
         return sendSuccess(res, 'Stay extended successfully', data);
     } catch (error) {
         next(error);
@@ -347,6 +348,15 @@ exports.decodeQrCode = async (req, res, next) => {
         }
         const data = await receptionService.decodeQrCode(code, overrideNow);
         return sendSuccess(res, 'QR code decoded successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.getGuestStayRegister = async (req, res, next) => {
+    try {
+        const data = await receptionService.getGuestStayRegister();
+        return sendSuccess(res, 'Guest stay register fetched successfully', data);
     } catch (error) {
         next(error);
     }

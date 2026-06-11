@@ -2,9 +2,15 @@ import { useState, useEffect } from 'react';
 import { ClipboardList, Tag, Briefcase, FileText, Info, X } from 'lucide-react';
 import CategoryInfoModal from './CategoryInfoModal';
 
-// MAIN COMPONENT EXPORT
-export default function CategoryVisitSection({ formData, handleChange, setFormData }) {
+export default function CategoryVisitSection({ formData, handleChange, setFormData, user }) {
   const [showCatInfo, setShowCatInfo] = useState(false);
+
+  // Enforce students to CAT III only
+  useEffect(() => {
+    if ((user?.role === 'student' || user?.role === 'STUDENT') && formData.category_id !== '3') {
+      setFormData(prev => ({ ...prev, category_id: '3' }));
+    }
+  }, [user, setFormData, formData.category_id]);
 
   // Cat-1 and Cat-2 are always official — lock visit_type automatically
   useEffect(() => {
@@ -61,10 +67,13 @@ export default function CategoryVisitSection({ formData, handleChange, setFormDa
             onChange={handleChange}
             className="block w-full pl-11 pr-10 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer"
           >
-            <option value="1">CAT I</option>
-            <option value="2">CAT II</option>
+            {(!user || (user.role !== 'student' && user.role !== 'STUDENT')) && (
+              <>
+                <option value="1">CAT I</option>
+                <option value="2">CAT II</option>
+              </>
+            )}
             <option value="3">CAT III</option>
-            <option value="4">CAT IV</option>
           </select>
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 pt-7 text-slate-500">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

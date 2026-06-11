@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Building2, User } from 'lucide-react';
 
-export default function BillingInfoModal({ isOpen, onClose, onConfirm, guestName, roomNumber }) {
+export default function BillingInfoModal({ isOpen, onClose, onConfirm, guestName, roomNumber, title = "Confirm Check-Out", confirmText = "Confirm Check-Out" }) {
     const [billingType, setBillingType] = useState('B2C');
     const [companyName, setCompanyName] = useState('');
     const [gstin, setGstin] = useState('');
@@ -14,10 +14,12 @@ export default function BillingInfoModal({ isOpen, onClose, onConfirm, guestName
             <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in animate-scale-up">
                 <div className="bg-indigo-600 p-6 text-white flex justify-between items-start">
                     <div>
-                        <h2 className="text-xl font-bold mb-1">Confirm Check-Out</h2>
-                        <p className="text-indigo-100 text-xs">
-                            Guest: {guestName} • Room: {roomNumber}
-                        </p>
+                        <h2 className="text-xl font-bold mb-1">{title}</h2>
+                        {guestName && (
+                            <p className="text-indigo-100 text-xs">
+                                Guest: {guestName} {roomNumber ? `• Room: ${roomNumber}` : ''}
+                            </p>
+                        )}
                     </div>
                     <button onClick={onClose} className="text-indigo-100 hover:text-white p-1 rounded-lg hover:bg-indigo-500/50 transition-colors">
                         <X className="w-5 h-5" />
@@ -96,7 +98,7 @@ export default function BillingInfoModal({ isOpen, onClose, onConfirm, guestName
                             Cancel
                         </button>
                         <button type="submit" className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-sm text-sm">
-                            Confirm Check-Out
+                            {confirmText}
                         </button>
                     </div>
                 </form>

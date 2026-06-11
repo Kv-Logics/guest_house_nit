@@ -68,7 +68,7 @@ export default function LoginPage() {
       <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
         <img src={nitLogo} alt="NIT Logo" className="w-24 h-24 mx-auto object-contain drop-shadow-lg" />
         <h2 className="mt-4 text-center text-3xl font-extrabold text-white tracking-tight drop-shadow-md">
-          NITT Guest House
+          National Institute of Technology Trichy Guest House
         </h2>
         <p className="mt-2 text-center text-sm text-slate-200 drop-shadow-sm">Sign in to your account</p>
       </div>

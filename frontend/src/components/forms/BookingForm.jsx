@@ -18,12 +18,17 @@ export default function BookingForm({ formData, setFormData, user, authorities =
 
   // Pre-fill the search bar if coming back from the Preview Page
   useEffect(() => {
-    if (formData.assigned_approver_id && authorities.length > 0) {
-      const a = authorities.find((auth) => auth.user_id === formData.assigned_approver_id);
-      if (a) {
-        const roleStr = String(a.role).toUpperCase();
-        const designation = roleStr === 'DIRECTOR' ? 'Director' : (roleStr === 'REGISTRAR' ? 'Registrar' : `${roleStr} (${a.department})`);
-        setApproverSearch(designation);
+    if (authorities.length > 0) {
+      if (formData.assigned_approver_id) {
+        const a = authorities.find((auth) => auth.user_id === formData.assigned_approver_id);
+        if (a) {
+          const roleStr = String(a.role).toUpperCase();
+          const designation = roleStr === 'DIRECTOR' ? 'Director' : (roleStr === 'REGISTRAR' ? 'Registrar' : `${roleStr} (${a.department})`);
+          setApproverSearch(designation);
+        } else {
+          setFormData((prev) => ({ ...prev, assigned_approver_id: '' }));
+          setApproverSearch('');
+        }
       }
     }
   }, [formData.assigned_approver_id, authorities]);
@@ -113,9 +118,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       return;
     }
 
-    const isSelfApprovedCat3 = String(formData.category_id) === '3' && user?.role !== 'student' && user?.role !== 'STUDENT';
-
-    if ((!isAdmin || formData.category_id === '2') && !isSelfApprovedCat3 && !formData.assigned_approver_id) {
+    if (!isAdmin && !formData.assigned_approver_id && ['1', '2', '3'].includes(String(formData.category_id))) {
       setLocalError('You must select an Approval Authority to route your application.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -165,7 +168,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
                 of the sanctioned period. In case I fail to do so, I will be liable to be charged penal
                 rent (if any).
               </li>
-              <li>I have read the NITT Guest house terms & conditions and these are acceptable.</li>
+              <li>I have read the National Institute of Technology Trichy Guest house terms & conditions and these are acceptable.</li>
             </ol>
 
             <label className="inline-flex items-center cursor-pointer group">
@@ -186,11 +189,11 @@ export default function BookingForm({ formData, setFormData, user, authorities =
           >
 
 
-            <CategoryVisitSection formData={formData} handleChange={handleChange} setFormData={setFormData} />
+            <CategoryVisitSection formData={formData} handleChange={handleChange} setFormData={setFormData} user={user} />
             <MultiGuestSection formData={formData} setFormData={setFormData} />
             <StayDetailsSection formData={formData} handleChange={handleChange} setFormData={setFormData} tariffs={tariffs} />
 
-            {(!isAdmin || formData.category_id === '2') && !(String(formData.category_id) === '3' && user?.role !== 'student' && user?.role !== 'STUDENT') && (
+            {!isAdmin && ['1', '2', '3'].includes(String(formData.category_id)) && (
               <ApproverSelection approverSearch={approverSearch} setApproverSearch={setApproverSearch} isOpen={isApproverDropdownOpen} setIsOpen={setIsApproverDropdownOpen} authorities={authorities} setFormData={setFormData} />
             )}
           </div>

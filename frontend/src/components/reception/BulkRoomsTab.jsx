@@ -119,8 +119,8 @@ const BulkRoomsTab = ({ allRooms, isRoomAvailableForDates }) => {
                                 <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Allocated Rooms</h4>
                                 <div className="flex flex-wrap gap-2">
                                     {(block.allocated_rooms || []).map(r => (
-                                        <div key={r.room_id} className={`px-2 py-1 rounded border text-sm font-medium ${r.current_status === 'occupied' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700'}`}>
-                                            {r.room_number} {r.current_status === 'occupied' ? '(Occupied)' : '(Free)'}
+                                        <div key={r.room_id} className={`px-2 py-1 rounded border text-sm font-medium ${(r.current_status === 'occupied' || r.current_status === 'double occupied') ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700'}`}>
+                                            {r.room_number} {(r.current_status === 'occupied' || r.current_status === 'double occupied') ? '(Occupied)' : '(Free)'}
                                         </div>
                                     ))}
                                 </div>
@@ -215,7 +215,7 @@ const BulkRoomsTab = ({ allRooms, isRoomAvailableForDates }) => {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Select Room from Block</label>
                                     <select required className="w-full border rounded-lg px-3 py-2" value={checkInForm.roomId} onChange={e => setCheckInForm({...checkInForm, roomId: e.target.value})}>
                                         <option value="">-- Choose a Free Room --</option>
-                                        {selectedBlock.allocated_rooms?.filter(r => r.current_status !== 'occupied').map(r => (
+                                        {selectedBlock.allocated_rooms?.filter(r => r.current_status !== 'occupied' && r.current_status !== 'double occupied').map(r => (
                                             <option key={r.room_id} value={r.room_id}>{r.room_number}</option>
                                         ))}
                                     </select>

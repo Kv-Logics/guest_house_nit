@@ -15,7 +15,7 @@ exports.createBooking = async (req, res, next) => {
 
 exports.getMyBookings = async (req, res, next) => {
     try {
-        const data = await bookingService.getBookingsByUser(req.user.user_id);
+        const data = await bookingService.getBookingsByUser(req.user.user_id || req.user.id, req.user.email);
         return sendSuccess(res, 'My bookings retrieved successfully', data);
     } catch (error) {
         next(error);
@@ -129,6 +129,32 @@ exports.getBookingHistory = async (req, res, next) => {
     try {
         const data = await bookingService.getBookingHistory(req.params.id);
         return sendSuccess(res, 'Booking history retrieved successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.searchUsers = async (req, res, next) => {
+    try {
+        const { query } = req.query;
+        if (!query || query.trim().length < 2) {
+            return sendSuccess(res, 'Search query too short', []);
+        }
+        const data = await bookingService.searchUsers(query);
+        return sendSuccess(res, 'Users matching query retrieved successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.getUserByEmail = async (req, res, next) => {
+    try {
+        const { email } = req.params;
+        const data = await bookingService.getUserByEmail(email);
+        if (!data) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        return sendSuccess(res, 'User matching email retrieved successfully', data);
     } catch (error) {
         next(error);
     }

@@ -29,7 +29,7 @@ exports.getFrontDeskBookings = async (overrideNow = null) => {
                ) AS is_extension_pending, b.checked_in_at, b.checked_out_at
         FROM booking_requests b
         JOIN users u ON b.user_id = u.user_id
-        WHERE (
+        WHERE b.booking_type IS DISTINCT FROM 'BULK_BOOKING' AND b.category_id != 4 AND (
             (
                 b.booking_state IN ($1, $2) AND b.checked_in_at IS NULL
             )
@@ -133,9 +133,9 @@ exports.getRoomsWithStays = async (overrideNow = null) => {
     const activeStaysRes = await db.query(`
         SELECT grs.stay_id, grs.booking_id, grs.guest_id, grs.room_id, grs.checked_in_at, grs.checked_out_at, grs.stay_status,
                grs.occupancy_type, grs.extra_bed, grs.operational_room_type, grs.operational_tariff, grs.operational_notes,
-               g.guest_name, g.relation_to_applicant, g.arrival_datetime AS guest_arrival_datetime, g.departure_datetime AS guest_departure_datetime, g.expected_departure,
+               g.guest_name, g.relation_to_applicant, g.arrival_datetime AS guest_arrival_datetime, g.departure_datetime AS guest_departure_datetime, g.expected_departure, g.room_index,
                u.full_name AS applicant_name, b.arrival_datetime, b.departure_datetime AS booking_departure_datetime, b.booking_state, b.pending_extension_datetime, b.payment_state, b.payment_responsible, b.category_id,
-               b.formatted_id, b.booking_seq, b.allocated_room_numbers,
+               b.formatted_id, b.booking_seq, b.allocated_room_numbers, b.booking_type,
                (SELECT json_agg(row_to_json(fp)) FROM guest_food_preferences fp WHERE fp.guest_id = g.guest_id) as food_preferences
         FROM guest_room_stays grs
         JOIN guests g ON grs.guest_id = g.guest_id
@@ -150,7 +150,7 @@ exports.getRoomsWithStays = async (overrideNow = null) => {
 
     // 2b. Fetch pending guests who have pre-assigned rooms but haven't checked in yet
     const activeBookingsRes = await db.query(`
-        SELECT b.booking_id, b.formatted_id, b.booking_seq, b.booking_state, b.arrival_datetime, b.departure_datetime AS booking_departure_datetime, b.allocated_room_numbers,
+        SELECT b.booking_id, b.formatted_id, b.booking_seq, b.booking_state, b.arrival_datetime, b.departure_datetime AS booking_departure_datetime, b.allocated_room_numbers, b.booking_type,
                u.full_name AS applicant_name
         FROM booking_requests b
         JOIN users u ON b.user_id = u.user_id
@@ -211,6 +211,8 @@ exports.getRoomsWithStays = async (overrideNow = null) => {
                 preferred_occupancy: g.preferred_occupancy,
                 preferred_extra_bed: g.preferred_extra_bed,
                 booking_id: b.booking_id,
+                formatted_id: b.formatted_id,
+                booking_seq: b.booking_seq,
                 applicant_name: b.applicant_name,
                 arrival_datetime: g.guest_arrival_datetime || b.arrival_datetime,
                 departure_datetime: g.guest_departure_datetime || b.booking_departure_datetime,
@@ -258,6 +260,7 @@ exports.getRoomsWithStays = async (overrideNow = null) => {
                      guest_name: s.guest_name,
                      relation: s.relation_to_applicant,
                      stay_id: s.stay_id,
+                     room_index: s.room_index,
                      occupancy_type: s.occupancy_type,
                      extra_bed: s.extra_bed,
                      operational_room_type: s.operational_room_type,
@@ -385,7 +388,7 @@ exports.isRoomAvailable = async (roomId, client) => {
     const roomSql = `SELECT current_status FROM rooms WHERE room_id = $1`;
     const roomRes = await runQuery(client, roomSql, [roomId]);
     if (roomRes.rows.length === 0) return false;
-    if (roomRes.rows[0].current_status !== 'available') return false;
+    if (!['available', 'reserved'].includes(roomRes.rows[0].current_status)) return false;
 
     const staySql = `SELECT 1 FROM guest_room_stays WHERE room_id = $1 AND stay_status = 'CHECKED_IN' LIMIT 1`;
     const stayRes = await runQuery(client, staySql, [roomId]);
@@ -611,6 +614,7 @@ exports.updateInstitutionConfig = async (payload, client = null) => {
             show_invoice_applicant = COALESCE($12, show_invoice_applicant),
             enable_extend_stay_applicant = COALESCE($13, enable_extend_stay_applicant),
             always_regenerate_invoices = COALESCE($14, always_regenerate_invoices),
+            gst_rate = COALESCE($15, gst_rate),
             updated_at = CURRENT_TIMESTAMP
         WHERE config_id = 1
         RETURNING *
@@ -620,7 +624,8 @@ exports.updateInstitutionConfig = async (payload, client = null) => {
         payload.signatory_name, payload.signatory_designation, payload.invoice_prefix, payload.sac_code,
         payload.financial_year, payload.booking_prefix,
         payload.enable_time_machine, payload.show_invoice_applicant, payload.enable_extend_stay_applicant,
-        payload.always_regenerate_invoices
+        payload.always_regenerate_invoices,
+        payload.gst_rate !== undefined && payload.gst_rate !== null ? Number(payload.gst_rate) : null
     ];
     const result = await db.query(sql, params);
     return result.rows[0];
@@ -656,13 +661,27 @@ exports.confirmPayment = async (bookingId, paymentData, client) => {
             received_by = $4,
             invoice_number = $5,
             payment_comments = $6,
-            payment_proof_path = $7
-        WHERE booking_id = $8
+            payment_proof_path = $7,
+            billing_type = $8,
+            company_name = $9,
+            gstin = $10,
+            company_address = $11
+        WHERE booking_id = $12
         RETURNING *
     `;
     const params = [
-        paymentData.payment_mode, paymentData.amount_received, paymentData.transaction_ref,
-        paymentData.received_by, paymentData.invoice_number, paymentData.payment_comments, paymentData.payment_proof_path, bookingId
+        paymentData.payment_mode, 
+        paymentData.amount_received, 
+        paymentData.transaction_ref,
+        paymentData.received_by, 
+        paymentData.invoice_number, 
+        paymentData.payment_comments, 
+        paymentData.payment_proof_path,
+        paymentData.billing_type || 'B2C',
+        paymentData.company_name || null,
+        paymentData.gstin || null,
+        paymentData.company_address || null,
+        bookingId
     ];
     const result = await runQuery(client, sql, params);
     return result.rows[0];
@@ -684,6 +703,7 @@ exports.getPendingPayments = async (limit = 50, offset = 0, searchQuery = null, 
                fb.subtotal, fb.gst,
                COALESCE(fb.total, br.total_estimated_amount) AS total,
                fb.invoice_number, fb.payment_mode, fb.generated_json,
+               fb.billing_type, fb.company_name, fb.gstin, fb.company_address,
                (fb.booking_id IS NULL) AS bill_missing
         FROM booking_requests br
         LEFT JOIN final_bills fb ON br.booking_id = fb.booking_id
@@ -700,6 +720,7 @@ exports.getPendingPayments = async (limit = 50, offset = 0, searchQuery = null, 
         )
         AND br.payment_state != 'PAID'
         AND br.category_id != 1
+        AND br.category_id != 4
     `;
     let countSql = `
         SELECT COUNT(*) as total_count
@@ -715,12 +736,13 @@ exports.getPendingPayments = async (limit = 50, offset = 0, searchQuery = null, 
         )
         AND br.payment_state != 'PAID'
         AND br.category_id != 1
+        AND br.category_id != 4
     `;
     const params = [];
     let paramCount = 1;
 
     if (searchQuery) {
-        const searchClause = ` AND (u.full_name ILIKE $${paramCount} OR br.booking_id::text ILIKE $${paramCount} OR CAST(br.booking_seq AS text) ILIKE $${paramCount} OR fb.invoice_number ILIKE $${paramCount})`;
+        const searchClause = ` AND (u.full_name ILIKE $${paramCount} OR br.booking_id::text ILIKE $${paramCount} OR br.formatted_id ILIKE $${paramCount} OR CAST(br.booking_seq AS text) ILIKE $${paramCount} OR fb.invoice_number ILIKE $${paramCount})`;
         sql += searchClause;
         countSql += searchClause;
         params.push(`%${searchQuery}%`);
@@ -763,6 +785,7 @@ exports.getCompletedPayments = async (limit = 50, offset = 0, searchQuery = null
         LEFT JOIN users u ON br.user_id = u.user_id
         WHERE br.payment_state = 'PAID'
         AND br.category_id != 1
+        AND br.category_id != 4
     `;
     let countSql = `
         SELECT COUNT(*) as total_count
@@ -771,12 +794,13 @@ exports.getCompletedPayments = async (limit = 50, offset = 0, searchQuery = null
         LEFT JOIN users u ON br.user_id = u.user_id
         WHERE br.payment_state = 'PAID'
         AND br.category_id != 1
+        AND br.category_id != 4
     `;
     const params = [];
     let paramCount = 1;
 
     if (searchQuery) {
-        const searchClause = ` AND (u.full_name ILIKE $${paramCount} OR br.booking_id::text ILIKE $${paramCount} OR CAST(br.booking_seq AS text) ILIKE $${paramCount} OR fb.invoice_number ILIKE $${paramCount} OR fb.transaction_ref ILIKE $${paramCount})`;
+        const searchClause = ` AND (u.full_name ILIKE $${paramCount} OR br.booking_id::text ILIKE $${paramCount} OR br.formatted_id ILIKE $${paramCount} OR CAST(br.booking_seq AS text) ILIKE $${paramCount} OR fb.invoice_number ILIKE $${paramCount} OR fb.transaction_ref ILIKE $${paramCount})`;
         sql += searchClause;
         countSql += searchClause;
         params.push(`%${searchQuery}%`);

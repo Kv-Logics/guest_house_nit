@@ -26,13 +26,59 @@ const getCalendarDays = (start, end) => {
     return days;
 };
 
+const updateRoomOccupancyStatus = async (client, roomId, changedBy, remarks) => {
+    // 1. Get current status of the room
+    const roomRes = await client.query(
+        `SELECT current_status, room_number FROM rooms WHERE room_id = $1 FOR UPDATE`, 
+        [roomId]
+    );
+    if (roomRes.rows.length === 0) return;
+    const room = roomRes.rows[0];
+    const prevStatus = room.current_status;
+
+    // 2. Count active stays in this room
+    const countRes = await client.query(
+        `SELECT COUNT(*) as active_count FROM guest_room_stays WHERE room_id = $1 AND stay_status = 'CHECKED_IN'`,
+        [roomId]
+    );
+    const activeCount = parseInt(countRes.rows[0].active_count, 10);
+
+    let newStatus = prevStatus;
+    if (activeCount >= 2) {
+        newStatus = 'double occupied';
+    } else if (activeCount === 1) {
+        newStatus = 'occupied';
+    } else {
+        // activeCount === 0
+        if (prevStatus === 'occupied' || prevStatus === 'double occupied') {
+            newStatus = 'cleaning';
+        }
+    }
+
+    if (newStatus !== prevStatus) {
+        await client.query(
+            `UPDATE rooms SET current_status = $1, updated_at = CURRENT_TIMESTAMP WHERE room_id = $2`,
+            [newStatus, roomId]
+        );
+        // Insert room status history
+        await receptionRepository.insertRoomStatusHistory({
+            room_id: roomId,
+            previous_status: prevStatus,
+            new_status: newStatus,
+            changed_by: changedBy || null,
+            remarks: remarks || `Status auto-updated based on active stay count (${activeCount})`
+        }, client);
+    }
+};
+exports.updateRoomOccupancyStatus = updateRoomOccupancyStatus;
+
 exports.getOccupancyStats = async () => {
     const client = await db.getClient();
     try {
         const roomsRes = await client.query('SELECT current_status FROM rooms');
         const rooms = roomsRes.rows;
         const totalRooms = rooms.length;
-        const occupiedRooms = rooms.filter(r => r.current_status === 'occupied').length;
+        const occupiedRooms = rooms.filter(r => r.current_status === 'occupied' || r.current_status === 'double occupied').length;
         const availableRooms = rooms.filter(r => r.current_status === 'available').length;
         
         const todayRes = await client.query(`
@@ -132,6 +178,14 @@ exports.assignRooms = async (bookingId, allocatedRoomsStr, assignedBy) => {
 
         // 5. Insert reservations into booking_rooms and update physical status
         for (const room of allocatedRooms) {
+            console.log('INSERT INTO booking_rooms values:', {
+                bookingId, 
+                roomId: room.room_id, 
+                arrival: booking.arrival_datetime, 
+                departure: booking.departure_datetime, 
+                assignedBy: assignedBy || null,
+                assignedByLength: (assignedBy || '').length
+            });
             await client.query(`
                 INSERT INTO booking_rooms (booking_id, room_id, allocated_from, allocated_to, allocation_status, allocated_by)
                 VALUES ($1, $2, $3, $4, 'reserved', $5)
@@ -168,6 +222,16 @@ exports.assignRooms = async (bookingId, allocatedRoomsStr, assignedBy) => {
             allocatedRoomsStr,
             bookingId
         ]);
+
+        // 7. Audit log for allocation (skip for category 1)
+        const catRes = await client.query('SELECT category_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
+        const isCat1 = catRes.rows.length > 0 && catRes.rows[0].category_id === 1;
+        if (!isCat1) {
+            await client.query(`
+                INSERT INTO audit_logs (user_id, action, target_entity, target_id, remarks)
+                VALUES ($1, 'ROOM_ALLOCATED', 'booking_requests', $2, $3)
+            `, [assignedBy || null, bookingId, `Allocated rooms: ${allocatedRoomsStr}`]);
+        }
 
         await client.query('COMMIT');
         logger.info(`Rooms assigned and blocked successfully for booking: ${bookingId}`);
@@ -313,21 +377,13 @@ exports.checkInGuest = async (guestId, checkedInBy, overrideNow = null) => {
             operational_notes: `Checked in individually to room ${room.room_number}`
         }, client);
 
-        // Update room status to occupied
-        await client.query(`
-            UPDATE rooms
-            SET current_status = 'occupied', updated_at = CURRENT_TIMESTAMP
-            WHERE room_id = $1
-        `, [room.room_id]);
-
-        // Insert room status history
-        await receptionRepository.insertRoomStatusHistory({
-            room_id: room.room_id,
-            previous_status: room.current_status,
-            new_status: 'occupied',
-            changed_by: checkedInBy || null,
-            remarks: `Individual check-in of guest ${guest.guest_name}`
-        }, client);
+        // Update room status based on occupancy
+        await updateRoomOccupancyStatus(
+            client, 
+            room.room_id, 
+            checkedInBy, 
+            `Individual check-in of guest ${guest.guest_name}`
+        );
 
         // Update booking request state to CHECKED_IN
         await client.query(`
@@ -478,21 +534,13 @@ exports.checkIn = async (bookingId, allocatedRoomsStr, checkedInBy, overrideNow 
                 idx++;
             }
 
-            // Update room status to occupied
-            await client.query(`
-                UPDATE rooms
-                SET current_status = 'occupied', updated_at = CURRENT_TIMESTAMP
-                WHERE room_id = $1
-            `, [room.room_id]);
-
-            // Insert room status history
-            await receptionRepository.insertRoomStatusHistory({
-                room_id: room.room_id,
-                previous_status: room.current_status,
-                new_status: 'occupied',
-                changed_by: checkedInBy || null,
-                remarks: `Check-in for booking ${bookingId.split('-')[0].toUpperCase()}`
-            }, client);
+            // Update room status based on occupancy
+            await updateRoomOccupancyStatus(
+                client, 
+                room.room_id, 
+                checkedInBy, 
+                `Check-in for booking ${bookingId.split('-')[0].toUpperCase()}`
+            );
         }
 
         // 7. Update booking request state
@@ -587,7 +635,10 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
             // Delete stale PDF so it regenerates
             const fs = require('fs');
             const path = require('path');
-            const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${bookingId}.pdf`);
+            const bRes = await client.query('SELECT formatted_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
+            const formattedId = bRes.rows[0]?.formatted_id;
+            const safeFilename = formattedId ? formattedId.replace(/[^a-zA-Z0-9-_]/g, '_') : bookingId;
+            const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${safeFilename}.pdf`);
             if (fs.existsSync(stalePdfPath)) {
                 fs.unlinkSync(stalePdfPath);
             }
@@ -642,36 +693,19 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
             roomsToClean.add(JSON.stringify({ room_id: stay.room_id, room_number: stay.room_number, current_status: stay.current_status }));
         }
 
-        // Update rooms status to cleaning if no other active stay exists in those rooms
+        // Update rooms status based on occupancy
         for (const roomStr of roomsToClean) {
             const room = JSON.parse(roomStr);
-            const otherStaysRes = await client.query(`
-                SELECT 1 FROM guest_room_stays
-                WHERE room_id = $1 AND stay_status = 'CHECKED_IN'
-                LIMIT 1
-            `, [room.room_id]);
-
-            if (otherStaysRes.rows.length === 0) {
-                // Change room status to cleaning
-                await client.query(`
-                    UPDATE rooms
-                    SET current_status = 'cleaning', updated_at = CURRENT_TIMESTAMP
-                    WHERE room_id = $1
-                `, [room.room_id]);
-
-                // Insert room status history
-                await receptionRepository.insertRoomStatusHistory({
-                    room_id: room.room_id,
-                    previous_status: room.current_status,
-                    new_status: 'cleaning',
-                    changed_by: checkedOutBy || null,
-                    remarks: `Checkout for booking ${bookingId.split('-')[0].toUpperCase()}`
-                }, client);
-            }
+            await updateRoomOccupancyStatus(
+                client, 
+                room.room_id, 
+                checkedOutBy, 
+                `Checkout for booking ${bookingId.split('-')[0].toUpperCase()}`
+            );
         }
 
         // 4. Calculate final billing dynamically
-        const billing = await exports.calculateBookingBilling(bookingId, client);
+        const billing = await exports.calculateBookingBilling(bookingId, client, null, true);
 
         // 5. Generate final bill snapshot (Rule 3) (skip for category 1)
         if (booking.category_id !== 1) {
@@ -692,7 +726,7 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
         // Free up the booking_rooms allocation to the current time so it doesn't block future assignments
         await client.query(`
             UPDATE booking_rooms
-            SET allocated_to = $1
+            SET allocated_to = CASE WHEN allocated_from > $1 THEN allocated_from ELSE $1 END
             WHERE booking_id = $2
         `, [now, bookingId]);
 
@@ -813,7 +847,10 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
             // Delete stale PDF so it regenerates
             const fs = require('fs');
             const path = require('path');
-            const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${bookingId}.pdf`);
+            const bRes = await client.query('SELECT formatted_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
+            const formattedId = bRes.rows[0]?.formatted_id;
+            const safeFilename = formattedId ? formattedId.replace(/[^a-zA-Z0-9-_]/g, '_') : bookingId;
+            const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${safeFilename}.pdf`);
             if (fs.existsSync(stalePdfPath)) {
                 fs.unlinkSync(stalePdfPath);
             }
@@ -821,11 +858,7 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
 
         // 2. Rule 7: check if final bill exists
         const finalBill = await receptionRepository.getFinalBillByBooking(bookingId, client);
-        if (finalBill && !isForceCheckout && stay.category_id !== 1) {
-            if (finalBill.payment_mode === null && stay.payment_responsible === 'guest' && otherActiveStaysCount === 0) {
-                throw new Error('This stay cannot be checked out because the final bill has been generated but is unpaid.');
-            }
-        }
+        // PAYMENT ENFORCEMENT REMOVED: Guests can check out even if the bill is unpaid.
 
         const now = overrideNow ? new Date(overrideNow) : new Date();
 
@@ -855,30 +888,13 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
             }
         }
 
-        // 5. Update room status to cleaning if no other active stay exists in this room
-        const roomRemainingStaysRes = await client.query(`
-            SELECT 1 FROM guest_room_stays
-            WHERE room_id = $1 AND stay_status = 'CHECKED_IN'
-            LIMIT 1
-        `, [stay.room_id]);
-
-        if (roomRemainingStaysRes.rows.length === 0) {
-            // Change room status to cleaning
-            await client.query(`
-                UPDATE rooms
-                SET current_status = 'cleaning', updated_at = CURRENT_TIMESTAMP
-                WHERE room_id = $1
-            `, [stay.room_id]);
-
-            // Insert room status history
-            await receptionRepository.insertRoomStatusHistory({
-                room_id: stay.room_id,
-                previous_status: stay.current_status,
-                new_status: 'cleaning',
-                changed_by: checkedOutBy || null,
-                remarks: `Checkout for guest ${stay.guest_name}`
-            }, client);
-        }
+        // 5. Update room status based on occupancy
+        await updateRoomOccupancyStatus(
+            client, 
+            stay.room_id, 
+            checkedOutBy, 
+            `Checkout for guest ${stay.guest_name}`
+        );
 
         // 6. Check if any other active stays exist for the entire booking
         const activeBookingStaysRes = await client.query(`
@@ -889,6 +905,21 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
 
         let bookingFinished = false;
         let updatedBooking = null;
+
+        // 5.5 Free up THIS SPECIFIC room allocation if no one else is in it
+        const activeRoomStaysRes = await client.query(`
+            SELECT 1 FROM guest_room_stays
+            WHERE booking_id = $1 AND room_id = $2 AND stay_status = 'CHECKED_IN'
+            LIMIT 1
+        `, [bookingId, stay.room_id]);
+
+        if (activeRoomStaysRes.rows.length === 0) {
+            await client.query(`
+                UPDATE booking_rooms
+                SET allocated_to = CASE WHEN allocated_from > $1 THEN allocated_from ELSE $1 END
+                WHERE booking_id = $2 AND room_id = $3
+            `, [now, bookingId, stay.room_id]);
+        }
 
         if (activeBookingStaysRes.rows.length === 0) {
             // Check if there are guests in this booking who haven't checked in yet and whose scheduled departure date is in the future
@@ -916,7 +947,7 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
                 bookingFinished = true;
                 
                 // Calculate final billing dynamically
-                const billing = await exports.calculateBookingBilling(bookingId, client, overrideNow);
+                const billing = await exports.calculateBookingBilling(bookingId, client, overrideNow, true);
 
                 // Generate final bill snapshot (Rule 3) (skip for category 1)
                 if (stay.category_id !== 1) {
@@ -935,9 +966,10 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
                 }
 
                 // Free up the booking_rooms allocation to the current time so it doesn't block future assignments
+                // Free up ALL remaining booking_rooms allocations to the current time so they don't block future assignments
                 await client.query(`
                     UPDATE booking_rooms
-                    SET allocated_to = $1
+                    SET allocated_to = CASE WHEN allocated_from > $1 THEN allocated_from ELSE $1 END
                     WHERE booking_id = $2
                 `, [now, bookingId]);
 
@@ -1001,16 +1033,25 @@ exports.updateRoomStatus = async (roomNumber, newStatus) => {
     return room;
 };
 
-exports.extendStay = async (bookingId, newDepartureDatetime) => {
+exports.extendStay = async (bookingId, newDepartureDatetime, extendedBy) => {
     const booking = await receptionRepository.extendStay(bookingId, newDepartureDatetime);
     if (!booking) {
         throw new Error('Booking not found.');
     }
+    
+    // Add audit log for stay extension (skip for category 1)
+    if (booking.category_id !== 1) {
+        await db.query(`
+            INSERT INTO audit_logs (user_id, action, target_entity, target_id, remarks)
+            VALUES ($1, 'STAY_EXTENDED', 'booking_requests', $2, $3)
+        `, [extendedBy || null, bookingId, `Stay extended until ${newDepartureDatetime}`]);
+    }
+
     logger.info(`Stay extended for booking ID: ${bookingId} until ${newDepartureDatetime}`);
     return booking;
 };
 
-exports.calculateBookingBilling = async (bookingId, client, overrideNow = null) => {
+exports.calculateBookingBilling = async (bookingId, client, overrideNow = null, forceRecalculate = false) => {
     // If it's category 1, no payment, no bill
     const catCheck = await (client || db).query(`SELECT category_id FROM booking_requests WHERE booking_id = $1`, [bookingId]);
     if (catCheck.rows.length > 0 && catCheck.rows[0].category_id === 1) {
@@ -1033,7 +1074,7 @@ exports.calculateBookingBilling = async (bookingId, client, overrideNow = null) 
 
     // 1. Check if final bill exists
     const finalBill = await receptionRepository.getFinalBillByBooking(bookingId, client);
-    if (finalBill) {
+    if (finalBill && !forceRecalculate) {
         return {
             subtotal: Number(finalBill.subtotal),
             gst: Number(finalBill.gst),
@@ -1045,7 +1086,7 @@ exports.calculateBookingBilling = async (bookingId, client, overrideNow = null) 
 
     // 2. Fetch all stays (including checked out ones)
     const allStaysRes = await (client || db).query(`
-        SELECT grs.*, r.room_number, g.guest_name
+        SELECT grs.*, r.room_number, r.room_type, r.capacity, g.guest_name, g.arrival_datetime, g.departure_datetime
         FROM guest_room_stays grs
         LEFT JOIN rooms r ON grs.room_id = r.room_id
         JOIN guests g ON grs.guest_id = g.guest_id
@@ -1097,11 +1138,14 @@ exports.calculateBookingBilling = async (bookingId, client, overrideNow = null) 
     // For each stay, get its calendar days
     const dailyOccupancy = {};
     for (const s of allStays) {
-        const checkIn = s.checked_in_at;
-        const checkOut = s.checked_out_at || (overrideNow ? new Date(overrideNow) : new Date());
+        const checkIn = s.checked_in_at || s.arrival_datetime;
+        const checkOut = s.checked_out_at || s.departure_datetime || (overrideNow ? new Date(overrideNow) : new Date());
         const days = getCalendarDays(checkIn, checkOut);
         for (const day of days) {
-            const dayStr = day.toISOString().split('T')[0];
+            const year = day.getFullYear();
+            const month = String(day.getMonth() + 1).padStart(2, '0');
+            const dayVal = String(day.getDate()).padStart(2, '0');
+            const dayStr = `${year}-${month}-${dayVal}`;
             if (!dailyOccupancy[dayStr]) {
                 dailyOccupancy[dayStr] = {};
             }
@@ -1124,31 +1168,46 @@ exports.calculateBookingBilling = async (bookingId, client, overrideNow = null) 
             const guestCount = staysOnDay.length;
             if (guestCount === 0) continue;
 
+            const firstStay = staysOnDay[0];
+            const roomType = firstStay.room_type || firstStay.operational_room_type || 'Standard Room';
+            const roomCapacity = Number(firstStay.capacity) || 2;
+            const tariff = tariffLookup[roomType] || { single: 1000, double: 1600, extra_bed: 400 };
+
+            const regularCount = Math.min(guestCount, roomCapacity);
+            const extraCount = Math.max(0, guestCount - roomCapacity);
+
             let roomDayCost = 0;
+            if (regularCount === 1) {
+                roomDayCost = tariff.single;
+            } else if (regularCount >= 2) {
+                roomDayCost = tariff.double;
+            }
+            if (extraCount > 0) {
+                roomDayCost += extraCount * (tariff.extra_bed || 400);
+            }
+
             const guestBreakdowns = [];
-            for (const s of staysOnDay) {
-                let guestTariff = Number(s.operational_tariff);
-
-                // If operational_tariff was never set or is 0, fall back to tariff table
-                if (!guestTariff || guestTariff === 0) {
-                    const roomType = s.operational_room_type || 'Standard Room';
-                    const tariff = tariffLookup[roomType];
-                    const occupancy = s.occupancy_type || 'single';
-                    if (tariff) {
-                        guestTariff = occupancy === 'single' ? tariff.single : tariff.double / 2;
-                        if (s.extra_bed) guestTariff += tariff.extra_bed;
+            for (let i = 0; i < guestCount; i++) {
+                const s = staysOnDay[i];
+                let guestTariff = 0;
+                let isExtra = false;
+                
+                if (i < roomCapacity) {
+                    isExtra = false;
+                    if (regularCount === 1) {
+                        guestTariff = tariff.single;
                     } else {
-                        // Hard fallback if tariff table is missing a row for this category
-                        guestTariff = occupancy === 'single' ? 1000 : 800;
-                        if (s.extra_bed) guestTariff += 400;
+                        guestTariff = tariff.double / regularCount;
                     }
+                } else {
+                    isExtra = true;
+                    guestTariff = tariff.extra_bed || 400;
                 }
-
-                roomDayCost += guestTariff;
+                
                 guestBreakdowns.push({
                     guest_id: s.guest_id,
                     guest_name: s.guest_name,
-                    extra_bed: s.extra_bed,
+                    extra_bed: isExtra,
                     tariff: guestTariff
                 });
             }
@@ -1164,8 +1223,11 @@ exports.calculateBookingBilling = async (bookingId, client, overrideNow = null) 
         }
     }
 
-    const cgst = Math.round(subtotal * 0.06);
-    const sgst = Math.round(subtotal * 0.06);
+    const gstRateRes = await (client || db).query(`SELECT gst_rate FROM institution_configs WHERE config_id = 1`);
+    const gstRate = gstRateRes.rows[0] ? Number(gstRateRes.rows[0].gst_rate) : 12;
+
+    const cgst = Math.round(subtotal * (gstRate / 2 / 100));
+    const sgst = Math.round(subtotal * (gstRate / 2 / 100));
     const total = subtotal + cgst + sgst;
 
     return {
@@ -1180,7 +1242,9 @@ exports.calculateBookingBilling = async (bookingId, client, overrideNow = null) 
             subtotal,
             cgst,
             sgst,
-            total
+            total,
+            gst_rate: gstRate,
+            gst_type: 'CGST_SGST'
         }
     };
 };
@@ -1278,9 +1342,22 @@ exports.roomTransfer = async (stayId, newRoomNumber, transferredBy, remarks, isG
                 }, client);
             }
 
+            // Cut short the old room's allocation in booking_rooms
+            await client.query(`
+                UPDATE booking_rooms
+                SET allocated_to = CASE WHEN allocated_from > $1 THEN allocated_from ELSE $1 END
+                WHERE booking_id = $2 AND room_id = $3
+            `, [now, s.booking_id, s.room_id]);
+
             // 7. Create new stay in the target room
-            const bRes = await client.query(`SELECT category_id FROM booking_requests WHERE booking_id = $1`, [s.booking_id]);
+            const bRes = await client.query(`SELECT category_id, departure_datetime FROM booking_requests WHERE booking_id = $1`, [s.booking_id]);
             const booking = bRes.rows[0];
+
+            // Add the new room allocation in booking_rooms from now to departure_datetime
+            await client.query(`
+                INSERT INTO booking_rooms (booking_id, room_id, allocated_from, allocated_to, allocation_status, allocated_by)
+                VALUES ($1, $2, $3, $4, 'reserved', $5)
+            `, [s.booking_id, newRoom.room_id, now, booking.departure_datetime, transferredBy || null]);
             
             const tariffRes = await client.query(`
                 SELECT single_occupancy, double_occupancy, extra_bed
@@ -1315,36 +1392,21 @@ exports.roomTransfer = async (stayId, newRoomNumber, transferredBy, remarks, isG
             }, client);
         }
 
-        // Update old room status if no other active stay remains
-        const oldRoomStaysRes = await client.query(`
-            SELECT 1 FROM guest_room_stays
-            WHERE room_id = $1 AND stay_status = 'CHECKED_IN'
-            LIMIT 1
-        `, [sourceRoomId]);
+        // Update old room status based on occupancy
+        await updateRoomOccupancyStatus(
+            client, 
+            sourceRoomId, 
+            transferredBy, 
+            `Room transfer of ${staysToTransfer.length} guest(s) out`
+        );
 
-        if (oldRoomStaysRes.rows.length === 0) {
-            const oldRoomRes = await client.query(`SELECT room_number, current_status FROM rooms WHERE room_id = $1`, [sourceRoomId]);
-            const oldRoom = oldRoomRes.rows[0];
-            
-            await client.query(`UPDATE rooms SET current_status = 'cleaning', updated_at = CURRENT_TIMESTAMP WHERE room_id = $1`, [sourceRoomId]);
-            await receptionRepository.insertRoomStatusHistory({
-                room_id: sourceRoomId,
-                previous_status: oldRoom.current_status,
-                new_status: 'cleaning',
-                changed_by: transferredBy || null,
-                remarks: `Room transfer of ${staysToTransfer.length} guest(s)`
-            }, client);
-        }
-
-        // Update new room status to occupied
-        await client.query(`UPDATE rooms SET current_status = 'occupied', updated_at = CURRENT_TIMESTAMP WHERE room_id = $1`, [newRoom.room_id]);
-        await receptionRepository.insertRoomStatusHistory({
-            room_id: newRoom.room_id,
-            previous_status: newRoom.current_status,
-            new_status: 'occupied',
-            changed_by: transferredBy || null,
-            remarks: `Room transfer of ${staysToTransfer.length} guest(s)`
-        }, client);
+        // Update new room status based on occupancy
+        await updateRoomOccupancyStatus(
+            client, 
+            newRoom.room_id, 
+            transferredBy, 
+            `Room transfer of ${staysToTransfer.length} guest(s) in`
+        );
 
         // Update allocated room numbers string in booking_requests for all affected bookings
         const uniqueBookingIds = Array.from(new Set(staysToTransfer.map(s => s.booking_id)));
@@ -1429,7 +1491,10 @@ exports.overrideStayBilling = async (overrideData) => {
             // Delete stale PDF so it regenerates
             const fs = require('fs');
             const path = require('path');
-            const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${stay.booking_id}.pdf`);
+            const bRes = await client.query('SELECT formatted_id FROM booking_requests WHERE booking_id = $1', [stay.booking_id]);
+            const formattedId = bRes.rows[0]?.formatted_id;
+            const safeFilename = formattedId ? formattedId.replace(/[^a-zA-Z0-9-_]/g, '_') : stay.booking_id;
+            const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${safeFilename}.pdf`);
             if (fs.existsSync(stalePdfPath)) {
                 fs.unlinkSync(stalePdfPath);
             }
@@ -1551,7 +1616,10 @@ exports.confirmPayment = async (bookingId, paymentData, userId) => {
         // Delete stale PDF so it regenerates on next GET
         const fs = require('fs');
         const path = require('path');
-        const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${bookingId}.pdf`);
+        const bRes = await client.query('SELECT formatted_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
+        const formattedId = bRes.rows[0]?.formatted_id;
+        const safeFilename = formattedId ? formattedId.replace(/[^a-zA-Z0-9-_]/g, '_') : bookingId;
+        const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${safeFilename}.pdf`);
         if (fs.existsSync(stalePdfPath)) {
             fs.unlinkSync(stalePdfPath);
         }
@@ -1638,8 +1706,13 @@ exports.checkInBulkGuest = async (bookingId, roomId, guestData, userId) => {
             RETURNING *
         `, [bookingId, guestId, roomId, userId]);
         
-        // 3. Mark room as occupied
-        await client.query(`UPDATE rooms SET current_status = 'occupied' WHERE room_id = $1`, [roomId]);
+        // 3. Update room status based on occupancy
+        await updateRoomOccupancyStatus(
+            client, 
+            roomId, 
+            userId, 
+            `Check-in of bulk guest ${guestData.guest_name}`
+        );
         
         await client.query('COMMIT');
         return sRes.rows[0];
@@ -1656,7 +1729,11 @@ exports.getPendingExtensionAllocations = async () => {
         SELECT g.guest_id, g.guest_name, ext.requested_departure as new_checkout,
                b.booking_id, b.formatted_id, b.category_id, b.arrival_datetime,
                r.room_id, r.room_number as current_room, r.room_type as current_room_type,
-               (SELECT MAX(allocated_to) FROM booking_rooms WHERE booking_id = g.booking_id AND room_id = r.room_id) as old_checkout
+               COALESCE(
+                   (SELECT MAX(allocated_to) FROM booking_rooms WHERE booking_id = g.booking_id AND room_id = r.room_id),
+                   g.expected_departure,
+                   g.departure_datetime
+               ) as old_checkout
         FROM stay_extension_requests ext
         JOIN guests g ON ext.guest_id = g.guest_id
         JOIN guest_room_stays grs ON g.guest_id = grs.guest_id AND grs.stay_status = 'CHECKED_IN'
@@ -1743,6 +1820,16 @@ exports.allocateExtensionRoom = async (guestId, newRoomId, isSameRoom, allocated
             WHERE guest_id = $1 AND status = 'APPROVED' AND is_allocated = false
         `, [guestId]);
 
+        // Audit log for extension allocation (skip for category 1)
+        const catRes = await client.query('SELECT category_id FROM booking_requests WHERE booking_id = $1', [guest.booking_id]);
+        const isCat1 = catRes.rows.length > 0 && catRes.rows[0].category_id === 1;
+        if (!isCat1) {
+            await client.query(`
+                INSERT INTO audit_logs (user_id, action, target_entity, target_id, remarks)
+                VALUES ($1, 'ROOM_ALLOCATED', 'booking_requests', $2, $3)
+            `, [allocatedBy || null, guest.booking_id, `Allocated room for extension: ${isSameRoom ? 'Same Room' : 'New Room ID ' + newRoomId}`]);
+        }
+
         await client.query('COMMIT');
         return { success: true };
     } catch (err) {
@@ -1787,11 +1874,20 @@ exports.executeRoomTransfer = async (guestId, transferredBy) => {
             WHERE stay_id = $2
         `, [transferredBy, activeStay.stay_id]);
 
-        // Unmark old room occupied if no other stays are active in it
-        const otherStays = await client.query(`SELECT 1 FROM guest_room_stays WHERE room_id = $1 AND stay_status = 'CHECKED_IN'`, [activeStay.room_id]);
-        if (otherStays.rows.length === 0) {
-            await client.query(`UPDATE rooms SET current_status = 'available' WHERE room_id = $1`, [activeStay.room_id]);
-        }
+        // Cut short the old room's allocation in booking_rooms
+        await client.query(`
+            UPDATE booking_rooms
+            SET allocated_to = CASE WHEN allocated_from > CURRENT_TIMESTAMP THEN allocated_from ELSE CURRENT_TIMESTAMP END
+            WHERE booking_id = $1 AND room_id = $2
+        `, [activeStay.booking_id, activeStay.room_id]);
+
+        // Update old room status based on occupancy
+        await updateRoomOccupancyStatus(
+            client, 
+            activeStay.room_id, 
+            transferredBy, 
+            `Individual room reallocation of guest ${guestId} out`
+        );
 
         // Create new stay for the new room
         const newStayRes = await client.query(`
@@ -1807,8 +1903,28 @@ exports.executeRoomTransfer = async (guestId, transferredBy) => {
             transferredBy
         ]);
 
-        // Mark new room occupied
-        await client.query(`UPDATE rooms SET current_status = 'occupied' WHERE room_id = $1`, [newRoomId]);
+        // Update new room status based on occupancy
+        await updateRoomOccupancyStatus(
+            client, 
+            newRoomId, 
+            transferredBy, 
+            `Individual room reallocation of guest ${guestId} in`
+        );
+
+        // Update allocated room numbers string in booking_requests
+        const activeStaysNowRes = await client.query(`
+            SELECT DISTINCT r.room_number
+            FROM guest_room_stays grs
+            JOIN rooms r ON grs.room_id = r.room_id
+            WHERE grs.booking_id = $1 AND grs.stay_status = 'CHECKED_IN'
+        `, [activeStay.booking_id]);
+        const currentRooms = activeStaysNowRes.rows.map(r => r.room_number).join(', ');
+
+        await client.query(`
+            UPDATE booking_requests
+            SET allocated_room_numbers = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE booking_id = $2
+        `, [currentRooms, activeStay.booking_id]);
 
         // Audit log (skip for category 1)
         const catRes = await client.query('SELECT category_id FROM booking_requests WHERE booking_id = $1', [activeStay.booking_id]);
@@ -1991,4 +2107,116 @@ exports.decodeQrCode = async (code, overrideNow = null) => {
         guestLedger: stays,
         stayLedger
     };
+};
+
+exports.getGuestStayRegister = async () => {
+    // 1. Fetch all room tariffs to build tariff map for accurate splits
+    const tariffsRes = await db.query(
+        `SELECT category_id, room_type, single_occupancy, double_occupancy, extra_bed FROM room_tariffs`
+    );
+    const tariffMap = {};
+    for (const row of tariffsRes.rows) {
+        const key = `${row.category_id}_${row.room_type}`;
+        tariffMap[key] = {
+            single: Number(row.single_occupancy),
+            double: Number(row.double_occupancy),
+            extra_bed: Number(row.extra_bed) || 400
+        };
+    }
+
+    // 2. Fetch all checked-out stays with guest, room, category, and final bill details
+    const query = `
+        SELECT 
+            grs.stay_id,
+            grs.booking_id,
+            grs.guest_id,
+            grs.room_id,
+            grs.checked_in_at,
+            grs.checked_out_at,
+            grs.occupancy_type,
+            grs.extra_bed,
+            grs.operational_room_type,
+            grs.operational_tariff,
+            grs.operational_notes,
+            g.guest_name,
+            r.room_number,
+            br.category_id,
+            br.formatted_id,
+            c.category_code,
+            fb.subtotal as bill_subtotal,
+            fb.gst as bill_gst,
+            fb.total as bill_total,
+            fb.generated_at as bill_date
+        FROM guest_room_stays grs
+        JOIN guests g ON grs.guest_id = g.guest_id
+        JOIN rooms r ON grs.room_id = r.room_id
+        JOIN booking_requests br ON grs.booking_id = br.booking_id
+        LEFT JOIN category_rules c ON br.category_id = c.category_id
+        LEFT JOIN final_bills fb ON grs.booking_id = fb.booking_id
+        WHERE grs.stay_status = 'CHECKED_OUT'
+        ORDER BY grs.checked_out_at DESC
+    `;
+
+    const result = await db.query(query);
+    const stays = result.rows;
+
+    const registerData = [];
+    let slNo = 1;
+
+    for (const s of stays) {
+        const checkIn = new Date(s.checked_in_at);
+        const checkOut = new Date(s.checked_out_at);
+        const days = getCalendarDays(checkIn, checkOut);
+        const numDays = days.length;
+
+        // Tariff split logic
+        const key = `${s.category_id}_${s.operational_room_type || 'Standard Room'}`;
+        const tariffs = tariffMap[key] || { single: 1000, double: 1600, extra_bed: 400 };
+
+        let amountPerDay = 0;
+        let extraBedChargePerDay = 0;
+
+        if (s.extra_bed) {
+            extraBedChargePerDay = tariffs.extra_bed;
+            amountPerDay = Math.max(0, Number(s.operational_tariff) - tariffs.extra_bed);
+        } else {
+            amountPerDay = Number(s.operational_tariff);
+            extraBedChargePerDay = 0;
+        }
+
+        const totalRentAmount = (amountPerDay + extraBedChargePerDay) * numDays;
+        const gst = Math.round(totalRentAmount * 0.12);
+        const totalAmount = totalRentAmount + gst;
+
+        const dateCheckInStr = checkIn.toISOString().split('T')[0];
+        const timeCheckInStr = checkIn.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        
+        const dateCheckOutStr = checkOut.toISOString().split('T')[0];
+        const timeCheckOutStr = checkOut.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+        const billDateStr = s.bill_date ? new Date(s.bill_date).toISOString().split('T')[0] : dateCheckOutStr;
+
+        registerData.push({
+            sl_no: slNo++,
+            guest_name: s.guest_name,
+            category: s.category_code || `Category ${s.category_id}`,
+            date_of_check_in: dateCheckInStr,
+            time_of_check_in: timeCheckInStr,
+            room_number: s.room_number,
+            occupancy: s.occupancy_type || (s.extra_bed ? 'extra bed' : 'single'),
+            date_of_check_out: dateCheckOutStr,
+            time_of_check_out: timeCheckOutStr,
+            number_of_days: numDays,
+            amount_per_day: amountPerDay,
+            extra_bed_charge_per_day: extraBedChargePerDay,
+            total_rent_amount: totalRentAmount,
+            gst_amount: gst,
+            total_amount: totalAmount,
+            bill_number: s.formatted_id || s.booking_id,
+            bill_date: billDateStr,
+            remarks: s.operational_notes || ''
+        });
+    }
+
+    return registerData;
 };

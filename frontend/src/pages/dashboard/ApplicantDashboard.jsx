@@ -10,6 +10,7 @@ import PaymentProofModal from '../../components/ui/PaymentProofModal';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../utils/constants';
 import { getFormattedBookingId } from '../../utils/booking';
+import ApplicantBulkBookingsTab from '../../components/applicant/bulk_booking/ApplicantBulkBookingsTab';
 
 const MS_DAY = 1000 * 60 * 60 * 24;
 /** In dev, warn when departure is this soon (so short seeded stays surface the banner). Prod keeps 24h. */
@@ -45,6 +46,8 @@ export default function ApplicantDashboard() {
     const [activeTab, setActiveTab] = useState('active');
     const [searchTerm, setSearchTerm] = useState('');
     const [visibleNotifications, setVisibleNotifications] = useState(20);
+    const [showNotifications, setShowNotifications] = useState(false);
+    const [showImportantNotices, setShowImportantNotices] = useState(false);
     
     // System Configurations
     const [sysConfig, setSysConfig] = useState({ enable_extend_stay_applicant: true, show_invoice_applicant: true });
@@ -141,6 +144,13 @@ export default function ApplicantDashboard() {
         extendMutation.mutate({ id: extendModalId, guest_extensions: payload });
     };
 
+    const activeNotifications = activeBookings.filter(b => ['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'APPROVER_REJECTED', 'ADMIN_REJECTED'].includes(b.booking_state));
+    const showFinalChargesNotice = activeBookings.some(b => b.booking_state === 'CHECKED_IN' && b.allocated_room_numbers);
+    const showDepartureOverdueNotice = activeBookings.length > 0 && hasDepartureOverdue;
+    const showDepartureWarningNotice = activeBookings.length > 0 && !hasDepartureOverdue && hasDepartureWarning;
+    const showWithdrawalNotice = user && ![ROLES.STUDENT, ROLES.RECEPTIONIST].includes(user.role) && activeTab !== 'bulk';
+    const hasAnyNotices = showFinalChargesNotice || showDepartureOverdueNotice || showDepartureWarningNotice || showWithdrawalNotice;
+
     return (
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 animate-fade-in">
             <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-6">
@@ -152,8 +162,8 @@ export default function ApplicantDashboard() {
                         <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">My Applications</h2>
                         <p className="text-slate-500 font-medium">Track your guest house booking requests</p>
                     </div>
-                    </div>
                 </div>
+            </div>
 
             {/* Manage Request Stats */}
             {bookings.length > 0 && (
@@ -187,42 +197,101 @@ export default function ApplicantDashboard() {
                 </div>
             )}
 
-            {/* Notifications Box */}
+            {/* Notifications Box (Collapsible) */}
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm mb-6 overflow-hidden">
-                <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+                <button 
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="w-full bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-2 hover:bg-slate-100 transition-colors"
+                >
                     <div className="flex items-center gap-2">
                         <Info className="w-5 h-5 text-indigo-500" />
-                        <h3 className="text-sm font-bold text-slate-800">Recent Notifications</h3>
+                        <h3 className="text-sm font-bold text-slate-800">Recent Notifications {activeNotifications.length > 0 && `(${activeNotifications.length})`}</h3>
                     </div>
-                </div>
-                <div className="p-5 max-h-64 overflow-y-auto space-y-3">
-                    {(() => {
-                        const notifications = activeBookings.filter(b => ['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'APPROVER_REJECTED', 'ADMIN_REJECTED'].includes(b.booking_state));
-                        if (notifications.length === 0) {
-                            return <p className="text-sm text-slate-500 italic">No new notifications.</p>;
-                        }
-                        return (
+                    <div className="text-sm font-bold text-slate-400">
+                        {showNotifications ? 'Hide' : 'Click to open'}
+                    </div>
+                </button>
+                
+                {showNotifications && (
+                    <div className="p-5 max-h-64 overflow-y-auto space-y-3">
+                        {activeNotifications.length === 0 ? (
+                            <p className="text-sm text-slate-500 italic">No new notifications.</p>
+                        ) : (
                             <>
-                                {notifications.slice(0, visibleNotifications).map(b => (
+                                {activeNotifications.slice(0, visibleNotifications).map(b => (
                                     <div key={b.booking_id} className={`p-3 rounded-xl border text-sm font-medium ${
                                         b.booking_state.includes('REJECTED') ? 'bg-red-50 border-red-100 text-red-800' : 'bg-emerald-50 border-emerald-100 text-emerald-800'
                                     }`}>
                                         Application <span className="font-bold font-mono">{getFormattedBookingId(b)}</span> has been {b.booking_state.includes('REJECTED') ? 'rejected' : 'approved and is ready'}.
                                     </div>
                                 ))}
-                                {visibleNotifications < notifications.length && (
+                                {visibleNotifications < activeNotifications.length && (
                                     <button 
                                         onClick={() => setVisibleNotifications(prev => prev + 20)}
                                         className="w-full mt-2 py-2 text-sm font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors"
                                     >
-                                        View More Notifications ({notifications.length - visibleNotifications} remaining)
+                                        View More Notifications ({activeNotifications.length - visibleNotifications} remaining)
                                     </button>
                                 )}
                             </>
-                        );
-                    })()}
-                </div>
+                        )}
+                    </div>
+                )}
             </div>
+
+            {/* Important Notices (Collapsible) */}
+            {hasAnyNotices && (
+                <div className="bg-white border border-slate-200 rounded-2xl shadow-sm mb-6 overflow-hidden">
+                    <button 
+                        onClick={() => setShowImportantNotices(!showImportantNotices)}
+                        className={`w-full bg-slate-50 px-5 py-3 flex items-center justify-between gap-2 hover:bg-slate-100 transition-colors ${showImportantNotices ? 'border-b border-slate-100' : ''}`}
+                    >
+                        <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-amber-500" />
+                            <h3 className="text-sm font-bold text-slate-800">Important Notices</h3>
+                        </div>
+                        <div className="text-sm font-bold text-slate-400">
+                            {showImportantNotices ? 'Hide' : 'Click to open'}
+                        </div>
+                    </button>
+                    
+                    {showImportantNotices && (
+                        <div className="p-5 space-y-3 bg-white">
+                            {showFinalChargesNotice && (
+                                <div className="bg-indigo-50 p-4 rounded-xl text-sm font-semibold text-indigo-900 leading-relaxed border border-indigo-200 flex items-start shadow-sm">
+                                    <Info className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-indigo-500" />
+                                    <span className="text-left">Final charges are based on actual room usage assigned during your stay. Any receptionist overrides may affect the final invoice amount.</span>
+                                </div>
+                            )}
+
+                            {showDepartureOverdueNotice && (
+                                <div className="bg-rose-50 p-4 rounded-xl text-sm font-semibold text-rose-900 leading-relaxed border border-rose-200 flex items-start shadow-sm">
+                                    <AlertTriangle className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-rose-600" />
+                                    <span className="text-left">
+                                        Scheduled departure time has passed for at least one checked-in stay. Request a stay extension if guests need to remain longer; approvals follow the same route as a new booking.
+                                    </span>
+                                </div>
+                            )}
+
+                            {showDepartureWarningNotice && (
+                                <div className="bg-amber-50 p-4 rounded-xl text-sm font-semibold text-amber-950 leading-relaxed border border-amber-200 flex items-start shadow-sm">
+                                    <CalendarClock className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-amber-600" />
+                                    <span className="text-left">
+                                        A checked-in booking reaches scheduled departure within {import.meta.env.PROD ? '24 hours' : 'a few minutes (dev)'}. Submit an extension early if you need more nights.
+                                    </span>
+                                </div>
+                            )}
+
+                            {showWithdrawalNotice && (
+                                <div className="bg-blue-50/80 p-4 rounded-xl text-sm font-semibold text-indigo-800 leading-relaxed border border-blue-100 flex items-start shadow-sm">
+                                    <Info className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-blue-500" />
+                                    <span className="text-left">Withdrawal Notice: If your plans have changed, you may withdraw your pending application at any time using the &quot;Withdraw&quot; action next to the booking preview.</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
 
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
                 <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
@@ -232,6 +301,9 @@ export default function ApplicantDashboard() {
                     <button onClick={() => setActiveTab('past')} className={`flex-1 sm:flex-none px-6 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'past' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                         Past / Closed
                     </button>
+                    <button onClick={() => setActiveTab('bulk')} className={`flex-1 sm:flex-none px-6 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'bulk' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        Bulk Bookings
+                    </button>
                 </div>
                 <div className="relative w-full sm:w-64">
                     <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
@@ -239,38 +311,9 @@ export default function ApplicantDashboard() {
                 </div>
             </div>
 
-            {activeBookings.some(b => b.booking_state === 'CHECKED_IN' && b.allocated_room_numbers) && (
-                <div className="bg-indigo-50 p-4 rounded-xl text-sm font-semibold text-indigo-900 leading-relaxed border border-indigo-200 flex items-start mb-4 shadow-sm">
-                    <Info className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-indigo-500" />
-                    <span className="text-left">Final charges are based on actual room usage assigned during your stay. Any receptionist overrides may affect the final invoice amount.</span>
-                </div>
-            )}
-
-            {activeBookings.length > 0 && hasDepartureOverdue && (
-                <div className="bg-rose-50 p-4 rounded-xl text-sm font-semibold text-rose-900 leading-relaxed border border-rose-200 flex items-start mb-6 shadow-sm">
-                    <AlertTriangle className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-rose-600" />
-                    <span className="text-left">
-                        Scheduled departure time has passed for at least one checked-in stay. Request a stay extension if guests need to remain longer; approvals follow the same route as a new booking.
-                    </span>
-                </div>
-            )}
-            {activeBookings.length > 0 && !hasDepartureOverdue && hasDepartureWarning && (
-                <div className="bg-amber-50 p-4 rounded-xl text-sm font-semibold text-amber-950 leading-relaxed border border-amber-200 flex items-start mb-6 shadow-sm">
-                    <CalendarClock className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-amber-600" />
-                    <span className="text-left">
-                        A checked-in booking reaches scheduled departure within {import.meta.env.PROD ? '24 hours' : 'a few minutes (dev)'}. Submit an extension early if you need more nights.
-                    </span>
-                </div>
-            )}
-
-            {user && ![ROLES.STUDENT, ROLES.RECEPTIONIST].includes(user.role) && (
-                <div className="bg-blue-50/80 p-4 rounded-xl text-sm font-semibold text-indigo-800 leading-relaxed border border-blue-100 flex items-start mb-6 shadow-sm">
-                    <Info className="w-5 h-5 flex-shrink-0 mr-3 mt-0.5 text-blue-500" />
-                    <span className="text-left">Withdrawal Notice: If your plans have changed, you may withdraw your pending application at any time using the &quot;Withdraw&quot; action next to the booking preview.</span>
-                </div>
-            )}
-
-            {displayedBookings.length === 0 ? (
+            {activeTab === 'bulk' ? (
+                <ApplicantBulkBookingsTab />
+            ) : displayedBookings.length === 0 ? (
                 <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
                     <FileText className="w-12 h-12 mx-auto text-slate-300 mb-4" />
                     <h3 className="text-xl font-bold text-slate-700 mb-2">No {activeTab === 'active' ? 'Active' : 'Past'} Bookings Found</h3>

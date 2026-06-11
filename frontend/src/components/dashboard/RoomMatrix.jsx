@@ -29,8 +29,8 @@ export default function RoomMatrix({
     });
 
     const availableRoomsList = processedRooms.filter(r => r.status === 'AVAILABLE');
-    const bookedRoomsList = processedRooms.filter(r => r.status === 'OCCUPIED' || r.status === 'BOOKED');
-    const cleaningRoomsList = processedRooms.filter(r => r.status === 'CLEANING');
+    const bookedRoomsList = processedRooms.filter(r => r.status === 'OCCUPIED' || r.status === 'DOUBLE_OCCUPIED' || r.status === 'BOOKED');
+    const maintenanceRoomsList = processedRooms.filter(r => r.status === 'CLEANING' || r.status === 'MAINTENANCE');
 
     return (
         <div className="w-full animate-fade-in font-sans">
@@ -53,18 +53,18 @@ export default function RoomMatrix({
                             <div className="flex flex-wrap gap-2 mb-4">
                                 <button onClick={() => setFilterCategory('ALL')} className={`text-[10px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${filterCategory === 'ALL' ? 'bg-slate-800 text-white shadow-md transform -translate-y-0.5' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>All</button>
                                 <button onClick={() => setFilterCategory('AVAILABLE')} className={`text-[10px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${filterCategory === 'AVAILABLE' ? 'bg-emerald-600 text-white shadow-md transform -translate-y-0.5' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>Available ({availableRoomsList.length})</button>
-                                <button onClick={() => setFilterCategory('OCCUPIED')} className={`text-[10px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${filterCategory === 'OCCUPIED' ? 'bg-indigo-600 text-white shadow-md transform -translate-y-0.5' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}>Booked ({bookedRoomsList.length})</button>
-                                <button onClick={() => setFilterCategory('CLEANING')} className={`text-[10px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${filterCategory === 'CLEANING' ? 'bg-amber-500 text-white shadow-md transform -translate-y-0.5' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>Cleaning ({cleaningRoomsList.length})</button>
+                                <button onClick={() => setFilterCategory('OCCUPIED')} className={`text-[10px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${filterCategory === 'OCCUPIED' ? 'bg-yellow-500 text-white shadow-md transform -translate-y-0.5' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}>Booked/Occupied ({bookedRoomsList.length})</button>
+                                <button onClick={() => setFilterCategory('MAINTENANCE')} className={`text-[10px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${filterCategory === 'MAINTENANCE' ? 'bg-red-500 text-white shadow-md transform -translate-y-0.5' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}>Maintenance/Cleaning ({maintenanceRoomsList.length})</button>
                             </div>
                         )}
                         
                         <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-12 gap-1.5 max-h-[280px] overflow-y-auto pr-2 custom-scrollbar">
-                            {processedRooms.filter(r => filterCategory === 'ALL' ? true : (filterCategory === 'OCCUPIED' ? (r.status === 'OCCUPIED' || r.status === 'BOOKED') : r.status === filterCategory)).map(room => {
+                            {processedRooms.filter(r => filterCategory === 'ALL' ? true : (filterCategory === 'OCCUPIED' ? (r.status === 'OCCUPIED' || r.status === 'DOUBLE_OCCUPIED' || r.status === 'BOOKED') : (filterCategory === 'MAINTENANCE' ? (r.status === 'MAINTENANCE' || r.status === 'CLEANING') : r.status === filterCategory))).map(room => {
                                 const isSelected = activeRoomIds.includes(room.roomId);
                                 let bgClass = "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-400";
                                 if (room.status === 'AVAILABLE') bgClass = "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100";
-                                if (room.status === 'OCCUPIED' || room.status === 'BOOKED') bgClass = "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100";
-                                if (room.status === 'CLEANING') bgClass = "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100";
+                                if (room.status === 'OCCUPIED' || room.status === 'DOUBLE_OCCUPIED' || room.status === 'BOOKED') bgClass = "bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100";
+                                if (room.status === 'CLEANING' || room.status === 'MAINTENANCE') bgClass = "bg-red-50 border-red-200 text-red-700 hover:bg-red-100";
                                 
                                 if (isSelected) {
                                     bgClass += " ring-2 ring-indigo-600 ring-offset-2 shadow-lg transform scale-105 z-10";
@@ -83,7 +83,7 @@ export default function RoomMatrix({
                                 });
 
                                 if (isBulkBlocked) {
-                                    bgClass = "bg-slate-200 border-slate-300 text-slate-500 opacity-80 cursor-not-allowed";
+                                    bgClass = "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 opacity-80 cursor-not-allowed";
                                 }
 
                                 return (

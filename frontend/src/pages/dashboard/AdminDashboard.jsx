@@ -24,6 +24,7 @@ import RoomMatrixTab from '../../components/reception/RoomMatrixTab';
 import OccupancyStats from '../../components/admin/OccupancyStats';
 import { getFormattedBookingId } from '../../utils/booking';
 import { receptionService } from '../../services/reception.service';
+import StayRegisterTab from '../../components/admin/StayRegisterTab';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -54,7 +55,7 @@ export default function AdminDashboard() {
   const isApprover =
     isSuperAdmin ||
     ['hod', 'dean', 'registrar'].includes(userRole) ||
-    ['admin@nitt.edu', 'hod@nitt.edu'].includes(user?.email);
+    ['ghchairperson@nitt.edu', 'admin@nitt.edu', 'hod@nitt.edu'].includes(user?.email);
 
   useEffect(() => {
     if (!user) return;
@@ -216,7 +217,7 @@ export default function AdminDashboard() {
               Welcome, {user.full_name || user.email.split('@')[0]}
             </p>
             <p className="text-[11px] font-black text-blue-600 bg-blue-50/60 border border-blue-100 rounded-full px-3 py-1 inline-block mt-3 capitalize tracking-wider">
-              {String(user.role || '').replace(/_/g, ' ')}
+              {user.role === 'super_admin' ? 'GH Chairperson' : String(user.role || '').replace(/_/g, ' ')}
             </p>
           </div>
         </div>
@@ -292,6 +293,20 @@ export default function AdminDashboard() {
               <FileText className="w-5 h-5" />
               <span>Occupancy</span>
             </button>
+
+            {isSuperAdmin && userRole !== 'guest_house_admin' && (
+            <button
+              onClick={() => setActiveTab('stay_register')}
+              className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all ${
+                activeTab === 'stay_register' 
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+              }`}
+            >
+              <FileText className="w-5 h-5" />
+              <span>Stay Register</span>
+            </button>
+            )}
 
             {isSuperAdmin && (
               <button
@@ -476,6 +491,10 @@ export default function AdminDashboard() {
 
         {activeTab === 'occupancy' && (
           <OccupancyStats />
+        )}
+
+        {activeTab === 'stay_register' && (
+          <StayRegisterTab />
         )}
       </main>
 

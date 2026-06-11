@@ -28,3 +28,22 @@ export const BOOKING_STATUS = {
   NO_SHOW: 'NO_SHOW',
   CANCELLED: 'CANCELLED',
 };
+
+export const BOOKING_TYPES = {
+  NORMAL: 'NORMAL',
+  BULK_BOOKING: 'BULK_BOOKING',
+};
+
+export const BULK_BOOKING_STATUS_LABELS = {
+  [BOOKING_STATUS.DRAFT]: 'Draft',
+  [BOOKING_STATUS.PENDING_APPROVER]: 'Pending Approving Authority',
+  [BOOKING_STATUS.PENDING_DIRECTOR]: 'Pending Director',
+  [BOOKING_STATUS.APPROVER_REJECTED]: 'Rejected by Authority',
+  [BOOKING_STATUS.DIRECTOR_REJECTED]: 'Rejected by Director',
+  [BOOKING_STATUS.PENDING_ADMIN]: 'Pending Guest House Chair',
+  [BOOKING_STATUS.ADMIN_APPROVED]: 'Confirmed',
+  [BOOKING_STATUS.ADMIN_REJECTED]: 'Rejected by GHC',
+  [BOOKING_STATUS.CHECKED_IN]: 'Active',
+  [BOOKING_STATUS.CHECKED_OUT]: 'Completed',
+  [BOOKING_STATUS.CANCELLED]: 'Cancelled',
+};

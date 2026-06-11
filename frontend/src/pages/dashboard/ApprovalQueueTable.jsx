@@ -47,7 +47,12 @@ export default function ApprovalQueueTable({
                   </span>
                 </td>
                 <td className="p-4">
-                  <p className="font-bold text-slate-800">{booking.applicant_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-slate-800">{booking.applicant_name}</p>
+                    {booking.booking_type === 'BULK_BOOKING' && (
+                      <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-full uppercase tracking-wider border border-indigo-200">Bulk</span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500 capitalize">
                     {booking.department}
                     {booking.applicant_role

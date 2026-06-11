@@ -54,6 +54,27 @@ const getActionStyle = (action) => {
             cardBorder: 'border-cyan-200 bg-cyan-50/10'
         };
     }
+    if (act === 'ROOM_ALLOCATED') {
+        return {
+            dot: 'bg-indigo-500',
+            badge: 'bg-indigo-50 text-indigo-700 border-indigo-100',
+            cardBorder: 'border-indigo-200 bg-indigo-50/10'
+        };
+    }
+    if (act === 'ROOM_TRANSFER') {
+        return {
+            dot: 'bg-sky-500',
+            badge: 'bg-sky-50 text-sky-700 border-sky-100',
+            cardBorder: 'border-sky-200 bg-sky-50/10'
+        };
+    }
+    if (act === 'STAY_EXTENDED' || act === 'EXTENSION_REQUESTED') {
+        return {
+            dot: 'bg-violet-500',
+            badge: 'bg-violet-50 text-violet-700 border-violet-100',
+            cardBorder: 'border-violet-200 bg-violet-50/10'
+        };
+    }
     if (act === 'CHECKED_OUT') {
         return {
             dot: 'bg-slate-500',
@@ -75,7 +96,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
     const [showInvoice, setShowInvoice] = useState(false);
     const qrRef = useRef(null);
 
-    const isAuthorityOrAdmin = user && ['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin'].includes(user.role);
+    const isAuthorityOrAdmin = user && ['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff'].includes(user.role);
 
     const { data, isLoading } = useQuery({
         queryKey: ['booking', bookingId],
@@ -92,13 +113,15 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
         enabled: !!bookingId
     });
 
+    const canViewOverrides = user && ['gh_coordinator', 'reception_staff', 'super_admin', 'guest_house_admin'].includes(user.role);
+
     const { data: overridesRes } = useQuery({
         queryKey: ['bookingOverrides', bookingId],
         queryFn: async () => {
-            const res = await api.get(`/bookings/${bookingId}/override-logs`);
+            const res = await api.get(`/reception/bookings/${bookingId}/override-logs`);
             return res;
         },
-        enabled: !!bookingId
+        enabled: !!bookingId && !!canViewOverrides
     });
 
     if (!bookingId) return null;
@@ -145,7 +168,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
 
     const renderTimeline = (booking) => {
         const isSuiteRoom = booking.room_type === 'Suite Room' || booking.room_type === 'Mini Suite Room' || booking.booking_state === 'PENDING_DIRECTOR' || booking.booking_state === 'DIRECTOR_REJECTED';
-        const isApplicant = !user || !['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin'].includes(user.role);
+        const isApplicant = !user || !['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff'].includes(user.role);
 
         const steps = isSuiteRoom ? (
             isApplicant ? [
@@ -293,7 +316,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
     };
 
     const renderAdminCat2Timeline = (booking) => {
-        const isApplicant = !user || !['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin'].includes(user.role);
+        const isApplicant = !user || !['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff'].includes(user.role);
         const steps = isApplicant ? [
             { id: 1, title: 'Submitted', description: 'Admin Application' },
             { id: 2, title: 'Authority', description: 'Authority Review / Approved' }
@@ -443,8 +466,13 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                             <p className="text-xs text-slate-500 font-bold tracking-wider mt-0.5 uppercase">National Institute of Technology, Tiruchirappalli</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        {user && (user.role === 'super_admin' || user.role === 'guest_house_admin' || user.role === 'gh_coordinator' || (booking?.user_id === user.user_id && !['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED', 'CANCELLED'].includes(booking?.booking_state))) && (
+                        <div className="flex items-center gap-2">
+                        {user && (
+                            (booking?.booking_type !== 'BULK_BOOKING' && booking?.user_id === user.user_id && 
+                                (['PENDING_APPROVER', 'APPROVER_REJECTED', 'ADMIN_REJECTED', 'DRAFT'].includes(booking?.booking_state) || (booking?.booking_state === 'PENDING_ADMIN' && String(booking?.category_id) === '3' && user?.role === 'faculty'))
+                            ) ||
+                            (booking?.booking_type === 'BULK_BOOKING' && ['gh_coordinator', 'reception_staff'].includes(user.role))
+                        ) && (
                             <button onClick={() => { onClose(); navigate('/booking?edit=' + bookingId); }} className="flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 font-bold rounded-xl border border-indigo-200 hover:bg-indigo-100 transition-colors shadow-sm mr-2">
                                 <FileText className="w-4 h-4 mr-2" /> Edit Application
                             </button>
@@ -529,7 +557,40 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                         <FileText className="w-4 h-4 mr-2 text-slate-400" /> Application Details
                                     </h4>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                        <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Applicant</p><p className="text-slate-800 font-semibold">{booking.applicant_name}</p><p className="text-xs text-slate-500">{booking.applicant_email}</p></div>
+                                        <div>
+                                            <p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Applicant</p>
+                                            <p className="text-slate-800 font-semibold">
+                                                {booking.booking_type === 'BULK_BOOKING' 
+                                                    ? (booking.bulk_booking_metadata?.applicant_name || 'N/A') 
+                                                    : booking.applicant_name}
+                                            </p>
+                                            {booking.booking_type === 'BULK_BOOKING' && 
+                                             !(booking.bulk_booking_metadata?.applicant_designation?.toLowerCase() === 'faculty' || 
+                                               String(booking.bulk_booking_metadata?.applicant_roll_number || '').toUpperCase().startsWith('EMP')) && (
+                                                <p className="text-xs text-indigo-600 font-bold">
+                                                    Roll No: {booking.bulk_booking_metadata?.applicant_roll_number || 'N/A'}
+                                                </p>
+                                            )}
+                                            <p className="text-xs text-slate-500">
+                                                {booking.booking_type === 'BULK_BOOKING' 
+                                                    ? (booking.bulk_booking_metadata?.applicant_email || 'N/A') 
+                                                    : booking.applicant_email}
+                                            </p>
+                                            {booking.booking_type === 'BULK_BOOKING' && 
+                                             !(booking.bulk_booking_metadata?.applicant_designation?.toLowerCase() === 'faculty' || 
+                                               String(booking.bulk_booking_metadata?.applicant_roll_number || '').toUpperCase().startsWith('EMP')) && booking.bulk_booking_metadata?.applicant_phone && (
+                                                <p className="text-xs text-slate-500">
+                                                    Phone: {booking.bulk_booking_metadata.applicant_phone}
+                                                </p>
+                                            )}
+                                            {booking.booking_type === 'BULK_BOOKING' && 
+                                             !(booking.bulk_booking_metadata?.applicant_designation?.toLowerCase() === 'faculty' || 
+                                               String(booking.bulk_booking_metadata?.applicant_roll_number || '').toUpperCase().startsWith('EMP')) && (
+                                                <p className="text-xs text-slate-500">
+                                                    Dept: {booking.bulk_booking_metadata?.applicant_department || booking.bulk_booking_metadata?.department || 'N/A'}
+                                                </p>
+                                            )}
+                                        </div>
                                         <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Category & Visit</p><p className="text-slate-800 font-semibold">{booking.category_code || `CAT-${booking.category_id}`} - <span className="capitalize">{booking.visit_type}</span></p></div>
                                         <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Purpose</p><p className="text-slate-800 font-semibold">{booking.purpose_of_visit}</p></div>
                                         {booking.assigned_approver_id && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Routed To</p><p className="text-slate-800 font-semibold">{getApproverDesignation(booking)}</p></div>}
@@ -617,6 +678,9 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                                                     <div className="mt-2 space-y-1 text-slate-600 text-xs">
                                                                         {guest.phone && <p>📞 {guest.phone}</p>}
                                                                         {guest.email && <p>✉️ {guest.email}</p>}
+                                                                        {(guest.identity_proof_type || guest.identity_proof_number) && (
+                                                                            <p>🪪 {guest.identity_proof_type || 'ID Proof'}: {guest.identity_proof_number}</p>
+                                                                        )}
                                                                         {(guest.arrival_datetime || guest.arrival_date) && (guest.departure_datetime || guest.departure_date) && (
                                                                             <div className="mt-2 pt-2 border-t border-slate-100">
                                                                                 <p className="font-bold text-slate-700 text-[10px] uppercase tracking-wider mb-0.5">Stay Timeline</p>

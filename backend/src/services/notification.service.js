@@ -13,3 +13,7 @@ exports.sendPaymentRejected = async (bookingId, reason) => {
 exports.sendPaymentApproved = async (bookingId) => {
     logger.info(`[NOTIFICATION] Payment APPROVED for Booking ${bookingId}.`);
 };
+
+exports.sendBulkBookingNotification = async (bookingId, action, details) => {
+    logger.info(`[NOTIFICATION] BULK BOOKING ${action} for Booking ${bookingId}: ${details}`);
+};

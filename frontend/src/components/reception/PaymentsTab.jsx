@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, CheckCircle, CreditCard, Banknote, Search, Calendar, User, Receipt, Edit3, Eye, Download } from 'lucide-react';
+import { DollarSign, CheckCircle, CreditCard, Banknote, Search, Calendar, User, Building2, Receipt, Edit3, Eye, Download } from 'lucide-react';
 import { receptionService } from '../../services/reception.service';
 import { getFormattedBookingId } from '../../utils/booking';
 import EditBillModal from './EditBillModal';
@@ -23,6 +23,12 @@ const PaymentsTab = ({ onBillGenerated }) => {
     const [pageOffset, setPageOffset] = useState(0);
     const [hasMoreCompleted, setHasMoreCompleted] = useState(true);
     const [editingBillBooking, setEditingBillBooking] = useState(null);
+
+    // Billing type states
+    const [billingType, setBillingType] = useState('B2C');
+    const [companyName, setCompanyName] = useState('');
+    const [gstin, setGstin] = useState('');
+    const [companyAddress, setCompanyAddress] = useState('');
 
     const loadPendingPayments = async () => {
         try {
@@ -87,6 +93,11 @@ const PaymentsTab = ({ onBillGenerated }) => {
         setProofFile(null);
         setShowLedger(isLedger);
 
+        setBillingType(booking.billing_type || 'B2C');
+        setCompanyName(booking.company_name || '');
+        setGstin(booking.gstin || '');
+        setCompanyAddress(booking.company_address || '');
+
         if (booking.bill_missing && !booking.breakdown) {
             try {
                 const res = await receptionService.previewBill(booking.booking_id);
@@ -117,7 +128,11 @@ const PaymentsTab = ({ onBillGenerated }) => {
                 payment_mode: paymentMode,
                 amount_received: getDisplayTotal(selectedBooking),
                 transaction_ref: (paymentMode === 'POS' || paymentMode === 'Online Transfer') ? transactionRef : null,
-                payment_comments: comments
+                payment_comments: comments,
+                billing_type: billingType,
+                company_name: billingType === 'B2B' ? companyName : null,
+                gstin: billingType === 'B2B' ? gstin : null,
+                company_address: billingType === 'B2B' ? companyAddress : null
             };
             
             let finalData;
@@ -479,6 +494,64 @@ const PaymentsTab = ({ onBillGenerated }) => {
                             </div>
 
                             <form onSubmit={handleConfirm}>
+                                <div className="mb-6 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Billing Type</label>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setBillingType('B2C')}
+                                                className={`flex-1 py-2 px-3 rounded-xl border text-sm font-bold flex items-center justify-center gap-2 transition-colors ${billingType === 'B2C' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100'}`}
+                                            >
+                                                <User className="w-4 h-4" /> B2C (Personal)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setBillingType('B2B')}
+                                                className={`flex-1 py-2 px-3 rounded-xl border text-sm font-bold flex items-center justify-center gap-2 transition-colors ${billingType === 'B2B' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100'}`}
+                                            >
+                                                <Building2 className="w-4 h-4" /> B2B (Corporate)
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {billingType === 'B2B' && (
+                                        <div className="space-y-3 pt-2 border-t border-slate-200">
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Company Name *</label>
+                                                <input 
+                                                    type="text" 
+                                                    required 
+                                                    value={companyName}
+                                                    onChange={(e) => setCompanyName(e.target.value)}
+                                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                    placeholder="Enter company name"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">GSTIN</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={gstin}
+                                                    onChange={(e) => setGstin(e.target.value)}
+                                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none uppercase"
+                                                    placeholder="Enter GSTIN"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Company Address</label>
+                                                <textarea 
+                                                    value={companyAddress}
+                                                    onChange={(e) => setCompanyAddress(e.target.value)}
+                                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                                    placeholder="Enter company address"
+                                                    rows={2}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Payment Mode</label>
                                     <div className="grid grid-cols-3 gap-4">

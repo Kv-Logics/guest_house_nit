@@ -12,6 +12,7 @@ const InstitutionConfigForm = () => {
         signatory_designation: '',
         invoice_prefix: '',
         sac_code: '',
+        gst_rate: '',
         financial_year: '25-26'
     });
     const [loading, setLoading] = useState(true);
@@ -100,6 +101,10 @@ const InstitutionConfigForm = () => {
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">SAC Code (Services)</label>
                             <input type="text" name="sac_code" value={config.sac_code || ''} onChange={handleChange} className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">GST Rate (%)</label>
+                            <input type="number" name="gst_rate" value={config.gst_rate || ''} onChange={handleChange} className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
                         </div>
                         <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-gray-700 mb-1">Registered Address</label>

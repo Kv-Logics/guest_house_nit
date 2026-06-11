@@ -197,6 +197,14 @@ exports.submitBookingRequest = async (data) => {
         const arrivalDatetime = minArrival ? minArrival.toISOString() : (data.arrival_datetime || `${data.arrival_date} ${data.arrival_time}:00`);
         const departureDatetime = maxDeparture ? maxDeparture.toISOString() : (data.departure_datetime || `${data.departure_date} ${data.departure_time}:00`);
 
+        // Validate assigned_approver_id if provided
+        if (data.assigned_approver_id) {
+            const approverCheck = await client.query('SELECT user_id FROM users WHERE user_id = $1', [data.assigned_approver_id]);
+            if (approverCheck.rows.length === 0) {
+                throw new Error('The selected Approving Authority does not exist. Please select a valid authority.');
+            }
+        }
+
         // 6. Evaluate Bypass & Auto-Approval Logic
         let initialState = BOOKING_STATUS.PENDING_APPROVER;
         let autoApproveLog = null;
@@ -209,7 +217,7 @@ exports.submitBookingRequest = async (data) => {
                 initialState = BOOKING_STATUS.ADMIN_APPROVED;
                 autoApproveLog = 'Auto-approved as Admin booking.';
             }
-        } else if (data.assigned_approver_id === data.user_id || (String(data.category_id) === '3' && userRole === 'faculty')) {
+        } else if (userRole === 'director' || data.assigned_approver_id === data.user_id || (String(data.category_id) === '3' && userRole === 'faculty')) {
             initialState = BOOKING_STATUS.PENDING_ADMIN;
             autoApproveLog = 'Auto-approved by applicant (Self-Approval).';
             data.assigned_approver_id = data.user_id;
@@ -368,6 +376,14 @@ exports.reapplyBookingRequest = async (data) => {
         const arrivalDatetime = minArrival ? minArrival.toISOString() : (data.arrival_datetime || `${data.arrival_date} ${data.arrival_time}:00`);
         const departureDatetime = maxDeparture ? maxDeparture.toISOString() : (data.departure_datetime || `${data.departure_date} ${data.departure_time}:00`);
 
+        // Validate assigned_approver_id if provided
+        if (data.assigned_approver_id) {
+            const approverCheck = await client.query('SELECT user_id FROM users WHERE user_id = $1', [data.assigned_approver_id]);
+            if (approverCheck.rows.length === 0) {
+                throw new Error('The selected Approving Authority does not exist. Please select a valid authority.');
+            }
+        }
+
         let newState = BOOKING_STATUS.PENDING_APPROVER;
         let autoApproveLog = null;
 
@@ -464,8 +480,8 @@ exports.reapplyBookingRequest = async (data) => {
     }
 };
 
-exports.getBookingsByUser = async (userId) => {
-    return await bookingRepository.getBookingsByUserId(userId);
+exports.getBookingsByUser = async (userId, userEmail = null) => {
+    return await bookingRepository.getBookingsByUserId(userId, userEmail);
 };
 
 exports.getAllBookingsForAdmin = async (limit = null, offset = 0, statusFilter = null, searchQuery = null, monthFilter = null, sortBy = null) => {
@@ -707,6 +723,10 @@ exports.cancelBooking = async (bookingId, user) => {
                 `UPDATE booking_requests SET booking_state = $1, cancelled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE booking_id = $2 RETURNING *`,
                 [BOOKING_STATUS.CANCELLED, bookingId]
             );
+            
+            // Free up the room allocation entirely
+            await client.query(`DELETE FROM booking_rooms WHERE booking_id = $1`, [bookingId]);
+            
             if (isAdmin && !isApplicant) logMessage = 'Withdrawn by Admin';
             else if (isApprover && !isApplicant) logMessage = 'Withdrawn by Authority';
         }
@@ -728,7 +748,44 @@ exports.getAuthorities = async (categoryId, applicantRole) => {
 };
 
 exports.getBookingHistory = async (bookingId) => {
-    const result = await db.query('SELECT a.*, u.full_name as approver_name FROM approval_logs a LEFT JOIN users u ON a.approver_id = u.user_id WHERE a.booking_id = $1 ORDER BY a.created_at DESC', [bookingId]);
+    const query = `
+        SELECT 
+            log_id::text,
+            approver_id,
+            action,
+            comments,
+            created_at,
+            approver_name
+        FROM (
+            SELECT 
+                a.log_id::text,
+                a.approver_id,
+                a.action,
+                a.comments,
+                a.created_at,
+                u.full_name as approver_name
+            FROM approval_logs a
+            LEFT JOIN users u ON a.approver_id = u.user_id
+            WHERE a.booking_id = $1
+
+            UNION ALL
+
+            SELECT 
+                l.log_id::text,
+                l.user_id as approver_id,
+                l.action,
+                l.remarks as comments,
+                l.created_at,
+                u.full_name as approver_name
+            FROM audit_logs l
+            LEFT JOIN users u ON l.user_id = u.user_id
+            WHERE (l.target_entity = 'booking_requests' AND l.target_id = $1::text)
+               OR (l.target_entity = 'guests' AND l.target_id IN (SELECT guest_id::text FROM guests WHERE booking_id = $1))
+               OR (l.target_entity = 'GUEST_ROOM_STAY' AND l.target_id IN (SELECT stay_id::text FROM guest_room_stays WHERE booking_id = $1))
+        ) combined_logs
+        ORDER BY created_at DESC
+    `;
+    const result = await db.query(query, [bookingId]);
     return result.rows;
 };
 
@@ -744,6 +801,13 @@ exports.editBookingRequest = async (data) => {
         const userRole = String(data.role).toLowerCase();
         const isAdmin = ['super_admin', 'guest_house_admin', 'gh_coordinator'].includes(userRole);
         const isApplicant = existing.user_id === data.user_id;
+
+        if (existing.booking_type === 'BULK_BOOKING') {
+            const allowedStaffRoles = ['super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff'];
+            if (!allowedStaffRoles.includes(userRole)) {
+                throw new Error('Applicants are not authorized to edit bulk bookings.');
+            }
+        }
 
         if (!isAdmin && !isApplicant) {
             throw new Error('Unauthorized to edit this booking.');
@@ -771,6 +835,13 @@ exports.editBookingRequest = async (data) => {
         }
         const arrivalDatetime = minArrival ? minArrival.toISOString() : (data.arrival_datetime || `${data.arrival_date} ${data.arrival_time}:00`);
         const departureDatetime = maxDeparture ? maxDeparture.toISOString() : (data.departure_datetime || `${data.departure_date} ${data.departure_time}:00`);
+
+        if (data.assigned_approver_id) {
+            const approverCheck = await client.query('SELECT user_id FROM users WHERE user_id = $1', [data.assigned_approver_id]);
+            if (approverCheck.rows.length === 0) {
+                throw new Error('The selected Approving Authority does not exist. Please select a valid authority.');
+            }
+        }
 
         let newState = existing.booking_state;
         let actionStr = 'ADMIN_CORRECTION';
@@ -878,4 +949,28 @@ exports.editBookingRequest = async (data) => {
     } finally {
         client.release();
     }
+};
+
+exports.searchUsers = async (searchQuery) => {
+    const term = `%${searchQuery}%`;
+    const sql = `
+        SELECT u.user_id, u.full_name, u.email, u.department, u.designation, u.employee_id
+        FROM users u
+        WHERE (u.full_name ILIKE $1 OR u.email ILIKE $1 OR u.employee_id ILIKE $1) AND u.deleted_at IS NULL
+        ORDER BY u.full_name ASC
+        LIMIT 20
+    `;
+    const result = await db.query(sql, [term]);
+    return result.rows;
+};
+
+exports.getUserByEmail = async (email) => {
+    const sql = `
+        SELECT u.user_id, u.full_name, u.email, u.department, u.designation, u.employee_id
+        FROM users u
+        WHERE LOWER(u.email) = LOWER($1) AND u.deleted_at IS NULL
+        LIMIT 1
+    `;
+    const result = await db.query(sql, [email]);
+    return result.rows[0] || null;
 };

@@ -23,5 +23,14 @@ router.post('/bookings/:bookingId/generate-bill', coordinatorController.generate
 // Tariff Management
 router.get('/tariffs', coordinatorController.getAllTariffs);
 router.put('/tariffs/:tariffId', coordinatorController.updateTariff);
+router.post('/rooms', coordinatorController.addRoom);
+
+// User Management CRUD
+router.get('/users', coordinatorController.getUsers);
+router.post('/users', coordinatorController.createUser);
+router.put('/users/:userId', coordinatorController.updateUser);
+router.delete('/users/:userId', coordinatorController.deleteUser);
+router.get('/roles', coordinatorController.getAllRoles);
 
 module.exports = router;
+

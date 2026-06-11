@@ -69,6 +69,15 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
         let finalRemarks = remarks;
 
         if (action === 'WITHDRAW') {
+            const allowedWithdrawStates = [
+                BOOKING_STATUS.PENDING_ADMIN,
+                BOOKING_STATUS.PENDING_DIRECTOR,
+                BOOKING_STATUS.APPROVER_REJECTED,
+                BOOKING_STATUS.DIRECTOR_REJECTED
+            ];
+            if (!allowedWithdrawStates.includes(booking.booking_state)) {
+                throw new Error('Cannot withdraw decision. The booking has already been processed by the next authority.');
+            }
             newState = BOOKING_STATUS.PENDING_APPROVER;
         } else if (approverRole === 'director') {
             if (action === 'APPROVED') {

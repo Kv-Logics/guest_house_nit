@@ -26,6 +26,12 @@ export default function RoomMatrixTab({ allRooms, isRoomAvailableForDates }) {
                         <Calendar className="w-5 h-5 text-indigo-600" /> Room Availability Matrix
                     </h2>
                     <p className="text-sm text-slate-500 font-medium">Check availability by date and room.</p>
+                    <div className="flex flex-wrap gap-4 mt-3 text-xs font-bold text-slate-600">
+                        <span className="flex items-center gap-1.5"><span className="w-3.5 h-3.5 rounded bg-emerald-100 border border-emerald-200 inline-block"></span> Available</span>
+                        <span className="flex items-center gap-1.5"><span className="w-3.5 h-3.5 rounded bg-yellow-100 border border-yellow-200 inline-block"></span> Occupied</span>
+                        <span className="flex items-center gap-1.5"><span className="w-3.5 h-3.5 rounded bg-red-100 border border-red-200 inline-block"></span> Maintenance</span>
+                        <span className="flex items-center gap-1.5"><span className="w-3.5 h-3.5 rounded bg-blue-100 border border-blue-200 inline-block"></span> Blocked</span>
+                    </div>
                 </div>
                 <div className="flex items-center gap-3">
                     <input 
@@ -69,14 +75,36 @@ export default function RoomMatrixTab({ allRooms, isRoomAvailableForDates }) {
                                     const nextDay = new Date(d);
                                     nextDay.setDate(d.getDate() + 1);
                                     
-                                    const isAvail = isRoomAvailableForDates(room, d.toISOString(), nextDay.toISOString());
+                                    const startMs = d.getTime();
+                                    const endMs = nextDay.getTime();
+                                    
+                                    let cellBgClass = 'bg-emerald-100 text-emerald-700';
+                                    let cellText = 'Available';
+                                    
+                                    if (room.status === 'MAINTENANCE' || room.status === 'CLEANING') {
+                                        cellBgClass = 'bg-red-100 text-red-700';
+                                        cellText = 'Maintenance';
+                                    } else if (room.future_allocations && room.future_allocations.length > 0) {
+                                        const alloc = room.future_allocations.find(a => {
+                                            const allocStart = new Date(a.allocated_from).getTime();
+                                            const allocEnd = new Date(a.allocated_to).getTime();
+                                            return startMs < allocEnd && endMs > allocStart;
+                                        });
+                                        if (alloc) {
+                                            if (alloc.is_bulk) {
+                                                cellBgClass = 'bg-blue-100 text-blue-700';
+                                                cellText = 'Blocked';
+                                            } else {
+                                                cellBgClass = 'bg-yellow-100 text-yellow-800';
+                                                cellText = 'Occupied';
+                                            }
+                                        }
+                                    }
                                     
                                     return (
                                         <td key={i} className="p-2 border border-slate-200 text-center">
-                                            <div className={`w-full h-8 rounded-md flex items-center justify-center font-bold text-[10px] uppercase ${
-                                                isAvail ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                                            }`}>
-                                                {isAvail ? 'Available' : 'Booked'}
+                                            <div className={`w-full h-8 rounded-md flex items-center justify-center font-bold text-[10px] uppercase ${cellBgClass}`}>
+                                                {cellText}
                                             </div>
                                         </td>
                                     );

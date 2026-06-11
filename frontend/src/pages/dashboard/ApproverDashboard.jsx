@@ -166,7 +166,12 @@ export default function ApproverDashboard() {
                             {sortedApprovals.map(b => (
                                 <tr key={b.booking_id} className="hover:bg-slate-50 transition-colors">
                                     <td className="p-4">
-                                        <p className="font-bold text-slate-800">{b.applicant_name}</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-bold text-slate-800">{b.applicant_name}</p>
+                                            {b.booking_type === 'BULK_BOOKING' && (
+                                                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-full uppercase tracking-wider border border-indigo-200">Bulk</span>
+                                            )}
+                                        </div>
                                         <p className="text-xs text-slate-500 truncate max-w-[200px]">{b.purpose_of_visit}</p>
                                     </td>
                                     <td className="p-4 text-sm font-medium text-slate-800">
@@ -191,7 +196,7 @@ export default function ApproverDashboard() {
                                                 <button onClick={() => setActionModal({ isOpen: true, id: b.booking_id, action: 'REJECTED' })} className="px-4 py-2 bg-red-50 text-red-700 font-bold rounded-xl hover:bg-red-100 transition-colors">Reject</button>
                                             </>
                                         )}
-                                        {!['CANCELLED', 'CHECKED_IN', 'CHECKED_OUT'].includes(b.booking_state) && b.booking_state !== 'PENDING_APPROVER' && b.booking_state !== 'PENDING_DIRECTOR' && !(b.stay_extension_requests && b.stay_extension_requests.some(e => e.status === 'PENDING_AUTHORITY')) && (
+                                        {['PENDING_ADMIN', 'PENDING_DIRECTOR', 'APPROVER_REJECTED', 'DIRECTOR_REJECTED'].includes(b.booking_state) && !(b.stay_extension_requests && b.stay_extension_requests.some(e => e.status === 'PENDING_AUTHORITY')) && (
                                             <button onClick={() => {
                                                 const isRej = b.booking_state.includes('REJECT');
                                                 const msg = isRej 

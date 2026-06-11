@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Search, Loader2, Save, Printer, ShieldCheck, AlertCircle, Users, BedDouble, Calendar, CreditCard, ChevronRight, QrCode, Settings } from 'lucide-react';
+import { Search, Loader2, Save, Printer, ShieldCheck, AlertCircle, Users, BedDouble, Calendar, CreditCard, ChevronRight, QrCode, Settings, FileText } from 'lucide-react';
 import api from '../../services/api';
 import QRScannerModal from '../../components/ui/QRScannerModal';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
 import InstitutionConfigForm from '../../components/reception/InstitutionConfigForm';
 import TariffConfigForm from '../../components/coordinator/TariffConfigForm';
+import AddRoomForm from '../../components/coordinator/AddRoomForm';
 import RoomMatrixTab from '../../components/reception/RoomMatrixTab';
+import UserManagementTab from '../../components/coordinator/UserManagementTab';
+import StayRegisterTab from '../../components/admin/StayRegisterTab';
 import { getFormattedBookingId } from '../../utils/booking';
 import { calculateHotelNights } from '../../utils/date';
 import { receptionService } from '../../services/reception.service';
@@ -297,6 +300,26 @@ export default function GHCoordinatorDashboard() {
                 >
                     <Calendar className="w-4 h-4 inline-block mr-2" /> Room Matrix
                 </button>
+                <button
+                    onClick={() => setActiveTab('users')}
+                    className={`px-5 py-2.5 rounded-xl font-bold transition-all flex items-center ${
+                        activeTab === 'users' 
+                            ? 'bg-indigo-600 text-white shadow-md' 
+                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                >
+                    <Users className="w-4 h-4 inline-block mr-2" /> Users
+                </button>
+                <button
+                    onClick={() => setActiveTab('stay_register')}
+                    className={`px-5 py-2.5 rounded-xl font-bold transition-all flex items-center ${
+                        activeTab === 'stay_register' 
+                            ? 'bg-indigo-600 text-white shadow-md' 
+                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                >
+                    <FileText className="w-4 h-4 inline-block mr-2" /> Stay Register
+                </button>
             </div>
 
             {activeTab === 'room_matrix' && (
@@ -355,8 +378,17 @@ export default function GHCoordinatorDashboard() {
             {activeTab === 'config' && (
                 <div className="space-y-6">
                     <InstitutionConfigForm />
+                    <AddRoomForm />
                     <TariffConfigForm />
                 </div>
+            )}
+
+            {activeTab === 'users' && (
+                <UserManagementTab />
+            )}
+
+            {activeTab === 'stay_register' && (
+                <StayRegisterTab />
             )}
 
             {activeTab === 'operations' && (

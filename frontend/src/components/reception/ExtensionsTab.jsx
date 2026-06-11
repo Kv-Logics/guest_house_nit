@@ -87,7 +87,7 @@ const ExtensionsTab = () => {
                                                 <User className="h-4 w-4 text-slate-400" />
                                                 <span className="font-semibold text-slate-800">{g.guest_name}</span>
                                             </div>
-                                            <div className="text-xs text-slate-500 ml-6 mt-0.5">Booking: {g.booking_id.substring(0,8)}...</div>
+                                            <div className="text-xs text-slate-500 ml-6 mt-0.5">Booking: {g.formatted_id || g.booking_id.substring(0,8)}</div>
                                         </td>
                                         <td className="px-6 py-4 font-mono font-bold text-indigo-600">{g.current_room || 'N/A'}</td>
                                         <td className="px-6 py-4 text-sm font-medium text-amber-600">

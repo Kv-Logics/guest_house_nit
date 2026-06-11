@@ -289,16 +289,30 @@ exports.saveInvoiceToDisk = async (bookingId) => {
     // Generate the PDF
     const pdfBuffer = await exports.generateGSTInvoice(bookingId);
     
+    const dbClient = await db.getClient();
+    let formattedId = null;
+    try {
+        const bRes = await dbClient.query('SELECT formatted_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
+        if (bRes.rows.length > 0) {
+            formattedId = bRes.rows[0].formatted_id;
+        }
+    } catch (e) {
+        console.error('Failed to get formatted_id:', e);
+    } finally {
+        dbClient.release();
+    }
+    const safeFilename = formattedId ? formattedId.replace(/[^a-zA-Z0-9-_]/g, '_') : bookingId;
+    
     const invoicesDir = path.join(process.cwd(), 'uploads/invoices');
     if (!fs.existsSync(invoicesDir)) fs.mkdirSync(invoicesDir, { recursive: true });
     
-    const filePath = path.join(invoicesDir, `${bookingId}.pdf`);
+    const filePath = path.join(invoicesDir, `${safeFilename}.pdf`);
     fs.writeFileSync(filePath, pdfBuffer);
     
     // If invoice_number is not there in db, store it with formatted id
-    const dbClient = await db.getClient();
+    const dbClient2 = await db.getClient();
     try {
-        const billRes = await dbClient.query(`
+        const billRes = await dbClient2.query(`
             SELECT fb.invoice_number, br.formatted_id, br.category_id, br.booking_seq
             FROM final_bills fb
             JOIN booking_requests br ON fb.booking_id = br.booking_id
@@ -314,12 +328,12 @@ exports.saveInvoiceToDisk = async (bookingId) => {
                 const displayBookingId = bill.formatted_id || fallbackFormattedId;
                 const invoiceNo = `INV-${displayBookingId}`;
                 
-                await dbClient.query(`UPDATE final_bills SET invoice_number = $1 WHERE booking_id = $2`, [invoiceNo, bookingId]);
+                await dbClient2.query(`UPDATE final_bills SET invoice_number = $1 WHERE booking_id = $2`, [invoiceNo, bookingId]);
             }
         }
     } finally {
-        dbClient.release();
+        dbClient2.release();
     }
     
-    return `/uploads/invoices/${bookingId}.pdf`;
+    return `/uploads/invoices/${safeFilename}.pdf`;
 };

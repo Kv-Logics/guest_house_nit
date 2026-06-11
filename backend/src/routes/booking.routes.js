@@ -27,8 +27,10 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 router.use(requireAuth); // Protect all booking routes at the router level
 
-router.get('/tariffs', memoryCache(3600), bookingController.getTariffs);
-router.get('/authorities', memoryCache(3600), bookingController.getAuthorities);
+router.get('/tariffs', bookingController.getTariffs);
+router.get('/authorities', bookingController.getAuthorities);
+router.get('/users/search', bookingController.searchUsers);
+router.get('/users/by-email/:email', bookingController.getUserByEmail);
 router.get('/admin/all', requireRole(['super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff']), bookingController.getAllBookingsForAdmin);
 
 // Handle multipart/form-data properly, parse JSON payload, then validate

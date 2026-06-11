@@ -130,7 +130,7 @@ export default function Navbar() {
             >
               <img src={nitLogo} alt="NIT Logo" className="w-10 h-10 object-contain" />
               <span className="font-extrabold text-xl text-slate-800 tracking-tight hidden sm:block">
-                NITT Guest House
+                National Institute of Technology Trichy Guest House
               </span>
             </Link>
 
@@ -161,7 +161,7 @@ export default function Navbar() {
                     {user.name || user.email}
                   </p>
                   <p className="text-[11px] font-bold text-slate-500 capitalize mt-1 tracking-wider">
-                    {String(user.role || '').replace(/_/g, ' ')}
+                    {user.role === 'super_admin' ? 'GH Chairperson' : String(user.role || '').replace(/_/g, ' ')}
                   </p>
                 </div>
                 <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center font-bold shadow-inner">

@@ -14,14 +14,15 @@ import RoomsTab from '../../components/reception/RoomsTab';
 import FoodTab from '../../components/reception/FoodTab';
 import RoomAssignmentModal from '../../components/reception/RoomAssignmentModal';
 import RoomTransferModal from '../../components/reception/RoomTransferModal';
-import BillingInfoModal from '../../components/reception/BillingInfoModal';
+
 import PaymentsTab from '../../components/reception/PaymentsTab';
-import BulkRoomsTab from '../../components/reception/BulkRoomsTab';
 import ExtensionsTab from '../../components/reception/ExtensionsTab';
 import RoomMatrixTab from '../../components/reception/RoomMatrixTab';
 import BookingSearchTab from '../../components/reception/BookingSearchTab';
 import BookingDetailsModal from '../../components/ui/BookingDetailsModal';
 import CheckedOutLedgerModal from '../../components/reception/CheckedOutLedgerModal';
+import BulkBookingsTab from '../../components/reception/bulk_booking/BulkBookingsTab';
+import StayRegisterTab from '../../components/admin/StayRegisterTab';
 
 // Default Pricing Configuration
 const PRICING_CONFIG = {
@@ -31,159 +32,7 @@ const PRICING_CONFIG = {
     "Renovated Room": { single: 3000, double: 5000, extraBed: 400 }
 };
 
-// Translation adapters: Maps snake_case backend rows into the exact camelCase structure expected by the UI.
-const translateArrivalsFromBackend = (arrivals) => {
-    return (arrivals || []).map(b => {
-        let guestsList = [];
-        if (b.guests && Array.isArray(b.guests)) {
-            guestsList = b.guests.map((g, idx) => ({
-                guestId: g.guest_id || `G-${b.booking_id.split('-')[0].toUpperCase()}-${idx}`,
-                name: g.guest_name,
-                relation: g.relation_to_applicant,
-                room_index: g.room_index !== null && g.room_index !== undefined ? g.room_index : 0,
-                checkIn: new Date(b.arrival_datetime).toLocaleDateString(),
-                checkOut: new Date(b.departure_datetime).toLocaleDateString()
-            }));
-        } else {
-            guestsList = (b.guest_names || '').split(',').map((name, idx) => ({
-                guestId: `G-${b.booking_id.split('-')[0].toUpperCase()}-${idx}`,
-                name: name.trim(),
-                relation: 'Guest',
-                room_index: 0,
-                checkIn: new Date(b.arrival_datetime).toLocaleDateString(),
-                checkOut: new Date(b.departure_datetime).toLocaleDateString()
-            })).filter(g => g.name);
-        }
-
-        const maxRoomIndex = guestsList.reduce((max, g) => Math.max(max, g.room_index), 0);
-        const roomsCount = Math.max(b.rooms_required || 1, maxRoomIndex + 1);
-
-        const rooms = [];
-        for (let i = 0; i < roomsCount; i++) {
-            rooms.push({
-                roomId: `AppRoom-${b.booking_id.split('-')[0].toUpperCase()}-${i}`,
-                roomIndex: i,
-                roomType: b.room_type,
-                guests: guestsList.filter(g => g.room_index === i)
-            });
-        }
-
-        return {
-            bookingId: b.booking_id,
-            booking_id: b.booking_id,
-            formatted_id: b.formatted_id || '',
-            booking_seq: b.booking_seq,
-            bookingSeq: b.booking_seq,
-            applicant: b.applicant_name,
-            category: b.category_id,
-            bookingState: b.booking_state,
-            booking_state: b.booking_state,
-            allocatedRoomNumbers: b.allocated_room_numbers,
-            rooms: rooms,
-            rawGuests: (b.guests || []).map(g => ({
-                ...g,
-                arrival_datetime: g.arrival_datetime || b.arrival_datetime,
-                departure_datetime: g.departure_datetime || b.departure_datetime
-            })),
-            rawCheckIn: b.arrival_datetime,
-            rawCheckOut: b.departure_datetime,
-            created_at: b.created_at
-        };
-    });
-};
-
-const translateRoomsFromBackend = (rooms) => {
-    return (rooms || []).map(r => {
-        let status = 'AVAILABLE';
-        if (r.current_status === 'occupied') status = 'OCCUPIED';
-        else if (r.current_status === 'cleaning') status = 'CLEANING';
-        else if (r.current_status === 'maintenance') status = 'MAINTENANCE';
-
-        const guests = [];
-        let activeBookingId = null;
-        if (r.active_booking) {
-            activeBookingId = r.active_booking.booking_id;
-            if (r.active_booking.guests) {
-                r.active_booking.guests.forEach(g => {
-                    guests.push({
-                        guestId: g.stay_id, // Map stay_id to guestId for checkout calls
-                        stay_id: g.stay_id,
-                        guest_id: g.guest_id,
-                        name: g.guest_name,
-                        guest_name: g.guest_name,
-                        relation: g.relation_to_applicant,
-                        relation_to_applicant: g.relation_to_applicant,
-                        checkIn: g.checked_in_at ? new Date(g.checked_in_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date(g.arrival_datetime).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
-                        checkOut: g.checked_out_at ? new Date(g.checked_out_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : new Date(g.expected_departure || g.departure_datetime).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
-                        appliedCheckIn: new Date(g.arrival_datetime).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
-                        appliedCheckOut: new Date(g.expected_departure || g.departure_datetime).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
-                        actualCheckInStr: g.checked_in_at ? new Date(g.checked_in_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : null,
-                        actualCheckOutStr: g.checked_out_at ? new Date(g.checked_out_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : null,
-                        status: g.stay_status,
-                        stay_status: g.stay_status,
-                        actualCheckIn: g.checked_in_at,
-                        actualCheckOut: g.checked_out_at,
-                        rawCheckIn: g.arrival_datetime,
-                        rawCheckOut: g.expected_departure || g.departure_datetime,
-                        expected_departure: g.expected_departure,
-                        operational_room_type: g.operational_room_type,
-                        operational_tariff: g.operational_tariff,
-                        extra_bed: g.extra_bed,
-                        occupancy_type: g.occupancy_type,
-                        food_preferences: g.food_preferences || []
-                    });
-                });
-            }
-        }
-
-        if (r.pending_guests) {
-            r.pending_guests.forEach(g => {
-                    guests.push({
-                        guestId: `pending-${g.guest_id}`,
-                        guest_id: g.guest_id,
-                        booking_id: g.booking_id,
-                        name: g.guest_name,
-                        guest_name: g.guest_name,
-                        relation: g.relation,
-                        relation_to_applicant: g.relation,
-                        checkIn: new Date(g.arrival_datetime).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
-                        checkOut: new Date(g.departure_datetime).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
-                        appliedCheckIn: new Date(g.arrival_datetime).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
-                        appliedCheckOut: new Date(g.departure_datetime).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
-                        actualCheckInStr: null,
-                        actualCheckOutStr: null,
-                        status: 'PENDING',
-                        stay_status: 'PENDING',
-                        actualCheckIn: null,
-                        actualCheckOut: null,
-                        rawCheckIn: g.arrival_datetime,
-                        rawCheckOut: g.departure_datetime,
-                        expected_departure: g.expected_departure,
-                        operational_room_type: null,
-                        operational_tariff: null,
-                        extra_bed: false,
-                        occupancy_type: g.preferred_occupancy,
-                        food_preferences: g.food_preferences || []
-                    });
-            });
-        }
-
-        return {
-            floor: r.floor_number === 0 ? 'GROUND FLOOR' : 
-                   r.floor_number === 1 ? 'FIRST FLOOR' : 
-                   r.floor_number === 2 ? 'SECOND FLOOR' : 'THIRD FLOOR',
-            roomId: r.room_number,
-            room_id: r.room_id,
-            roomNumber: r.room_number,
-            roomType: r.room_type,
-            status: status,
-            guests: guests,
-            activeBookingId: activeBookingId,
-            active_booking: r.active_booking,
-            future_allocations: r.future_allocations || []
-        };
-    });
-};
+import { translateArrivalsFromBackend, translateRoomsFromBackend } from '../../utils/receptionUtils';
 
 export default function ReceptionDashboard() {
     const { user } = useAuth();
@@ -191,7 +40,7 @@ export default function ReceptionDashboard() {
     const [bookingData, setBookingData] = useState({ category: 'I', arrivals: [], rooms: [] });
     const [loading, setLoading] = useState(true);
     const [forceCheckoutModal, setForceCheckoutModal] = useState({ isOpen: false, bookingId: null, stayId: null, roomNumber: '', guestName: '', isRoomVacate: false });
-    const [billingInfoModal, setBillingInfoModal] = useState({ isOpen: false, stayId: null, bookingId: null, guestName: '', roomNumber: '', isRoomVacate: false });
+
     const [confirmDialog, setConfirmDialog] = useState(null);
     const [error, setError] = useState(null);
     const [tariffs, setTariffs] = useState([]);
@@ -518,32 +367,6 @@ export default function ReceptionDashboard() {
     const handleCheckOutStay = (g, roomNumber, booking, forceInit = false) => {
         if (!booking) return;
 
-        if (booking.category_id === 1) {
-            setConfirmDialog({
-                title: "Confirm Check-Out",
-                message: `Are you sure you want to Check Out guest ${g.name || g.guest_name}?`,
-                isAlert: false,
-                onConfirm: async () => {
-                    try {
-                        setConfirmDialog(null);
-                        setLoading(true);
-                        await receptionService.checkOutStay(g.stay_id || g.guestId);
-                        await loadDashboardData();
-                    } catch (err) {
-                        setConfirmDialog({
-                            title: "Operation Failed",
-                            message: err.response?.data?.message || err.message || "Failed to check out guest.",
-                            isAlert: true,
-                            onConfirm: () => setConfirmDialog(null)
-                        });
-                    } finally {
-                        setLoading(false);
-                    }
-                }
-            });
-            return;
-        }
-
         if (forceInit) {
             setForceCheckoutModal({
                 isOpen: true,
@@ -556,13 +379,49 @@ export default function ReceptionDashboard() {
             return;
         }
 
-        setBillingInfoModal({
-            isOpen: true,
-            bookingId: booking.booking_id,
-            stayId: g.stay_id || g.guestId,
-            guestName: g.name || g.guest_name,
-            roomNumber: roomNumber,
-            isRoomVacate: false
+        setConfirmDialog({
+            title: "Confirm Check-Out",
+            message: `Are you sure you want to Check Out guest ${g.name || g.guest_name}?`,
+            isAlert: false,
+            onConfirm: async () => {
+                try {
+                    setConfirmDialog(null);
+                    setLoading(true);
+                    
+                    const res = await receptionService.checkOutStay(g.stay_id || g.guestId);
+                    await loadDashboardData();
+                    
+                    // Show payment tab or invoice if applicable (skip download for Category 1)
+                    if (res.data?.bookingFinished && res.data?.booking?.category_id === 1) {
+                        // Category 1: do nothing as no invoice/billing generated
+                    } else if (res.data?.bookingFinished && res.data?.booking?.payment_state !== 'PAID') {
+                        setActiveTab('payments');
+                    } else if (res?.data?.bookingFinished && res?.data?.booking?.booking_id) {
+                        handleDownloadInvoice(res.data.booking.booking_id);
+                    }
+                } catch (err) {
+                    if (err.response?.data?.message === 'PAYMENT_REQUIRED' || err.message === 'PAYMENT_REQUIRED') {
+                        setConfirmDialog({
+                            title: "Payment Required",
+                            message: "Payment must be settled before checkout since it is guest responsibility. Redirecting to Payments tab.",
+                            isAlert: true,
+                            onConfirm: () => {
+                                setConfirmDialog(null);
+                                setActiveTab('payments');
+                            }
+                        });
+                    } else {
+                        setConfirmDialog({
+                            title: "Operation Failed",
+                            message: err.response?.data?.message || err.message || "Failed to check out guest.",
+                            isAlert: true,
+                            onConfirm: () => setConfirmDialog(null)
+                        });
+                    }
+                } finally {
+                    setLoading(false);
+                }
+            }
         });
     };
 
@@ -612,40 +471,49 @@ export default function ReceptionDashboard() {
         const activeRoom = (bookingData.rooms || []).find(r => r.roomId === roomId);
         if (!activeRoom || !activeRoom.activeBookingId) return;
 
-        const isCat1 = activeRoom.active_booking && activeRoom.active_booking.category_id === 1;
-        if (isCat1) {
-            setConfirmDialog({
-                title: "Confirm Check-Out",
-                message: `Are you sure you want to Check Out all guests and vacate Room ${activeRoom.roomNumber || roomId}?`,
-                isAlert: false,
-                onConfirm: async () => {
-                    try {
-                        setConfirmDialog(null);
-                        setLoading(true);
-                        await receptionService.checkOut(activeRoom.activeBookingId);
-                        await loadDashboardData();
-                    } catch (err) {
+        setConfirmDialog({
+            title: "Confirm Check-Out",
+            message: `Are you sure you want to Check Out all guests and vacate Room ${activeRoom.roomNumber || roomId}?`,
+            isAlert: false,
+            onConfirm: async () => {
+                try {
+                    setConfirmDialog(null);
+                    setLoading(true);
+                    
+                    const res = await receptionService.checkOut(activeRoom.activeBookingId);
+                    await loadDashboardData();
+                    
+                    // Show payment tab or invoice if applicable (skip download for Category 1)
+                    if (res.data?.bookingFinished && res.data?.booking?.category_id === 1) {
+                        // Category 1: do nothing as no invoice/billing generated
+                    } else if (res.data?.bookingFinished && res.data?.booking?.payment_state !== 'PAID') {
+                        setActiveTab('payments');
+                    } else if (res?.data?.bookingFinished && res?.data?.booking?.booking_id) {
+                        handleDownloadInvoice(res.data.booking.booking_id);
+                    }
+                } catch (err) {
+                    if (err.response?.data?.message === 'PAYMENT_REQUIRED' || err.message === 'PAYMENT_REQUIRED') {
+                        setConfirmDialog({
+                            title: "Payment Required",
+                            message: "Payment must be settled before checkout since it is guest responsibility. Redirecting to Payments tab.",
+                            isAlert: true,
+                            onConfirm: () => {
+                                setConfirmDialog(null);
+                                setActiveTab('payments');
+                            }
+                        });
+                    } else {
                         setConfirmDialog({
                             title: "Operation Failed",
                             message: err.response?.data?.message || err.message || "Failed to check out guests.",
                             isAlert: true,
                             onConfirm: () => setConfirmDialog(null)
                         });
-                    } finally {
-                        setLoading(false);
                     }
+                } finally {
+                    setLoading(false);
                 }
-            });
-            return;
-        }
-
-        setBillingInfoModal({
-            isOpen: true,
-            bookingId: activeRoom.activeBookingId,
-            stayId: null,
-            guestName: 'All room guests (Vacate Room)',
-            roomNumber: roomId,
-            isRoomVacate: true
+            }
         });
     };
 
@@ -747,13 +615,53 @@ export default function ReceptionDashboard() {
     };
 
     const availableRoomsList = (bookingData.rooms || []).filter(r => r.status === 'AVAILABLE');
-    const bookedRoomsList = (bookingData.rooms || []).filter(r => r.status === 'OCCUPIED');
+    const bookedRoomsList = (bookingData.rooms || []).filter(r => r.status === 'OCCUPIED' || r.status === 'DOUBLE_OCCUPIED');
     const cleaningRoomsList = (bookingData.rooms || []).filter(r => r.status === 'CLEANING');
     const selectedRoom = (bookingData.rooms || []).find(r => r.roomId === activeRoomId) || (bookingData.rooms && bookingData.rooms[0]);
     const { timeline, totalBill } = calculateRoomTimeline(selectedRoom);
 
-    const receivedApplications = (bookingData.arrivals || []).filter(a => a.bookingState === 'ADMIN_APPROVED');
-    const pendingArrivals = (bookingData.arrivals || []).filter(a => ['READY_FOR_CHECKIN', 'CHECKED_IN'].includes(a.bookingState));
+    const receivedApplications = (bookingData.arrivals || []).filter(a => a.bookingState === 'ADMIN_APPROVED' && a.bookingType !== 'BULK_BOOKING');
+    const pendingArrivals = (bookingData.arrivals || []).filter(a => ['READY_FOR_CHECKIN', 'CHECKED_IN'].includes(a.bookingState) && a.bookingType !== 'BULK_BOOKING');
+
+    const getArrivalsBadgeCount = () => {
+        const receivedCount = receivedApplications.length;
+        let pendingCount = 0;
+        pendingArrivals.forEach(arr => {
+            const roomNumbersStr = arr.allocatedRoomNumbers || '';
+            const roomNumbers = roomNumbersStr.split(',').map(r => r.trim()).filter(Boolean);
+            if (roomNumbers.length === 0 || !arr.rawGuests || arr.rawGuests.length === 0) {
+                const pendingGuests = (arr.rawGuests || []).filter(guest => {
+                    return !(bookingData.rooms || []).some(room => 
+                        room.guests && room.guests.some(g => g.guest_id === guest.guest_id && g.stay_status === 'CHECKED_IN')
+                    );
+                });
+                if (pendingGuests.length > 0) {
+                    pendingCount += 1;
+                }
+                return;
+            }
+            
+            const uniqueIndices = Array.from(new Set(arr.rawGuests.map(g => g.room_index || 0))).sort((a,b)=>a-b);
+            
+            roomNumbers.forEach((roomNo, i) => {
+                const roomGuests = arr.rawGuests.filter(g => {
+                    const mappedIdx = uniqueIndices.indexOf(g.room_index || 0);
+                    return (mappedIdx % roomNumbers.length) === i;
+                });
+                
+                const pendingRoomGuests = roomGuests.filter(guest => {
+                    return !(bookingData.rooms || []).some(room => 
+                        room.guests && room.guests.some(g => g.guest_id === guest.guest_id && g.stay_status === 'CHECKED_IN')
+                    );
+                });
+
+                if (pendingRoomGuests.length > 0) {
+                    pendingCount += 1;
+                }
+            });
+        });
+        return receivedCount + pendingCount;
+    };
 
     if (loading && bookingData.rooms.length === 0) {
         return (
@@ -883,227 +791,269 @@ export default function ReceptionDashboard() {
                 }}
             />
 
-            {/* Top Navigation Strip */}
-            <div className="w-full flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="p-3 bg-indigo-600 text-white rounded-xl shadow-md">
-                        <Bed className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-bold tracking-tight">FrontDesk Reception Engine</h1>
-                        <p className="text-xs text-slate-500 font-medium">Category {bookingData.category} Properties • Live Backend Integration</p>
-                    </div>
-                </div>
-                <div className="flex gap-3">
-                    <button 
-                        onClick={() => setIsQRScannerOpen(true)}
-                        className="px-4 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-2"
-                    >
-                        <QrCode className="w-4 h-4" /> Scan App Pass
-                    </button>
-                    <button 
-                        onClick={loadDashboardData}
-                        className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl font-bold text-xs shadow-sm transition-all"
-                    >
-                        Force Refresh
-                    </button>
-                </div>
-            </div>
-
-            {/* Time Machine / Clock Simulator Panel for Testing */}
-            {isTimeMachineEnabled && (
-            <div className="w-full mb-6 p-4 bg-teal-50/40 border border-teal-100/70 rounded-2xl flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-2.5">
-                    <Clock className="w-5 h-5 text-teal-600" />
-                    <div>
-                        <h4 className="text-sm font-bold text-slate-800">Time Machine / Clock Simulator</h4>
-                        <p className="text-xs text-slate-500">Test time-dependent stays & billing calculations across dates</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-4 flex-wrap text-sm">
-                    <label className="flex items-center gap-2 font-semibold text-slate-700 cursor-pointer">
-                        <input 
-                            type="checkbox" 
-                            checked={isMockActive}
-                            onChange={handleToggleMock}
-                            className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer"
-                        />
-                        Mock Date-Time
-                    </label>
-                    <input 
-                        type="datetime-local" 
-                        value={mockDateStr}
-                        onChange={handleMockDateChange}
-                        disabled={!isMockActive}
-                        className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white disabled:bg-slate-100 disabled:text-slate-400 font-semibold"
-                    />
-                    {isMockActive && (
-                        <button 
-                            onClick={handleResetMock}
-                            className="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold rounded-xl transition-colors border border-rose-200"
-                        >
-                            Undo / Reset
-                        </button>
-                    )}
-                </div>
-            </div>
-            )}
-
-            {/* Navigation Tabs */}
-            <div className="w-full flex gap-2 mb-6">
-                <button
-                    onClick={() => setActiveTab('arrivals')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
-                        activeTab === 'arrivals' 
-                            ? 'bg-indigo-600 text-white shadow-md' 
-                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                >
-                    <UserCheck className="w-4 h-4" /> Arrivals ({(bookingData.arrivals || []).length})
-                </button>
-                <button
-                    onClick={() => setActiveTab('rooms')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
-                        activeTab === 'rooms' 
-                            ? 'bg-indigo-600 text-white shadow-md' 
-                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                >
-                    <Bed className="w-4 h-4" /> Rooms Management
-                </button>
-                <button
-                    onClick={() => setActiveTab('food')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
-                        activeTab === 'food' 
-                            ? 'bg-indigo-600 text-white shadow-md' 
-                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                >
-                    <Utensils className="w-4 h-4" /> Food Requirements
-                </button>
-
-                <button
-                    onClick={() => setActiveTab('bulk')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
-                        activeTab === 'bulk' 
-                            ? 'bg-indigo-600 text-white shadow-md' 
-                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                >
-                    <Users className="w-4 h-4" /> Bulk Blocks
-                </button>
-                <button
-                    onClick={() => setActiveTab('payments')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
-                        activeTab === 'payments' 
-                            ? 'bg-indigo-600 text-white shadow-md' 
-                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                >
-                    <CreditCard className="w-4 h-4" /> Payments
-                </button>
-                <button
-                    onClick={() => setActiveTab('extensions')}
-                    className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
-                        activeTab === 'extensions' 
-                            ? 'bg-indigo-600 text-white shadow-md' 
-                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                >
-                    <ArrowLeftRight className="w-4 h-4" /> Extensions
-                    {pendingExtensionsCount > 0 && (
-                        <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold shadow-sm border-2 border-white">
-                            {pendingExtensionsCount}
-                        </span>
-                    )}
-                </button>
-                <button
-                    onClick={() => setActiveTab('enquiry')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
-                        activeTab === 'enquiry' 
-                            ? 'bg-indigo-600 text-white shadow-md' 
-                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                >
-                    <Search className="w-4 h-4" /> Search & Enquiry
-                </button>
-            </div>
-
-            <div className="w-full">
-                {activeTab === 'extensions' && (
-                    <ExtensionsTab />
-                )}
-                {activeTab === 'arrivals' && (
-                    <ArrivalsTab
-                        receivedApplications={receivedApplications}
-                        pendingArrivals={pendingArrivals}
-                        expandedArrivals={expandedArrivals}
-                        setExpandedArrivals={setExpandedArrivals}
-                        bookingData={bookingData}
-                        now={now}
-                        onAssignRoomClick={(arr) => {
-                            setPreviewArrival(arr);
-                            setAssignMode(false);
-                            setRoomAssignments({});
-                        }}
-                        onCheckInGuest={handleCheckInGuest}
-                    />
-                )}
-
-                {activeTab === 'rooms' && (
-                    <RoomsTab
-                        rooms={bookingData.rooms || []}
-                        activeRoomId={activeRoomId}
-                        setActiveRoomId={setActiveRoomId}
-                        selectedRoom={selectedRoom}
-                        now={now}
-                        userRole={user?.role}
-                        handleMarkAsCleaned={handleMarkAsCleaned}
-                        handleCheckOutStay={handleCheckOutStay}
-                        handleOpenTransfer={handleOpenTransfer}
-                        handleSendToCleaning={handleSendToCleaning}
-                        handleOpenHistory={(roomId) => setHistoryDrawer({ isOpen: true, roomNumber: roomId })}
-                        handleCheckInGuest={handleCheckInGuest}
-                        handlePreviewBill={handleDownloadInvoice}
-                        timeline={timeline}
-                        totalBill={totalBill}
-                    />
-                )}
-
-                {activeTab === 'food' && (
-                    <FoodTab
-                        bookingData={bookingData}
-                        now={now}
-                        foodFilterDate={foodFilterDate}
-                        setFoodFilterDate={setFoodFilterDate}
-                    />
-                )}
-
-
-
-                {activeTab === 'bulk' && (
-                    <BulkRoomsTab
-                        allRooms={bookingData.rooms || []}
-                        isRoomAvailableForDates={isRoomAvailableForDates}
-                    />
-                )}
-
-                {activeTab === 'payments' && (
-                    <PaymentsTab
-                        onBillGenerated={handleDownloadInvoice}
-                    />
-                )}
-                {activeTab === 'enquiry' && (
+            {/* Layout Wrapper */}
+            <div className="flex flex-col lg:flex-row gap-6 items-start">
+                {/* Left Sidebar Navigation */}
+                <aside className="w-full lg:w-72 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm lg:sticky lg:top-6 flex flex-col justify-between shrink-0 lg:h-[calc(100vh-3rem)]">
                     <div className="space-y-6">
-                        <RoomMatrixTab 
-                            allRooms={bookingData.rooms} 
-                            isRoomAvailableForDates={isRoomAvailableForDates} 
-                        />
-                        <BookingSearchTab 
-                            onViewDetails={(id) => setViewBookingId(id)}
-                        />
+                        {/* Header Area */}
+                        <div className="flex items-center gap-3 border-b border-slate-100 pb-5">
+                            <div className="p-2.5 bg-gradient-to-tr from-indigo-500 to-indigo-600 text-white rounded-2xl shadow-md shadow-indigo-100">
+                                <Bed className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h1 className="text-sm font-black tracking-tight text-slate-800 leading-none">FrontDesk Engine</h1>
+                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mt-1.5">Category {bookingData.category} Properties</p>
+                            </div>
+                        </div>
+
+                        {/* Navigation Menu Links */}
+                        <nav className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible gap-1.5 pb-2 lg:pb-0 scrollbar-none">
+                            <button
+                                onClick={() => setActiveTab('arrivals')}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all text-xs w-auto lg:w-full shrink-0 ${
+                                    activeTab === 'arrivals' 
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+                                        : 'bg-white text-slate-600 hover:bg-slate-50 border border-transparent'
+                                }`}
+                            >
+                                <UserCheck className="w-4 h-4 shrink-0" /> 
+                                <span className="flex-1 text-left hidden lg:inline">Arrivals</span>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                    activeTab === 'arrivals' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                                }`}>
+                                    {getArrivalsBadgeCount()}
+                                </span>
+                            </button>
+                            
+                            <button
+                                onClick={() => setActiveTab('rooms')}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all text-xs w-auto lg:w-full shrink-0 ${
+                                    activeTab === 'rooms' 
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+                                        : 'bg-white text-slate-600 hover:bg-slate-50 border border-transparent'
+                                }`}
+                            >
+                                <Bed className="w-4 h-4 shrink-0" />
+                                <span className="text-left flex-1">Rooms Inventory</span>
+                            </button>
+
+                            <button
+                                onClick={() => setActiveTab('food')}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all text-xs w-auto lg:w-full shrink-0 ${
+                                    activeTab === 'food' 
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+                                        : 'bg-white text-slate-600 hover:bg-slate-50 border border-transparent'
+                                }`}
+                            >
+                                <Utensils className="w-4 h-4 shrink-0" />
+                                <span className="text-left flex-1">Food Requirements</span>
+                            </button>
+
+                            <button
+                                onClick={() => setActiveTab('bulk_bookings')}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all text-xs w-auto lg:w-full shrink-0 ${
+                                    activeTab === 'bulk_bookings' 
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+                                        : 'bg-white text-slate-600 hover:bg-slate-50 border border-transparent'
+                                }`}
+                            >
+                                <FileText className="w-4 h-4 shrink-0" />
+                                <span className="text-left flex-1">Bulk Bookings</span>
+                            </button>
+
+                            <button
+                                onClick={() => setActiveTab('payments')}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all text-xs w-auto lg:w-full shrink-0 ${
+                                    activeTab === 'payments' 
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+                                        : 'bg-white text-slate-600 hover:bg-slate-50 border border-transparent'
+                                }`}
+                            >
+                                <CreditCard className="w-4 h-4 shrink-0" />
+                                <span className="text-left flex-1">Payments Ledger</span>
+                            </button>
+
+                            <button
+                                onClick={() => setActiveTab('extensions')}
+                                className={`relative flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all text-xs w-auto lg:w-full shrink-0 ${
+                                    activeTab === 'extensions' 
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+                                        : 'bg-white text-slate-600 hover:bg-slate-50 border border-transparent'
+                                }`}
+                            >
+                                <ArrowLeftRight className="w-4 h-4 shrink-0" />
+                                <span className="text-left flex-1 hidden lg:inline">Stay Extensions</span>
+                                {pendingExtensionsCount > 0 && (
+                                    <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
+                                        {pendingExtensionsCount}
+                                    </span>
+                                )}
+                            </button>
+
+                            <button
+                                onClick={() => setActiveTab('enquiry')}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all text-xs w-auto lg:w-full shrink-0 ${
+                                    activeTab === 'enquiry' 
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+                                        : 'bg-white text-slate-600 hover:bg-slate-50 border border-transparent'
+                                }`}
+                            >
+                                <Search className="w-4 h-4 shrink-0" />
+                                <span className="text-left flex-1">Search & Enquiry</span>
+                            </button>
+
+                            <button
+                                onClick={() => setActiveTab('stay_register')}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all text-xs w-auto lg:w-full shrink-0 ${
+                                    activeTab === 'stay_register' 
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+                                        : 'bg-white text-slate-600 hover:bg-slate-50 border border-transparent'
+                                }`}
+                            >
+                                <FileText className="w-4 h-4 shrink-0" />
+                                <span className="text-left flex-1">Stay Register</span>
+                            </button>
+                        </nav>
                     </div>
-                )}
+
+                    {/* Sidebar Footer Actions */}
+                    <div className="border-t border-slate-100 pt-5 space-y-2 mt-6 lg:mt-0 w-full">
+                        <button 
+                            onClick={() => setIsQRScannerOpen(true)}
+                            className="w-full px-4 py-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 rounded-2xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2"
+                        >
+                            <QrCode className="w-4 h-4" /> Scan App Pass
+                        </button>
+                        <button 
+                            onClick={loadDashboardData}
+                            className="w-full px-4 py-3 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-2xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2"
+                        >
+                            Force Refresh
+                        </button>
+                    </div>
+                </aside>
+
+                {/* Right Side Content Panel */}
+                <main className="flex-1 min-w-0 w-full space-y-6">
+                    {/* Time Machine / Clock Simulator Panel for Testing */}
+                    {isTimeMachineEnabled && (
+                    <div className="w-full p-4 bg-teal-50/40 border border-teal-100/70 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-2.5">
+                            <Clock className="w-5 h-5 text-teal-600" />
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-800">Time Machine / Clock Simulator</h4>
+                                <p className="text-xs text-slate-500">Test time-dependent stays & billing calculations across dates</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4 flex-wrap text-sm">
+                            <label className="flex items-center gap-2 font-semibold text-slate-700 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={isMockActive}
+                                    onChange={handleToggleMock}
+                                    className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer"
+                                />
+                                Mock Date-Time
+                            </label>
+                            <input 
+                                type="datetime-local" 
+                                value={mockDateStr}
+                                onChange={handleMockDateChange}
+                                disabled={!isMockActive}
+                                className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white disabled:bg-slate-100 disabled:text-slate-400 font-semibold"
+                            />
+                            {isMockActive && (
+                                <button 
+                                    onClick={handleResetMock}
+                                    className="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold rounded-xl transition-colors border border-rose-200"
+                                >
+                                    Undo / Reset
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    )}
+
+                    {/* Active Tab Component Render */}
+                    <div className="w-full">
+                        {activeTab === 'extensions' && (
+                            <ExtensionsTab />
+                        )}
+                        {activeTab === 'arrivals' && (
+                            <ArrivalsTab
+                                receivedApplications={receivedApplications}
+                                pendingArrivals={pendingArrivals}
+                                expandedArrivals={expandedArrivals}
+                                setExpandedArrivals={setExpandedArrivals}
+                                bookingData={bookingData}
+                                now={now}
+                                onAssignRoomClick={(arr) => {
+                                    setPreviewArrival(arr);
+                                    setAssignMode(false);
+                                    setRoomAssignments({});
+                                }}
+                                onCheckInGuest={handleCheckInGuest}
+                            />
+                        )}
+
+                        {activeTab === 'rooms' && (
+                            <RoomsTab
+                                rooms={bookingData.rooms || []}
+                                activeRoomId={activeRoomId}
+                                setActiveRoomId={setActiveRoomId}
+                                selectedRoom={selectedRoom}
+                                now={now}
+                                userRole={user?.role}
+                                handleMarkAsCleaned={handleMarkAsCleaned}
+                                handleCheckOutStay={handleCheckOutStay}
+                                handleOpenTransfer={handleOpenTransfer}
+                                handleSendToCleaning={handleSendToCleaning}
+                                handleOpenHistory={(roomId) => setHistoryDrawer({ isOpen: true, roomNumber: roomId })}
+                                handleCheckInGuest={handleCheckInGuest}
+                                handlePreviewBill={handleDownloadInvoice}
+                                timeline={timeline}
+                                totalBill={totalBill}
+                            />
+                        )}
+
+                        {activeTab === 'food' && (
+                            <FoodTab
+                                bookingData={bookingData}
+                                now={now}
+                                foodFilterDate={foodFilterDate}
+                                setFoodFilterDate={setFoodFilterDate}
+                            />
+                        )}
+
+                        {activeTab === 'bulk_bookings' && (
+                            <BulkBookingsTab 
+                                allRooms={bookingData.rooms || []}
+                                isRoomAvailableForDates={isRoomAvailableForDates}
+                            />
+                        )}
+
+                        {activeTab === 'payments' && (
+                            <PaymentsTab
+                                onBillGenerated={handleDownloadInvoice}
+                            />
+                        )}
+                        {activeTab === 'enquiry' && (
+                            <div className="space-y-6">
+                                <RoomMatrixTab 
+                                    allRooms={bookingData.rooms} 
+                                    isRoomAvailableForDates={isRoomAvailableForDates} 
+                                />
+                                <BookingSearchTab 
+                                    onViewDetails={(id) => setViewBookingId(id)}
+                                />
+                            </div>
+                        )}
+                        {activeTab === 'stay_register' && (
+                            <StayRegisterTab />
+                        )}
+                    </div>
+                </main>
             </div>
 
             {/* PREVIEW & ASSIGN MODAL */}
@@ -1177,58 +1127,7 @@ export default function ReceptionDashboard() {
                 loading={loading}
             />
 
-            {/* BILLING INFO MODAL (B2B/B2C) */}
-            <BillingInfoModal
-                isOpen={billingInfoModal.isOpen}
-                onClose={() => setBillingInfoModal({ ...billingInfoModal, isOpen: false })}
-                guestName={billingInfoModal.guestName}
-                roomNumber={billingInfoModal.roomNumber}
-                onConfirm={async (billingData) => {
-                    try {
-                        setLoading(true);
-                        setBillingInfoModal({ ...billingInfoModal, isOpen: false });
-                        
-                        let res;
-                        if (billingInfoModal.isRoomVacate) {
-                            res = await receptionService.checkOut(billingInfoModal.bookingId, billingData);
-                        } else {
-                            res = await receptionService.checkOutStay(billingInfoModal.stayId, billingData);
-                        }
 
-                        await loadDashboardData();
-                        
-                        // Show payment tab or invoice if applicable (skip download for Category 1)
-                        if (res.data?.bookingFinished && res.data?.booking?.category_id === 1) {
-                            // Category 1: do nothing as no invoice/billing generated
-                        } else if (res.data?.bookingFinished && res.data?.booking?.payment_state !== 'PAID') {
-                            setActiveTab('payments');
-                        } else if (res?.data?.bookingFinished && res?.data?.booking?.booking_id) {
-                            handleDownloadInvoice(res.data.booking.booking_id);
-                        }
-                    } catch (err) {
-                        if (err.response?.data?.message === 'PAYMENT_REQUIRED' || err.message === 'PAYMENT_REQUIRED') {
-                            setConfirmDialog({
-                                title: "Payment Required",
-                                message: "Payment must be settled before checkout since it is guest responsibility. Redirecting to Payments tab.",
-                                isAlert: true,
-                                onConfirm: () => {
-                                    setConfirmDialog(null);
-                                    setActiveTab('payments');
-                                }
-                            });
-                        } else {
-                            setConfirmDialog({
-                                title: "Operation Failed",
-                                message: err.response?.data?.message || err.message || "Failed to check out guest.",
-                                isAlert: true,
-                                onConfirm: () => setConfirmDialog(null)
-                            });
-                        }
-                    } finally {
-                        setLoading(false);
-                    }
-                }}
-            />
 
             {/* FORCE CHECKOUT MODAL */}
             {forceCheckoutModal.isOpen && (

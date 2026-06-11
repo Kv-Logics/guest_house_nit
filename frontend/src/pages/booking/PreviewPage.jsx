@@ -21,10 +21,28 @@ import nitLogo from '../../assets/images/nitlogo.png';
 export default function PreviewPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { formData, user, authorities, tariffs = [] } = location.state || {};
+  const { formData, user, authorities, tariffs: initialTariffs = [] } = location.state || {};
+  const [tariffs, setTariffs] = useState(initialTariffs);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedBillingRoomType, setSelectedBillingRoomType] = useState(formData?.room_type || 'Standard Room');
+
+  // Fetch tariffs if they were not passed or are empty
+  useEffect(() => {
+    if (tariffs.length === 0 && formData) {
+      const fetchTariffs = async () => {
+        try {
+          const res = await api.get('/bookings/tariffs');
+          if (res.success) {
+            setTariffs(res.data);
+          }
+        } catch (e) {
+          console.error('Failed to fetch tariffs in preview', e);
+        }
+      };
+      fetchTariffs();
+    }
+  }, [tariffs.length, formData]);
 
   // Ensure the page always starts at the very top when navigating from the form
   useEffect(() => {
@@ -682,7 +700,7 @@ export default function PreviewPage() {
         <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-8 flex items-start sm:items-center gap-3">
           <CheckCircle2 className="w-6 h-6 text-blue-500 flex-shrink-0" />
           <p className="text-sm font-bold text-blue-900">
-            By submitting, you confirm all details are correct and accept the NITT Guest House
+            By submitting, you confirm all details are correct and accept the National Institute of Technology Trichy Guest House
             booking conditions.
           </p>
         </div>

@@ -1,4 +1,5 @@
 import React, { Suspense } from 'react';
+import { Box, CircularProgress } from '@mui/material';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import ProtectedRoute from './routes/ProtectedRoute';
@@ -26,9 +27,9 @@ function App() {
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Suspense
             fallback={
-              <div className="min-h-screen flex items-center justify-center bg-slate-50">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-              </div>
+              <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
+                <CircularProgress />
+              </Box>
             }
           >
             <Routes>
