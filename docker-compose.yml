@@ -31,9 +31,10 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    env_file: .env.production
+    env_file: .env
     volumes:
       - uploads:/app/uploads    # Named volume so uploads persist across deployments
+      - logs:/app/logs          # Named volume so application logs persist across deployments
     depends_on:
       db:
         condition: service_healthy
@@ -63,4 +64,6 @@ volumes:
   pgdata:
     driver: local
   uploads:
+    driver: local
+  logs:
     driver: local

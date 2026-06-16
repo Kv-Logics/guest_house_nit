@@ -12,6 +12,7 @@ uploads/
 # Dev/test artefacts
 *.log
 ghc-debug.log
+logs/
 scratch/
 scratch_migration.js
 
