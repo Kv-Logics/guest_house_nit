@@ -51,6 +51,11 @@ router.get('/institution-config', receptionController.getInstitutionConfig);
 // --- GENERAL RECEPTION/COORDINATOR/ADMIN ROUTES ---
 router.use(requireRole(['reception_staff', 'gh_coordinator', 'super_admin', 'guest_house_admin']));
 
+router.get('/system-settings', receptionController.getSystemSettings);
+router.post('/system-settings', receptionController.updateSystemSettings);
+router.post('/test-smtp', receptionController.testSMTP);
+
+
 router.get('/arrivals', receptionController.getTodayArrivals);
 router.get('/rooms', receptionController.getRoomsWithStays);
 router.get('/occupancy', receptionController.getOccupancyStats);

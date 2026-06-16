@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { X, FileText, Users, Utensils, Paperclip, Loader2, RefreshCw, History, AlertCircle, Receipt, ShieldCheck, Download, ArrowRight } from 'lucide-react';
 import StatusBadge from './StatusBadge';
-import nitLogo from '../../assets/images/nitlogo.png';
+import nitLogo from '../../assets/images/nitt_logo.svg';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
 import { QRCodeCanvas } from 'qrcode.react';
 import { getFormattedBookingId } from '../../utils/booking';

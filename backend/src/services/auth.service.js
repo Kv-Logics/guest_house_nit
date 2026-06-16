@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const authRepository = require('../repositories/auth.repository');
 const logger = require('../utils/logger');
+const mailService = require('./mail.service');
 
 // In-memory store for OTPs (For production, this could be moved to Redis or a DB table)
 const otpStore = new Map();
@@ -17,7 +18,28 @@ exports.requestOtp = async (email) => {
 
     otpStore.set(email, { otp, expiresAt });
 
-    // Simulate sending an email (in production, integrate nodemailer/SendGrid here)
+    // Send OTP via SMTP (relying only on environment variables as specified)
+    try {
+        await mailService.sendEmail({
+            to: email,
+            subject: 'Guest House Login Verification OTP',
+            html: `
+                <div style="font-family: sans-serif; padding: 20px; max-width: 500px; border: 1px solid #e2e8f0; rounded-radius: 12px;">
+                    <h2 style="color: #4f46e5;">Verification Code</h2>
+                    <p>Dear User,</p>
+                    <p>Use the following One-Time Password (OTP) to access your NITT Guest House account. This code is valid for 5 minutes:</p>
+                    <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 4px; color: #1f2937; margin: 20px 0;">
+                        ${otp}
+                    </div>
+                    <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">If you did not request this, please ignore this email.</p>
+                </div>
+            `,
+            useEnvOnly: true
+        });
+    } catch (err) {
+        logger.error(`[OTP MAIL ERROR] Failed to send OTP to ${email}: ${err.message}`);
+    }
+
     logger.info(`[DEV-ONLY] OTP for ${email} is: ${otp}`);
     
     // Auto-fill OTP for testing
@@ -66,6 +88,7 @@ exports.verifyOtp = async (email, otp) => {
             user_id: user.user_id,
             name: user.full_name,
             full_name: user.full_name,
+            faculty_name: user.full_name,
             email: user.email,
             role: user.role,
             department: user.department,
@@ -84,6 +107,7 @@ exports.getProfile = async (userId) => {
         user_id: user.user_id,
         name: user.full_name,
         full_name: user.full_name,
+        faculty_name: user.full_name,
         email: user.email,
         role: user.role,
         department: user.department,

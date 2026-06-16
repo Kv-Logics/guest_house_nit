@@ -214,7 +214,7 @@ export default function AdminDashboard() {
           <div>
             <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Admin Portal</h2>
             <p className="text-sm text-slate-400 mt-1 font-semibold capitalize">
-              Welcome, {user.full_name || user.email.split('@')[0]}
+              Welcome, {user.faculty_name || user.full_name || user.email.split('@')[0]}
             </p>
             <p className="text-[11px] font-black text-blue-600 bg-blue-50/60 border border-blue-100 rounded-full px-3 py-1 inline-block mt-3 capitalize tracking-wider">
               {user.role === 'super_admin' ? 'GH Chairperson' : String(user.role || '').replace(/_/g, ' ')}
@@ -327,11 +327,17 @@ export default function AdminDashboard() {
         {/* New Application CTA */}
         <button
           onClick={() => navigate('/book')}
-          className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-black rounded-2xl transition-all shadow-md shadow-blue-200 border border-blue-500"
+          className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-black rounded-2xl transition-all shadow-md shadow-blue-200 border border-blue-500 mb-2"
         >
           <Plus className="w-5 h-5" />
           <span>New Application</span>
         </button>
+
+        {/* Sidebar Footer */}
+        <div className="mt-auto bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-center select-none">
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Signed in as</p>
+          <p className="text-xs font-extrabold text-slate-700 mt-1 truncate">{user.faculty_name || user.full_name}</p>
+        </div>
       </aside>
 
       {/* Main Content Area */}

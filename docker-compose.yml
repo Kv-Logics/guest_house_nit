@@ -1,35 +1,66 @@
 version: '3.8'
-services:
-  backend:
-    build: 
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
-    environment:
-      - NODE_ENV=production
-      - DB_USER=postgres
-      - DB_HOST=db
-      - DB_NAME=guesthouse_db
-      - DB_PASSWORD=postgres
-      - DB_PORT=5432
-    volumes:
-      - ./backend/uploads:/app/uploads
-    depends_on:
-      - db
-    restart: unless-stopped
 
+services:
+
+  # ─────────────────────────────────────────
+  # PostgreSQL Database
+  # ─────────────────────────────────────────
   db:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=guesthouse_db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
-      - "5432:5432"
+      - "45432:5432"          # Random host port — change if 45432 is taken on RHEL
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────
+  # Node.js Backend (Express API)
+  # ─────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env.production
+    volumes:
+      - uploads:/app/uploads    # Named volume so uploads persist across deployments
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    # backend is NOT exposed to host directly — all traffic goes through nginx
+
+  # ─────────────────────────────────────────
+  # Nginx + React Frontend
+  # ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Vite bakes this at build time — must be a relative path so the
+        # browser uses nginx's proxy, not a direct container address
+        VITE_API_URL: /api
+        VITE_ENABLE_AUTOFILL: "false"
+        VITE_ENABLE_TIME_MACHINE: "false"
+    ports:
+      - "9006:80"               # The only host-exposed port — reverse proxy targets this
+    depends_on:
+      - backend
     restart: unless-stopped
 
 volumes:
   pgdata:
+    driver: local
+  uploads:
+    driver: local

@@ -160,7 +160,9 @@ export default function ApplicantDashboard() {
                     </div>
                     <div>
                         <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">My Applications</h2>
-                        <p className="text-slate-500 font-medium">Track your guest house booking requests</p>
+                        <p className="text-slate-500 font-medium">
+                            Welcome, {user?.faculty_name || user?.full_name || user?.email?.split('@')[0]} | Track your guest house booking requests
+                        </p>
                     </div>
                 </div>
             </div>

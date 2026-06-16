@@ -40,3 +40,15 @@ export const getFormattedBookingId = (booking) => {
     
     return formattedId;
 };
+
+export const getGstRate = () => {
+  try {
+    const sysConfigStr = localStorage.getItem('sys-config');
+    if (sysConfigStr) {
+      const sysConfig = JSON.parse(sysConfigStr);
+      if (sysConfig.gst_rate !== undefined) return Number(sysConfig.gst_rate);
+    }
+  } catch (e) {}
+  return 12;
+};
+

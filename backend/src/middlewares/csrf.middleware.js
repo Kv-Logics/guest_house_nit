@@ -6,7 +6,7 @@ exports.generateCsrfToken = (req, res, next) => {
         csrfToken = crypto.randomBytes(32).toString('hex');
         res.cookie('csrf-token', csrfToken, {
             httpOnly: false, // Must be readable by frontend JS to attach to the header
-            secure: process.env.NODE_ENV === 'production',
+            secure: process.env.COOKIE_SECURE === 'true',
             sameSite: 'strict',
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days (Synched with auth session)
         });

@@ -12,7 +12,7 @@ exports.verifyPaymentSchema = z.object({
 
 exports.warningSchema = z.object({
     body: z.object({
-        warning_level: z.number().int().min(1).max(3),
+        warning_level: z.number().int().min(1),
         message: z.string().min(5, "Warning message must be at least 5 characters.")
     })
 });

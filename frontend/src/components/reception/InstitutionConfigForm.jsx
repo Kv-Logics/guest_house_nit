@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Save, Settings, FileText, CheckCircle } from 'lucide-react';
 import { receptionService } from '../../services/reception.service';
 
-const InstitutionConfigForm = () => {
+const InstitutionConfigForm = ({ mode = 'billing' }) => {
     const [config, setConfig] = useState({
         legal_name: '',
         gstin: '',
@@ -42,7 +42,7 @@ const InstitutionConfigForm = () => {
     };
 
     const handleSave = async (e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
         try {
             setSaving(true);
             setMessage(null);
@@ -62,8 +62,86 @@ const InstitutionConfigForm = () => {
 
     if (loading) return <div className="p-8 text-center"><div className="animate-spin h-8 w-8 mx-auto border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div></div>;
 
+    if (mode === 'policies') {
+        return (
+            <div className="py-2 px-4 w-full animate-fade-in">
+                <div className="flex items-center mb-6">
+                    <Settings className="h-8 w-8 text-gray-700 mr-3" />
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-800">System Features &amp; Policies</h2>
+                        <p className="text-gray-500">Manage time machine, extensions, and invoice policies.</p>
+                    </div>
+                </div>
+
+                {message && (
+                    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 shadow-lg rounded-full flex items-center animate-fade-in ${message.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                        {message.type === 'success' && <CheckCircle className="h-5 w-5 mr-2" />}
+                        <span className="font-medium">{message.text}</span>
+                    </div>
+                )}
+
+                <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center">
+                        <Settings className="h-5 w-5 text-gray-500 mr-2" />
+                        <h3 className="font-semibold text-gray-700">System Features &amp; Policies</h3>
+                    </div>
+                    <div className="p-6">
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50/50">
+                                <div>
+                                    <h4 className="font-bold text-slate-800">Time Machine / Mock Time</h4>
+                                    <p className="text-sm text-slate-500">Allow Receptionists to simulate future dates for testing checkout flows.</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="enable_time_machine" checked={config.enable_time_machine !== false} onChange={(e) => setConfig({...config, enable_time_machine: e.target.checked})} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                            <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50/50">
+                                <div>
+                                    <h4 className="font-bold text-slate-800">Show Invoice to Applicant</h4>
+                                    <p className="text-sm text-slate-500">Allow Applicants to download their final GST invoice from their dashboard.</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="show_invoice_applicant" checked={config.show_invoice_applicant !== false} onChange={(e) => setConfig({...config, show_invoice_applicant: e.target.checked})} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                            <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50/50">
+                                <div>
+                                    <h4 className="font-bold text-slate-800">Enable Guest Stay Extension</h4>
+                                    <p className="text-sm text-slate-500">Allow Applicants to request a stay extension for their guests.</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="enable_extend_stay_applicant" checked={config.enable_extend_stay_applicant !== false} onChange={(e) => setConfig({...config, enable_extend_stay_applicant: e.target.checked})} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                            <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50/50">
+                                <div>
+                                    <h4 className="font-bold text-slate-800">Always Regenerate Invoices</h4>
+                                    <p className="text-sm text-slate-500">Unconditionally regenerate the PDF on every download (disable to cache if unmodified).</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="always_regenerate_invoices" checked={config.always_regenerate_invoices !== false} onChange={(e) => setConfig({...config, always_regenerate_invoices: e.target.checked})} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                            <div className="flex justify-end pt-4">
+                                <button onClick={handleSave} disabled={saving} className="flex items-center px-6 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium transition-colors disabled:opacity-50">
+                                    {saving ? 'Saving...' : <><Save className="h-4 w-4 mr-2" /> Save Policies</>}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Default mode: billing
     return (
-        <div className="p-6 max-w-4xl mx-auto">
+        <div className="py-2 px-4 w-full animate-fade-in">
             <div className="flex items-center mb-6">
                 <Settings className="h-8 w-8 text-gray-700 mr-3" />
                 <div>
@@ -147,62 +225,6 @@ const InstitutionConfigForm = () => {
                         </button>
                     </div>
                 </form>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden mt-8">
-                <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center">
-                    <Settings className="h-5 w-5 text-gray-500 mr-2" />
-                    <h3 className="font-semibold text-gray-700">System Features & Policies</h3>
-                </div>
-                <div className="p-6">
-                    <div className="space-y-6">
-                        <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50/50">
-                            <div>
-                                <h4 className="font-bold text-slate-800">Time Machine / Mock Time</h4>
-                                <p className="text-sm text-slate-500">Allow Receptionists to simulate future dates for testing checkout flows.</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" name="enable_time_machine" checked={config.enable_time_machine !== false} onChange={(e) => setConfig({...config, enable_time_machine: e.target.checked})} className="sr-only peer" />
-                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
-                        </div>
-                        <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50/50">
-                            <div>
-                                <h4 className="font-bold text-slate-800">Show Invoice to Applicant</h4>
-                                <p className="text-sm text-slate-500">Allow Applicants to download their final GST invoice from their dashboard.</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" name="show_invoice_applicant" checked={config.show_invoice_applicant !== false} onChange={(e) => setConfig({...config, show_invoice_applicant: e.target.checked})} className="sr-only peer" />
-                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
-                        </div>
-                        <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50/50">
-                            <div>
-                                <h4 className="font-bold text-slate-800">Enable Guest Stay Extension</h4>
-                                <p className="text-sm text-slate-500">Allow Applicants to request a stay extension for their guests.</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" name="enable_extend_stay_applicant" checked={config.enable_extend_stay_applicant !== false} onChange={(e) => setConfig({...config, enable_extend_stay_applicant: e.target.checked})} className="sr-only peer" />
-                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
-                        </div>
-                        <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50/50">
-                            <div>
-                                <h4 className="font-bold text-slate-800">Always Regenerate Invoices</h4>
-                                <p className="text-sm text-slate-500">Unconditionally regenerate the PDF on every download (disable to cache if unmodified).</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" name="always_regenerate_invoices" checked={config.always_regenerate_invoices !== false} onChange={(e) => setConfig({...config, always_regenerate_invoices: e.target.checked})} className="sr-only peer" />
-                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
-                        </div>
-                        <div className="flex justify-end pt-4">
-                            <button onClick={handleSave} disabled={saving} className="flex items-center px-6 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium transition-colors disabled:opacity-50">
-                                {saving ? 'Saving...' : <><Save className="h-4 w-4 mr-2" /> Save Configuration</>}
-                            </button>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     );

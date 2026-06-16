@@ -534,6 +534,23 @@ export default function ReceptionDashboard() {
         }
     };
 
+    const handleSendToMaintenance = async (roomId) => {
+        try {
+            setLoading(true);
+            await receptionService.updateRoomStatus(roomId, 'maintenance');
+            await loadDashboardData();
+        } catch (err) {
+            setConfirmDialog({
+                title: "Operation Failed",
+                message: err.response?.data?.message || err.message || "Failed to update room status.",
+                isAlert: true,
+                onConfirm: () => setConfirmDialog(null)
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleAssignRoom = async () => {
         // Validate all logical rooms have been assigned a physical room
         for (let appRoom of previewArrival.rooms) {
@@ -919,6 +936,10 @@ export default function ReceptionDashboard() {
 
                     {/* Sidebar Footer Actions */}
                     <div className="border-t border-slate-100 pt-5 space-y-2 mt-6 lg:mt-0 w-full">
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-center select-none mb-1">
+                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Signed in as</p>
+                            <p className="text-xs font-extrabold text-slate-700 mt-1 truncate">{user?.faculty_name || user?.full_name}</p>
+                        </div>
                         <button 
                             onClick={() => setIsQRScannerOpen(true)}
                             className="w-full px-4 py-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 rounded-2xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2"

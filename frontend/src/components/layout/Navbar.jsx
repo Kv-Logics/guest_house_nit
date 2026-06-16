@@ -16,7 +16,7 @@ import {
 import { ROLES } from '../../utils/constants';
 import { approvalService } from '../../services/approval.service';
 import api from '../../services/api';
-import nitLogo from '../../assets/images/nitlogo.png';
+import nitLogo from '../../assets/images/nitt_logo.svg';
 
 // WhatsApp-style notification badge
 function NavBadge({ count }) {
@@ -158,14 +158,17 @@ export default function Navbar() {
               <div className="hidden sm:flex items-center gap-3 border-r border-slate-200 pr-5 mr-1">
                 <div className="text-right">
                   <p className="text-sm font-bold text-slate-800 leading-none">
-                    {user.name || user.email}
+                    Welcome, {user.faculty_name || user.name || user.email.split('@')[0]}
                   </p>
-                  <p className="text-[11px] font-bold text-slate-500 capitalize mt-1 tracking-wider">
+                  <p className="text-[10px] font-bold text-slate-500 mt-1.5 leading-none">
+                    Signed in as: {user.faculty_name || user.name || user.email.split('@')[0]}
+                  </p>
+                  <p className="text-[11px] font-bold text-slate-500 capitalize mt-2.5 tracking-wider">
                     {user.role === 'super_admin' ? 'GH Chairperson' : String(user.role || '').replace(/_/g, ' ')}
                   </p>
                 </div>
                 <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center font-bold shadow-inner">
-                  {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                  {(user.faculty_name || user.name || user.email || 'U').charAt(0).toUpperCase()}
                 </div>
               </div>
             )}

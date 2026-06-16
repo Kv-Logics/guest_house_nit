@@ -844,3 +844,34 @@ exports.getActiveBulkBlocks = async () => {
     const result = await db.query(sql);
     return result.rows;
 };
+
+exports.getSystemSettings = async () => {
+    const sql = `SELECT setting_key, setting_value FROM system_settings`;
+    const result = await db.query(sql);
+    const settings = {};
+    result.rows.forEach(row => {
+        settings[row.setting_key] = row.setting_value;
+    });
+    return settings;
+};
+
+exports.updateSystemSettings = async (settings) => {
+    const results = {};
+    for (const [key, value] of Object.entries(settings)) {
+        if (value === undefined || value === null) continue;
+        const sql = `
+            INSERT INTO system_settings (setting_key, setting_value, updated_at)
+            VALUES ($1, $2, CURRENT_TIMESTAMP)
+            ON CONFLICT (setting_key) DO UPDATE SET
+                setting_value = EXCLUDED.setting_value,
+                updated_at = CURRENT_TIMESTAMP
+            RETURNING *
+        `;
+        const res = await db.query(sql, [key, String(value)]);
+        if (res.rows[0]) {
+            results[res.rows[0].setting_key] = res.rows[0].setting_value;
+        }
+    }
+    return results;
+};
+

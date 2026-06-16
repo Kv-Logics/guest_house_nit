@@ -156,7 +156,7 @@ async function run() {
         const staffUsers = [
             { full_name: 'GH Chairperson', email: 'ghchairperson@nitt.edu', role: 'super_admin', dept: 'Administration', desig: 'GH Chairperson', emp_id: 'EMP-001' },
             { full_name: 'Receptionist', email: 'ghreception@nitt.edu', role: 'reception_staff', dept: 'Guest House', desig: 'Front Desk', emp_id: 'EMP-006' },
-            { full_name: 'GH Coordinator', email: 'Guesthouse@nitt.edu', role: 'gh_coordinator', dept: 'Guest House', desig: 'Operations Coordinator', emp_id: 'EMP-007' }
+            { full_name: 'GH Coordinator', email: 'guesthouse@nitt.edu', role: 'gh_coordinator', dept: 'Guest House', desig: 'Operations Coordinator', emp_id: 'EMP-007' }
         ];
 
         for (const u of staffUsers) {
@@ -185,8 +185,7 @@ async function run() {
             VALUES 
             (1, 'CAT-I', '{faculty,staff,hod,dean,super_admin,guest_house_admin,reception_staff}', 'official', 5, 10, 'director_dean_registrar', '{"institute"}'),
             (2, 'CAT-II', '{faculty,hod,dean,super_admin,guest_house_admin,reception_staff}', 'official', 3, 6, 'dean_hod', '{"project","coordinator","guest"}'),
-            (3, 'CAT-III', '{faculty,staff,student,super_admin,guest_house_admin,reception_staff}', 'both', 2, 4, 'faculty_staff', '{"guest","faculty"}'),
-            (4, 'CAT-IV', '{faculty,staff,super_admin,guest_house_admin,reception_staff}', 'personal', 1, 2, 'registrar_hod', '{"guest"}')
+            (3, 'CAT-III', '{faculty,staff,student,super_admin,guest_house_admin,reception_staff}', 'both', 2, 4, 'faculty_staff', '{"guest","faculty"}')
             ON CONFLICT (category_id) DO UPDATE SET 
                 category_code = EXCLUDED.category_code,
                 allowed_applicant_roles = EXCLUDED.allowed_applicant_roles,
@@ -264,13 +263,24 @@ async function run() {
                     room_type = 'Renovated Room';
                 }
 
+                let block_name = 'Main Block';
+                const marudhamRooms = ['41', '42', '43', '44', '45', '46', '47', '48', '49', '50', '51', '52', '53', '54', '55', '56', 'B2'];
+                const kurinjiRooms = ['11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'F1', 'F2', 'F3', 'A1', 'A2', 'B1'];
+                
+                if (marudhamRooms.includes(room_number)) {
+                    block_name = 'Marudham GH';
+                } else if (kurinjiRooms.includes(room_number)) {
+                    block_name = 'Kurinji GH';
+                }
+
                 await db.query(`
                     INSERT INTO rooms (room_number, block_name, floor_number, room_type, capacity, has_ac, current_status)
                     VALUES ($1, $2, $3, $4, 2, true, 'available')
                     ON CONFLICT (room_number) DO UPDATE SET
+                        block_name = EXCLUDED.block_name,
                         room_type = EXCLUDED.room_type,
                         floor_number = EXCLUDED.floor_number;
-                `, [room_number, 'Main Block', floor_number, room_type]);
+                `, [room_number, block_name, floor_number, room_type]);
             }
             console.log('Rooms seeded successfully.');
         } else {

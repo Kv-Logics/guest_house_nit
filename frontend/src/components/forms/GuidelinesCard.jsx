@@ -11,7 +11,6 @@ export default function GuidelinesCard({ guidelinesAccepted, setGuidelinesAccept
         <p><strong>Category I:</strong> Institute Guests, Ministry Officials, VIPs. <em className="text-slate-500">(Payment by Institute)</em></p>
         <p><strong>Category II:</strong> Official project visitors, examiners, external experts. <em className="text-slate-500">(Project code strictly required)</em></p>
         <p><strong>Category III:</strong> National Institute of Technology Trichy Faculty/Staff/Students booking for parents or personal guests. <em className="text-slate-500">(Payment by Guest or Faculty)</em></p>
-        <p><strong>Category IV:</strong> Alumni and external individuals. <em className="text-slate-500">(Subject to extreme availability)</em></p>
       </div>
       <label className="flex items-start sm:items-center cursor-pointer group">
         <input type="checkbox" checked={guidelinesAccepted} onChange={(e) => setGuidelinesAccepted(e.target.checked)} className="w-5 h-5 mt-0.5 sm:mt-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 transition-colors cursor-pointer" />

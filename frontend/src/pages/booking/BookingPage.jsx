@@ -6,6 +6,7 @@ import BookingForm from '../../components/forms/BookingForm';
 import ApplicationRouteSidebar from '../../components/forms/ApplicationRouteSidebar';
 import { useAuth } from '../../context/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { getGstRate } from '../../utils/booking';
 
 export default function BookingPage() {
   const navigate = useNavigate();
@@ -109,6 +110,8 @@ export default function BookingPage() {
                 };
             });
 
+            const primaryDoc = (b.documents || []).find(d => d && d.document_type === 'Primary Document');
+            const additionalDoc = (b.documents || []).find(d => d && d.document_type === 'Additional Document');
             setFormData({
               booking_id: b.booking_id,
               purpose_of_visit: b.purpose_of_visit || '',
@@ -119,7 +122,9 @@ export default function BookingPage() {
               project_code: b.project_code || '',
               payment_responsibility: b.payment_responsible || 'guest',
               assigned_approver_id: String(b.assigned_approver_id || ''),
-              rooms: rooms
+              rooms: rooms,
+              document_1: primaryDoc || null,
+              document_2: additionalDoc || null
             });
           }
         } catch (e) {
@@ -131,6 +136,18 @@ export default function BookingPage() {
       fetchBooking();
     }
   }, [editBookingId, user]);
+
+  // Force student to CAT III on load
+  useEffect(() => {
+    if (user && (user.role === 'student' || user.role === 'STUDENT')) {
+      setFormData(prev => {
+        if (prev.category_id !== '3') {
+          return { ...prev, category_id: '3' };
+        }
+        return prev;
+      });
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -258,8 +275,9 @@ export default function BookingPage() {
         subtotal = (singleRooms * singleRate) + (doubleRooms * doubleRate) + (extraBeds * extraBedRate);
       }
 
-      // Include 12% GST
-      const total = Math.round(subtotal + subtotal * 0.12);
+      // Include dynamic GST
+      const gstRate = getGstRate();
+      const total = Math.round(subtotal + subtotal * (gstRate / 100));
 
       setFormData((prev) => {
         if (prev.total_estimated_amount !== total) {

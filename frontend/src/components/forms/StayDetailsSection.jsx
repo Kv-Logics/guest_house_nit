@@ -5,49 +5,60 @@ import FilePreview from './FilePreview';
 // ──────────────────────────────────────────
 // Inline Tariff Preview Modal
 // ──────────────────────────────────────────
-function TariffInfoModal({ show, onClose, tariffs, categoryId }) {
+function TariffInfoModal({ show, onClose, tariffs }) {
   if (!show) return null;
-  const rows = tariffs.filter(t => String(t.category_id) === String(categoryId));
+
+  const categories = [
+    { id: '1', name: 'Category I (Institute Paid)' },
+    { id: '2', name: 'Category II (Project / Coordinator / Guest Paid)' },
+    { id: '3', name: 'Category III (Personal - Guest / Faculty Paid)' }
+  ];
 
   return (
     <div className="mb-6 bg-white border border-indigo-100 rounded-2xl shadow-lg relative animate-fade-in overflow-hidden z-20">
       <div className="flex justify-between items-center bg-indigo-50/50 p-4 border-b border-indigo-100">
         <h4 className="font-bold text-indigo-900 text-sm flex items-center gap-2">
-          <BedDouble className="w-4 h-4 text-indigo-500" /> Tariff Details — CAT {categoryId}
+          <BedDouble className="w-4 h-4 text-indigo-500" /> Complete Tariff Details (Category I, II &amp; III)
         </h4>
         <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors">
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      <div className="p-4">
-        {rows.length === 0 ? (
-          <p className="text-sm text-slate-500 text-center py-6">No tariff data available for this category.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                <tr>
-                  <th className="px-4 py-3">Room Type</th>
-                  <th className="px-4 py-3">Single (₹/day)</th>
-                  <th className="px-4 py-3">Double (₹/day)</th>
-                  <th className="px-4 py-3">Extra Bed (₹/day)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((t, i) => (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-slate-800">{t.room_type}</td>
-                    <td className="px-4 py-3 text-slate-700">₹{Number(t.single_occupancy).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-slate-700">₹{Number(t.double_occupancy).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-slate-700">₹{Number(t.extra_bed || 400).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p className="text-[11px] text-slate-400 font-medium mt-4">
+      <div className="p-4 space-y-6 max-h-[400px] overflow-y-auto">
+        {categories.map(cat => {
+          const rows = tariffs.filter(t => String(t.category_id) === String(cat.id));
+          if (rows.length === 0) return null;
+
+          return (
+            <div key={cat.id} className="space-y-2">
+              <h5 className="font-bold text-slate-800 text-xs uppercase tracking-wider pl-1">{cat.name}</h5>
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-2.5">Room Type</th>
+                      <th className="px-4 py-2.5">Single (₹/day)</th>
+                      <th className="px-4 py-2.5">Double (₹/day)</th>
+                      <th className="px-4 py-2.5">Extra Bed (₹/day)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {rows.map((t, i) => (
+                      <tr key={i} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-2.5 font-semibold text-slate-800">{t.room_type}</td>
+                        <td className="px-4 py-2.5 text-slate-700">₹{Number(t.single_occupancy).toLocaleString()}</td>
+                        <td className="px-4 py-2.5 text-slate-700">₹{Number(t.double_occupancy).toLocaleString()}</td>
+                        <td className="px-4 py-2.5 text-slate-700">₹{Number(t.extra_bed || 400).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+        <p className="text-[11px] text-slate-400 font-medium mt-2">
           * Rates shown are per calendar day (midnight to midnight). GST of 12% will be added to the final bill.
         </p>
       </div>
@@ -115,7 +126,6 @@ export default function StayDetailsSection({ formData, handleChange, setFormData
         show={showTariff}
         onClose={() => setShowTariff(false)}
         tariffs={tariffs}
-        categoryId={currentCategoryId}
       />
 
       {/* Room Type Selector */}

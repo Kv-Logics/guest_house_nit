@@ -17,7 +17,46 @@ const app = express();
 
 app.use(requestLogger);
 
-app.use(compression());
+// Disable X-Powered-By header explicitly at application level
+app.disable('x-powered-by');
+
+// BREACH Mitigation: Disable HTTP compression for sensitive token & auth endpoints
+app.use(compression({
+    filter: (req, res) => {
+        if (req.path === '/api/csrf-token' || req.path.includes('/auth/')) {
+            return false;
+        }
+        return compression.filter(req, res);
+    }
+}));
+
+// Strict HTTP OPTIONS method sanitation to prevent OPTIONSBLEED and unauthorized scanning
+app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+        const hasOrigin = req.headers.origin;
+        const hasAccessMethod = req.headers['access-control-request-method'];
+        if (hasOrigin && hasAccessMethod) {
+            // Allow CORS preflight requests
+            return next();
+        }
+        // Block raw OPTIONS method scans
+        res.setHeader('Allow', 'GET, POST, PUT, DELETE, PATCH');
+        return res.status(405).json({ success: false, message: 'Method Not Allowed' });
+    }
+    next();
+});
+
+// Custom response header stripping and permissions-policy injection
+app.use((req, res, next) => {
+    res.removeHeader('X-Powered-By');
+    res.removeHeader('x-nextjs-cache');
+    res.removeHeader('x-nextjs-prerender');
+    res.removeHeader('x-nextjs-stale-time');
+    res.removeHeader('x-process-time');
+    res.removeHeader('Server');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
+    next();
+});
 
 app.use(helmet({
     contentSecurityPolicy: {
@@ -29,10 +68,30 @@ app.use(helmet({
             frameAncestors: ["'none'"],
         }
     },
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    },
+    referrerPolicy: { policy: 'no-referrer' },
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+app.use(helmet.frameguard({ action: 'deny' })); // Clickjacking protection fallback for older browsers
+
+// Support multiple allowed origins via comma-separated CORS_ORIGIN env var
+// e.g. "http://rooms.nitt.edu:9006,https://rooms.nitt.edu,http://localhost:9006"
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: (origin, callback) => {
+        // Allow requests with no origin (curl, mobile apps, same-server requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+    },
     credentials: true
 }));
 app.use(express.json());

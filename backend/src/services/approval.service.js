@@ -2,6 +2,7 @@ const db = require('../db/db');
 const approvalRepository = require('../repositories/approval.repository');
 const { BOOKING_STATUS } = require('../utils/constants');
 const logger = require('../utils/logger');
+const notificationService = require('./notification.service');
 
 exports.getPendingApprovals = async (userRole, userId) => {
     return await approvalRepository.getPendingApprovalsByRole(BOOKING_STATUS.PENDING_APPROVER, userRole, userId);
@@ -138,6 +139,12 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
             newState,
         });
         await client.query('COMMIT');
+
+        // Trigger stage email notification asynchronously
+        notificationService.sendApprovalStateChange(bookingId, newState, finalRemarks).catch(err => {
+            logger.error(`Error sending approval stage email for booking ${bookingId}: ${err.message}`);
+        });
+
         return bookingRes.rows[0];
     } catch (error) {
         await client.query('ROLLBACK');

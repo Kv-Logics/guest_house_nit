@@ -131,3 +131,25 @@
 -> LIST SUCCESS, count: 8
 [GET /bookings/f95661b2-13da-4d4f-ad35-643696e32929] req.user: {"id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","user_id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","email":"Guesthouse@nitt.edu","role":"gh_coordinator","iat":1781083332,"exp":1781688132}
 -> SUCCESS!
+[GET /bookings LIST] req.user: {"id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","user_id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","email":"Guesthouse@nitt.edu","role":"gh_coordinator","iat":1781589146,"exp":1782193946}
+-> LIST SUCCESS, count: 11
+[GET /bookings LIST] req.user: {"id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","user_id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","email":"guesthouse@nitt.edu","role":"gh_coordinator","iat":1781590357,"exp":1782195157}
+-> LIST SUCCESS, count: 11
+[GET /bookings LIST] req.user: {"id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","user_id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","email":"guesthouse@nitt.edu","role":"gh_coordinator","iat":1781590357,"exp":1782195157}
+-> LIST SUCCESS, count: 11
+[GET /bookings LIST] req.user: {"id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","user_id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","email":"guesthouse@nitt.edu","role":"gh_coordinator","iat":1781590357,"exp":1782195157}
+-> LIST SUCCESS, count: 11
+[GET /bookings LIST] req.user: {"id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","user_id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","email":"guesthouse@nitt.edu","role":"gh_coordinator","iat":1781590357,"exp":1782195157}
+-> LIST SUCCESS, count: 11
+[GET /bookings LIST] req.user: {"id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","user_id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","email":"guesthouse@nitt.edu","role":"gh_coordinator","iat":1781590357,"exp":1782195157}
+-> LIST SUCCESS, count: 11
+[GET /bookings LIST] req.user: {"id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","user_id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","email":"guesthouse@nitt.edu","role":"gh_coordinator","iat":1781590905,"exp":1782195705}
+-> LIST SUCCESS, count: 11
+[GET /bookings LIST] req.user: {"id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","user_id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","email":"guesthouse@nitt.edu","role":"gh_coordinator","iat":1781590905,"exp":1782195705}
+-> LIST SUCCESS, count: 11
+[GET /bookings LIST] req.user: {"id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","user_id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","email":"guesthouse@nitt.edu","role":"gh_coordinator","iat":1781590905,"exp":1782195705}
+-> LIST SUCCESS, count: 11
+[GET /bookings LIST] req.user: {"id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","user_id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","email":"guesthouse@nitt.edu","role":"gh_coordinator","iat":1781591476,"exp":1782196276}
+-> LIST SUCCESS, count: 11
+[GET /bookings LIST] req.user: {"id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","user_id":"67eae098-76a5-4032-9ba7-7a3c80a64acf","email":"guesthouse@nitt.edu","role":"gh_coordinator","iat":1781591476,"exp":1782196276}
+-> LIST SUCCESS, count: 11

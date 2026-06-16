@@ -1098,7 +1098,9 @@ exports.calculateBookingBilling = async (bookingId, client, overrideNow = null, 
         // Fallback to estimated booking amount
         const bRes = await (client || db).query(`SELECT total_estimated_amount FROM booking_requests WHERE booking_id = $1`, [bookingId]);
         const total = bRes.rows[0] ? Number(bRes.rows[0].total_estimated_amount) : 0;
-        const subtotal = Math.round(total / 1.12);
+        const gstRateRes = await (client || db).query(`SELECT gst_rate FROM institution_configs WHERE config_id = 1`);
+        const gstRate = gstRateRes.rows[0] ? Number(gstRateRes.rows[0].gst_rate) : 12;
+        const subtotal = Math.round(total / (1 + gstRate / 100));
         return {
             subtotal,
             gst: total - subtotal,
@@ -1616,8 +1618,8 @@ exports.confirmPayment = async (bookingId, paymentData, userId) => {
         // Delete stale PDF so it regenerates on next GET
         const fs = require('fs');
         const path = require('path');
-        const bRes = await client.query('SELECT formatted_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
-        const formattedId = bRes.rows[0]?.formatted_id;
+        const bResFormattedId = await client.query('SELECT formatted_id FROM booking_requests WHERE booking_id = $1', [bookingId]);
+        const formattedId = bResFormattedId.rows[0]?.formatted_id;
         const safeFilename = formattedId ? formattedId.replace(/[^a-zA-Z0-9-_]/g, '_') : bookingId;
         const stalePdfPath = path.join(process.cwd(), 'uploads/invoices', `${safeFilename}.pdf`);
         if (fs.existsSync(stalePdfPath)) {
@@ -2160,6 +2162,9 @@ exports.getGuestStayRegister = async () => {
     const result = await db.query(query);
     const stays = result.rows;
 
+    const gstRateRes = await db.query(`SELECT gst_rate FROM institution_configs WHERE config_id = 1`);
+    const gstRate = gstRateRes.rows[0] ? Number(gstRateRes.rows[0].gst_rate) : 12;
+
     const registerData = [];
     let slNo = 1;
 
@@ -2185,7 +2190,7 @@ exports.getGuestStayRegister = async () => {
         }
 
         const totalRentAmount = (amountPerDay + extraBedChargePerDay) * numDays;
-        const gst = Math.round(totalRentAmount * 0.12);
+        const gst = Math.round(totalRentAmount * (gstRate / 100));
         const totalAmount = totalRentAmount + gst;
 
         const dateCheckInStr = checkIn.toISOString().split('T')[0];
@@ -2220,3 +2225,11 @@ exports.getGuestStayRegister = async () => {
 
     return registerData;
 };
+
+exports.getSystemSettings = async () => {
+    return await receptionRepository.getSystemSettings();
+};
+
+exports.updateSystemSettings = async (settings) => {
+    return await receptionRepository.updateSystemSettings(settings);
+};

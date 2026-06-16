@@ -16,7 +16,8 @@ import {
   Paperclip,
 } from 'lucide-react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import nitLogo from '../../assets/images/nitlogo.png';
+import nitLogo from '../../assets/images/nitt_logo.svg';
+import { getGstRate } from '../../utils/booking';
 
 export default function PreviewPage() {
   const location = useLocation();
@@ -179,7 +180,8 @@ export default function PreviewPage() {
     doubleNightsCount = days * doubleRooms;
     extraBedNightsCount = days * extraBeds;
   }
-  const gst = Math.round(subtotal * 0.12);
+  const gstRate = getGstRate();
+  const gst = Math.round(subtotal * (gstRate / 100));
   const calculatedTotal = subtotal + gst;
 
   const getPriorities = () => {
@@ -249,7 +251,8 @@ export default function PreviewPage() {
       sub = rCost + ebCost;
     }
 
-    const tot = Math.round(sub + sub * 0.12);
+    const gRate = getGstRate();
+    const tot = Math.round(sub + sub * (gRate / 100));
     return { roomCost: rCost, extraBedCost: ebCost, subtotal: sub, total: tot };
   };
 
@@ -309,6 +312,8 @@ export default function PreviewPage() {
         undertaking_accepted: true,
         // Fallback to own user ID for Admins (Auto-Approve) to satisfy strict UUID Zod validation
         assigned_approver_id: formData.assigned_approver_id || user.user_id || user.id,
+        keep_document_1: !!formData.document_1,
+        keep_document_2: !!formData.document_2,
       };
 
       // CRITICAL: Remove File objects from the JSON payload to prevent Zod strict() schema crashes
@@ -318,8 +323,12 @@ export default function PreviewPage() {
       const formDataToSend = new FormData();
       formDataToSend.append('payload', JSON.stringify(bookingData));
 
-      if (formData.document_1) formDataToSend.append('document_1', formData.document_1);
-      if (formData.document_2) formDataToSend.append('document_2', formData.document_2);
+      if (formData.document_1 && (formData.document_1 instanceof Blob)) {
+        formDataToSend.append('document_1', formData.document_1);
+      }
+      if (formData.document_2 && (formData.document_2 instanceof Blob)) {
+        formDataToSend.append('document_2', formData.document_2);
+      }
 
       let response;
       if (location.state?.isEditMode && formData.booking_id) {
@@ -606,7 +615,7 @@ export default function PreviewPage() {
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                         <p className="text-xs text-indigo-600 font-semibold flex items-center truncate">
                           <Paperclip className="w-3 h-3 mr-1 flex-shrink-0" />{' '}
-                          {formData.document_1.name}
+                          {formData.document_1.name || formData.document_1.file_name}
                         </p>
                       </div>
                     )}
@@ -614,7 +623,7 @@ export default function PreviewPage() {
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                         <p className="text-xs text-indigo-600 font-semibold flex items-center truncate">
                           <Paperclip className="w-3 h-3 mr-1 flex-shrink-0" />{' '}
-                          {formData.document_2.name}
+                          {formData.document_2.name || formData.document_2.file_name}
                         </p>
                       </div>
                     )}

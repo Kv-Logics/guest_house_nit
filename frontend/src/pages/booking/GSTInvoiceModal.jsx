@@ -39,10 +39,21 @@ export default function GSTInvoiceModal({ bookingId, bookingData, onClose }) {
   const departure = new Date(booking.checked_out_at || booking.departure_datetime);
   const nights = calculateHotelNights(booking.arrival_datetime || booking.checked_in_at, booking.departure_datetime || booking.checked_out_at);
   
+  const getGstRate = () => {
+    try {
+      const sysConfigStr = localStorage.getItem('sys-config');
+      if (sysConfigStr) {
+        const sysConfig = JSON.parse(sysConfigStr);
+        if (sysConfig.gst_rate !== undefined) return Number(sysConfig.gst_rate);
+      }
+    } catch (e) {}
+    return 12;
+  };
+  const gstRate = getGstRate();
   // Financials
   let totalEstimated = Number(booking.total_estimated_amount) || 0;
-  let subtotal = Math.round(totalEstimated / 1.12);
-  let cgst = Math.round(subtotal * 0.06);
+  let subtotal = Math.round(totalEstimated / (1 + gstRate / 100));
+  let cgst = Math.round(subtotal * (gstRate / 2 / 100));
   let sgst = totalEstimated - subtotal - cgst; // Catch any rounding remainders
 
   if (booking.final_bill) {

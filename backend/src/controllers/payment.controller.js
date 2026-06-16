@@ -41,8 +41,18 @@ exports.sendWarning = async (req, res, next) => {
 
 exports.posComplete = async (req, res, next) => {
     try {
-        const data = await paymentService.posComplete(req.params.id, req.user.user_id);
+        const { pos_reference } = req.body;
+        const data = await paymentService.posComplete(req.params.id, req.user.user_id, pos_reference);
         return sendSuccess(res, 'POS Payment recorded', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.posConfirm = async (req, res, next) => {
+    try {
+        const data = await paymentService.posConfirm(req.params.id, req.user.user_id);
+        return sendSuccess(res, 'POS/Online Payment confirmed in bank', data);
     } catch (error) {
         next(error);
     }

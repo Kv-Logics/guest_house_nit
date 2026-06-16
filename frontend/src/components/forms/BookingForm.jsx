@@ -93,12 +93,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
       );
       return;
     }
-    if (formData.category_id === '4' && formData.visit_type !== 'personal') {
-      setLocalError(
-        'CAT-IV strictly requires the Visit Type to be "Personal". Please update the dropdown.'
-      );
-      return;
-    }
+
 
     // Food Requisition Date Validation
     for (let i = 0; i < flatGuests.length; i++) {

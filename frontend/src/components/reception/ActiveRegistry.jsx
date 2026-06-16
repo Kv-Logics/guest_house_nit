@@ -1,4 +1,4 @@
-import { Users, LogOut, ArrowLeftRight, Clock, Shield, Receipt } from 'lucide-react';
+import { Users, LogOut, ArrowLeftRight, Clock, Shield, Receipt, Wrench } from 'lucide-react';
 import { getFormattedBookingId } from '../../utils/booking';
 
 export default function ActiveRegistry({ 
@@ -8,6 +8,7 @@ export default function ActiveRegistry({
     onCheckOutStay, 
     onOpenTransfer, 
     onSendToCleaning, 
+    onSendToMaintenance,
     onOpenHistory,
     onCheckInGuest,
     onPreviewBill
@@ -29,7 +30,17 @@ export default function ActiveRegistry({
             </div>
 
             {selectedRoom.guests.length === 0 ? (
-                <p className="text-slate-400 text-sm py-4 text-center">No guests allocated to this room currently.</p>
+                <div className="flex flex-col items-center justify-center py-6 gap-3">
+                    <p className="text-slate-400 text-sm text-center">No guests allocated to this room currently.</p>
+                    {(selectedRoom.status === 'AVAILABLE' || selectedRoom.status?.toLowerCase() === 'available') && (
+                        <button
+                            onClick={() => onSendToMaintenance(selectedRoom.roomId)}
+                            className="bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold px-5 py-2.5 rounded-xl hover:bg-amber-100 transition-colors shadow-sm flex items-center gap-2"
+                        >
+                            <Wrench className="w-4 h-4" /> Put Room in Maintenance
+                        </button>
+                    )}
+                </div>
             ) : (
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">

@@ -132,7 +132,7 @@ export default function CategoryVisitSection({ formData, handleChange, setFormDa
         </div>
       )}
 
-      {(formData.category_id === '3' || formData.category_id === '4' || (formData.category_id === '2' && formData.payment_responsibility === 'guest')) && (
+      {(formData.category_id === '3' || (formData.category_id === '2' && formData.payment_responsibility === 'guest')) && (
         <div className="mb-6 bg-amber-50 p-4 rounded-xl border border-amber-200 text-sm font-semibold text-amber-800 flex items-start">
           <Info className="w-5 h-5 flex-shrink-0 mr-2 text-amber-600" />
           <div>

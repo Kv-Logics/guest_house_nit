@@ -30,8 +30,8 @@ export default function UserManagementTab() {
         setLoading(true);
         try {
             const res = await api.get(`/coordinator/users?query=${encodeURIComponent(query)}`);
-            if (res.data.success) {
-                setUsers(res.data.data || []);
+            if (res.success) {
+                setUsers(res.data || []);
             }
         } catch (err) {
             console.error('Failed to fetch users', err);
@@ -43,8 +43,8 @@ export default function UserManagementTab() {
     const fetchRoles = async () => {
         try {
             const res = await api.get('/coordinator/roles');
-            if (res.data.success) {
-                setRoles(res.data.data || []);
+            if (res.success) {
+                setRoles(res.data || []);
             }
         } catch (err) {
             console.error('Failed to fetch roles', err);
@@ -90,14 +90,14 @@ export default function UserManagementTab() {
         try {
             if (modalMode === 'create') {
                 const res = await api.post('/coordinator/users', formData);
-                if (res.data.success) {
+                if (res.success) {
                     alert('User created successfully!');
                     setIsModalOpen(false);
                     fetchUsers(searchQuery);
                 }
             } else {
                 const res = await api.put(`/coordinator/users/${selectedUser.user_id}`, formData);
-                if (res.data.success) {
+                if (res.success) {
                     alert('User updated successfully!');
                     setIsModalOpen(false);
                     fetchUsers(searchQuery);
@@ -114,7 +114,7 @@ export default function UserManagementTab() {
         if (!window.confirm(`Are you sure you want to delete user ${userEmail}?`)) return;
         try {
             const res = await api.delete(`/coordinator/users/${userId}`);
-            if (res.data.success) {
+            if (res.success) {
                 alert('User deleted successfully!');
                 fetchUsers(searchQuery);
             }

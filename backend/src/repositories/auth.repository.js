@@ -7,7 +7,7 @@ exports.findUserByEmail = async (email) => {
         FROM users u 
         LEFT JOIN user_roles ur ON u.user_id = ur.user_id 
         LEFT JOIN roles r ON ur.role_id = r.role_id 
-        WHERE u.email = $1
+        WHERE LOWER(u.email) = LOWER($1)
     `;
     const result = await db.query(query, [email]);
     return result.rows[0];

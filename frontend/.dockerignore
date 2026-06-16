@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log*
+
+# Environment files
+.env
+.env.*
+
+# Previous builds (rebuilt inside Docker)
+dist/
+
+# Git metadata
+.git
+.gitignore
+
+# Editor configs
+.vscode
+.idea

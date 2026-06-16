@@ -19,6 +19,8 @@ exports.createBookingSchema = z.object({
         total_estimated_amount: z.coerce.number().nonnegative().optional(),
         payment_responsibility: z.string().optional(),
         assigned_approver_id: z.string().uuid('Please select a valid approving authority'),
+        keep_document_1: z.boolean().optional(),
+        keep_document_2: z.boolean().optional(),
         guests: z.array(z.object({
             guest_name: z.string(),
             designation: z.string().optional(),

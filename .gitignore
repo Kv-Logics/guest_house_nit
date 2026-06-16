@@ -8,9 +8,12 @@ dist/
 build/
 **/build/
 
-# Local env files
+# Local env files — NEVER commit these
+# .env.production is uploaded to the server manually via FileZilla/scp
+# See: rhel_safe_runner_setup.md
 .env
 .env.local
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local

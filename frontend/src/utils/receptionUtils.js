@@ -152,6 +152,7 @@ export const translateRoomsFromBackend = (rooms) => {
             floor: r.floor_number === 0 ? 'GROUND FLOOR' : 
                    r.floor_number === 1 ? 'FIRST FLOOR' : 
                    r.floor_number === 2 ? 'SECOND FLOOR' : 'THIRD FLOOR',
+            blockName: r.block_name || 'Main Block',
             roomId: r.room_number,
             room_id: r.room_id,
             roomNumber: r.room_number,

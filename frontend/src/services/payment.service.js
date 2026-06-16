@@ -12,5 +12,6 @@ export const paymentService = {
   getProofHistory: async (id) => api.get(`/payments/${id}/proofs`),
   verifyPayment: async (id, action, reason) => api.post(`/payments/${id}/verify`, { action, reason }),
   sendWarning: async (id, warning_level, message) => api.post(`/payments/${id}/warn`, { warning_level, message }),
-  posComplete: async (id) => api.post(`/payments/${id}/pos-complete`)
+  posComplete: async (id, pos_reference) => api.post(`/payments/${id}/pos-complete`, { pos_reference }),
+  posConfirm: async (id) => api.post(`/payments/${id}/pos-confirm`)
 };

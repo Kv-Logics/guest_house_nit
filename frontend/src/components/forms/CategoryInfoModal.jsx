@@ -39,12 +39,7 @@ export default function CategoryInfoModal({ show, onClose }) {
               <td className="p-3 border border-slate-200 align-top">Faculty/Staff</td>
               <td className="p-3 border border-slate-200 align-top">By Individual before checking out/By faculty or staff concerned</td>
             </tr>
-            <tr className="bg-slate-50/30">
-              <td className="p-3 border border-slate-200 font-bold text-slate-800 whitespace-nowrap align-top">CAT-IV</td>
-              <td className="p-3 border border-slate-200 align-top">Guests not covered under above categories</td>
-              <td className="p-3 border border-slate-200 align-top">Registrar/HODs/Faculty</td>
-              <td className="p-3 border border-slate-200 align-top">By Individual before checking out</td>
-            </tr>
+
           </tbody>
         </table>
       </div>

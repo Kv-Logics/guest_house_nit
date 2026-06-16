@@ -1,5 +1,5 @@
 const receptionService = require('../services/reception.service');
-const { sendSuccess } = require('../utils/response');
+const { sendSuccess, sendError } = require('../utils/response');
 
 exports.getTodayArrivals = async (req, res, next) => {
     try {
@@ -360,4 +360,51 @@ exports.getGuestStayRegister = async (req, res, next) => {
     } catch (error) {
         next(error);
     }
-};
+};
+
+exports.getSystemSettings = async (req, res, next) => {
+    try {
+        const data = await receptionService.getSystemSettings();
+        return sendSuccess(res, 'System settings retrieved successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.updateSystemSettings = async (req, res, next) => {
+    try {
+        const data = await receptionService.updateSystemSettings(req.body);
+        return sendSuccess(res, 'System settings updated successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.testSMTP = async (req, res, next) => {
+    try {
+        const { recipientEmail } = req.body;
+        if (!recipientEmail) {
+            return sendError(res, 'Recipient email is required', 400);
+        }
+
+        const mailService = require('../services/mail.service');
+        await mailService.sendEmail({
+            to: recipientEmail,
+            subject: 'NITT Guest House SMTP Connection Test',
+            html: `
+                <div style="font-family: sans-serif; padding: 20px; max-width: 500px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+                    <h2 style="color: #4f46e5; margin-top: 0;">SMTP Connection Test</h2>
+                    <p>Dear Administrator,</p>
+                    <p>This is an automated test email confirming that your NITT Guest House system has successfully authenticated and dispatched this email through the configured SMTP mail server.</p>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+                    <p style="color: #6b7280; font-size: 11px; margin-bottom: 0;">Timestamp: ${new Date().toLocaleString()}</p>
+                </div>
+            `
+        });
+
+        return sendSuccess(res, 'Test email dispatched successfully!');
+    } catch (error) {
+        next(error);
+    }
+};
+

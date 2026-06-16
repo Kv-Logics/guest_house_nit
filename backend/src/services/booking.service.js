@@ -4,7 +4,7 @@ const { BOOKING_STATUS, PAYMENT_STATUS } = require('../utils/constants');
 
 const MAX_STAY_EXTENSION_DAYS = 60;
 
-function estimateBookingTotalFromTariffs(booking, tariffs, guestsList) {
+function estimateBookingTotalFromTariffs(booking, tariffs, guestsList, gstRate = 12) {
     const categoryId = String(booking.category_id);
     const roomType = booking.room_type || 'Standard Room';
     const activeTariff =
@@ -96,7 +96,7 @@ function estimateBookingTotalFromTariffs(booking, tariffs, guestsList) {
         currentDay.setDate(currentDay.getDate() + 1);
     }
 
-    return Math.round(totalSubtotal + totalSubtotal * 0.12);
+    return Math.round(totalSubtotal + totalSubtotal * (gstRate / 100));
 }
 
 /** Apply pending extension from stay_extension_requests to departure fields and totals. */
@@ -136,7 +136,9 @@ async function applyStayExtension(client, bookingId) {
     );
     const row = refreshed.rows[0];
     const tariffsRes = await client.query('SELECT * FROM room_tariffs');
-    const total = estimateBookingTotalFromTariffs(row, tariffsRes.rows, row.guests);
+    const configRes = await client.query('SELECT gst_rate FROM institution_configs WHERE config_id = 1');
+    const gstRate = configRes.rows[0] ? Number(configRes.rows[0].gst_rate) : 12;
+    const total = estimateBookingTotalFromTariffs(row, tariffsRes.rows, row.guests, gstRate);
 
     await client.query(
         `UPDATE booking_requests
@@ -295,12 +297,14 @@ exports.submitBookingRequest = async (data) => {
 
         // Calculate actual pricing total
         const tariffsRes = await client.query('SELECT * FROM room_tariffs');
+        const gstConfigRes = await client.query('SELECT gst_rate FROM institution_configs WHERE config_id = 1');
+        const gstRate = gstConfigRes.rows[0] ? Number(gstConfigRes.rows[0].gst_rate) : 12;
         const calculatedTotal = estimateBookingTotalFromTariffs({
             category_id: data.category_id,
             room_type: data.room_type || 'Standard Room',
             rooms_required: data.rooms_required,
             extra_beds: data.extra_beds || 0
-        }, tariffsRes.rows, data.guests);
+        }, tariffsRes.rows, data.guests, gstRate);
 
         await client.query(
             `UPDATE booking_requests SET total_estimated_amount = $1 WHERE booking_id = $2`,
@@ -445,21 +449,37 @@ exports.reapplyBookingRequest = async (data) => {
 
         // Calculate actual pricing total
         const tariffsRes = await client.query('SELECT * FROM room_tariffs');
+        const configRes = await client.query('SELECT gst_rate FROM institution_configs WHERE config_id = 1');
+        const gstRate = configRes.rows[0] ? Number(configRes.rows[0].gst_rate) : 12;
         const calculatedTotal = estimateBookingTotalFromTariffs({
             category_id: data.category_id,
             room_type: data.room_type || 'Standard Room',
             rooms_required: data.rooms_required,
             extra_beds: data.extra_beds || 0
-        }, tariffsRes.rows, data.guests);
+        }, tariffsRes.rows, data.guests, gstRate);
 
         await client.query(
             `UPDATE booking_requests SET total_estimated_amount = $1 WHERE booking_id = $2`,
             [calculatedTotal, data.booking_id]
         );
+        // Handle document preservation and uploads
+        if (data.keep_document_1 === false) {
+            await client.query("DELETE FROM booking_documents WHERE booking_id = $1 AND document_type = 'Primary Document'", [data.booking_id]);
+        }
+        if (data.keep_document_2 === false) {
+            await client.query("DELETE FROM booking_documents WHERE booking_id = $1 AND document_type = 'Additional Document'", [data.booking_id]);
+        }
+
         if (data.files && (data.files.document_1 || data.files.document_2)) {
             const filesToInsert = [];
-            if (data.files.document_1 && data.files.document_1[0]) filesToInsert.push({ doc: data.files.document_1[0], type: 'Primary Document' });
-            if (data.files.document_2 && data.files.document_2[0]) filesToInsert.push({ doc: data.files.document_2[0], type: 'Additional Document' });
+            if (data.files.document_1 && data.files.document_1[0]) {
+                await client.query("DELETE FROM booking_documents WHERE booking_id = $1 AND document_type = 'Primary Document'", [data.booking_id]);
+                filesToInsert.push({ doc: data.files.document_1[0], type: 'Primary Document' });
+            }
+            if (data.files.document_2 && data.files.document_2[0]) {
+                await client.query("DELETE FROM booking_documents WHERE booking_id = $1 AND document_type = 'Additional Document'", [data.booking_id]);
+                filesToInsert.push({ doc: data.files.document_2[0], type: 'Additional Document' });
+            }
             for (const f of filesToInsert) {
                 const filePath = `uploads/documents/${f.doc.filename}`;
                 await client.query('INSERT INTO booking_documents (booking_id, uploaded_by_user_id, document_type, file_name, file_path, mime_type, file_size_bytes) VALUES ($1, $2, $3, $4, $5, $6, $7)', [data.booking_id, data.user_id, f.type, f.doc.originalname, filePath, f.doc.mimetype, f.doc.size]);
@@ -917,22 +937,38 @@ exports.editBookingRequest = async (data) => {
         }
 
         const tariffsRes = await client.query('SELECT * FROM room_tariffs');
+        const configRes = await client.query('SELECT gst_rate FROM institution_configs WHERE config_id = 1');
+        const gstRate = configRes.rows[0] ? Number(configRes.rows[0].gst_rate) : 12;
         const calculatedTotal = estimateBookingTotalFromTariffs({
             category_id: data.category_id || existing.category_id,
             room_type: data.room_type || existing.room_type,
             rooms_required: data.rooms_required || existing.rooms_required,
             extra_beds: data.extra_beds || existing.extra_beds
-        }, tariffsRes.rows, data.guests);
+        }, tariffsRes.rows, data.guests, gstRate);
 
         await client.query(
             `UPDATE booking_requests SET total_estimated_amount = $1 WHERE booking_id = $2`,
             [calculatedTotal, data.booking_id]
         );
 
+        // Handle document preservation and uploads
+        if (data.keep_document_1 === false) {
+            await client.query("DELETE FROM booking_documents WHERE booking_id = $1 AND document_type = 'Primary Document'", [data.booking_id]);
+        }
+        if (data.keep_document_2 === false) {
+            await client.query("DELETE FROM booking_documents WHERE booking_id = $1 AND document_type = 'Additional Document'", [data.booking_id]);
+        }
+
         if (data.files && (data.files.document_1 || data.files.document_2)) {
             const filesToInsert = [];
-            if (data.files.document_1 && data.files.document_1[0]) filesToInsert.push({ doc: data.files.document_1[0], type: 'Primary Document' });
-            if (data.files.document_2 && data.files.document_2[0]) filesToInsert.push({ doc: data.files.document_2[0], type: 'Additional Document' });
+            if (data.files.document_1 && data.files.document_1[0]) {
+                await client.query("DELETE FROM booking_documents WHERE booking_id = $1 AND document_type = 'Primary Document'", [data.booking_id]);
+                filesToInsert.push({ doc: data.files.document_1[0], type: 'Primary Document' });
+            }
+            if (data.files.document_2 && data.files.document_2[0]) {
+                await client.query("DELETE FROM booking_documents WHERE booking_id = $1 AND document_type = 'Additional Document'", [data.booking_id]);
+                filesToInsert.push({ doc: data.files.document_2[0], type: 'Additional Document' });
+            }
             for (const f of filesToInsert) {
                 const filePath = `uploads/documents/${f.doc.filename}`;
                 await client.query('INSERT INTO booking_documents (booking_id, uploaded_by_user_id, document_type, file_name, file_path, mime_type, file_size_bytes) VALUES ($1, $2, $3, $4, $5, $6, $7)', [data.booking_id, data.user_id, f.type, f.doc.originalname, filePath, f.doc.mimetype, f.doc.size]);

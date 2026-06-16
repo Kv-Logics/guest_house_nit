@@ -6,15 +6,22 @@ import LoadingSpinner from './LoadingSpinner';
 import { getFormattedBookingId } from '../../utils/booking';
 
 export default function AdminPaymentVerificationModal({ booking, onClose, onSuccess }) {
-    const [activeForm, setActiveForm] = useState('NONE'); // 'NONE', 'REJECT', 'WARN'
+    const [activeForm, setActiveForm] = useState('NONE'); // 'NONE', 'REJECT', 'WARN', 'POS_INIT'
     const [reason, setReason] = useState('');
     const [warningLevel, setWarningLevel] = useState(1);
+    const [posRef, setPosRef] = useState('');
 
     const { data, isLoading } = useQuery({
         queryKey: ['paymentHistory', booking.booking_id],
         queryFn: () => paymentService.getProofHistory(booking.booking_id),
         enabled: !!booking
     });
+
+    React.useEffect(() => {
+        if (data?.data?.warnings) {
+            setWarningLevel(data.data.warnings.length + 1);
+        }
+    }, [data]);
 
     const verifyMutation = useMutation({
         mutationFn: ({ action, reason }) => paymentService.verifyPayment(booking.booking_id, action, reason),
@@ -27,7 +34,12 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
     });
 
     const posMutation = useMutation({
-        mutationFn: () => paymentService.posComplete(booking.booking_id),
+        mutationFn: (refNum) => paymentService.posComplete(booking.booking_id, refNum),
+        onSuccess: () => onSuccess()
+    });
+
+    const posConfirmMutation = useMutation({
+        mutationFn: () => paymentService.posConfirm(booking.booking_id),
         onSuccess: () => onSuccess()
     });
 
@@ -37,9 +49,15 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
         }
     };
 
-    const handlePosComplete = () => {
-        if (window.confirm('Has the payment been successfully collected via POS/Cash at the Front Desk?')) {
-            posMutation.mutate();
+    const handlePosCompleteSubmit = () => {
+        if (!posRef.trim()) return alert('Transaction reference is required.');
+        posMutation.mutate(posRef);
+        setActiveForm('NONE');
+    };
+
+    const handlePosConfirm = () => {
+        if (window.confirm('Confirm that this POS/Online transaction is reflected in the bank and mark it as Paid?')) {
+            posConfirmMutation.mutate();
         }
     };
 
@@ -54,10 +72,10 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
     };
 
     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const history = data?.data || { proofs: [], warnings: [] };
+    const history = data?.data || { proofs: [], warnings: [], userBookings: [] };
     const latestProof = history.proofs[0];
     const hasUnreviewedProof = latestProof && latestProof.status === 'SUBMITTED';
-    const isProcessing = verifyMutation.isPending || warnMutation.isPending || posMutation.isPending;
+    const isProcessing = verifyMutation.isPending || warnMutation.isPending || posMutation.isPending || posConfirmMutation.isPending;
 
     return (
         <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -113,7 +131,20 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
                             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                                 <h4 className="text-sm font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Administrative Actions</h4>
                                 
-                                {hasUnreviewedProof ? (
+                                {booking.payment_state === 'PAYMENT_PENDING_CONFIRMATION' ? (
+                                    <>
+                                        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-xs mb-2">
+                                            <strong>Waiting Bank Confirmation:</strong>
+                                            <div className="mt-1 font-mono font-bold break-all">Ref: {booking.pos_reference || 'N/A'}</div>
+                                        </div>
+                                        <button onClick={handlePosConfirm} disabled={isProcessing} className="w-full flex items-center px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-sm rounded-xl transition-colors shadow-sm">
+                                            <CheckCircle className="w-5 h-5 mr-3" /> Confirm & Mark as Paid
+                                        </button>
+                                        <button onClick={() => { setActiveForm('WARN'); setReason(''); }} disabled={isProcessing} className="w-full flex items-center px-4 py-3 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:border-amber-300 font-bold text-sm rounded-xl border border-amber-200 transition-colors shadow-sm">
+                                            <AlertTriangle className="w-5 h-5 mr-3" /> Issue Payment Warning
+                                        </button>
+                                    </>
+                                ) : hasUnreviewedProof ? (
                                     <>
                                         <button onClick={handleApprove} disabled={isProcessing} className="w-full flex items-center px-4 py-3 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 font-bold text-sm rounded-xl border border-emerald-200 transition-colors shadow-sm">
                                             <CheckCircle className="w-5 h-5 mr-3" /> Approve & Mark as Paid
@@ -124,8 +155,8 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
                                     </>
                                 ) : (
                                     <>
-                                        <button onClick={handlePosComplete} disabled={isProcessing} className="w-full flex items-center px-4 py-3 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 font-bold text-sm rounded-xl border border-indigo-200 transition-colors shadow-sm">
-                                            <CreditCard className="w-5 h-5 mr-3" /> POS / Cash Received at Desk
+                                        <button onClick={() => { setActiveForm('POS_INIT'); setPosRef(''); }} disabled={isProcessing} className="w-full flex items-center px-4 py-3 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 font-bold text-sm rounded-xl border border-indigo-200 transition-colors shadow-sm">
+                                            <CreditCard className="w-5 h-5 mr-3" /> Initiate POS / Online Payment
                                         </button>
                                         <button onClick={() => { setActiveForm('WARN'); setReason(''); }} disabled={isProcessing} className="w-full flex items-center px-4 py-3 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:border-amber-300 font-bold text-sm rounded-xl border border-amber-200 transition-colors shadow-sm">
                                             <AlertTriangle className="w-5 h-5 mr-3" /> Issue Payment Warning
@@ -147,13 +178,29 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
                             </div>
                         )}
 
+                        {activeForm === 'POS_INIT' && (
+                            <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-200 animate-fade-in shadow-sm">
+                                <label className="block text-xs font-bold text-indigo-900 mb-2">POS / Online Transaction Reference *</label>
+                                <input type="text" value={posRef} onChange={e => setPosRef(e.target.value)} placeholder="e.g. TXN123456789" className="w-full rounded-xl border border-indigo-200 p-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 mb-3 bg-white font-mono" />
+                                <div className="flex gap-2">
+                                    <button onClick={() => setActiveForm('NONE')} className="flex-1 py-2 bg-white text-slate-600 font-bold text-sm rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">Cancel</button>
+                                    <button onClick={handlePosCompleteSubmit} disabled={isProcessing} className="flex-1 py-2 bg-indigo-600 text-white font-bold text-sm rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">{isProcessing ? 'Processing...' : 'Submit Reference'}</button>
+                                </div>
+                            </div>
+                        )}
+
                         {activeForm === 'WARN' && (
                             <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 animate-fade-in shadow-sm">
-                                <label className="block text-xs font-bold text-amber-900 mb-2">Warning Level</label>
-                                <select value={warningLevel} onChange={e => setWarningLevel(Number(e.target.value))} className="w-full rounded-xl border border-amber-200 p-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500 mb-3 bg-white">
-                                    <option value={1}>1st Warning - Friendly Reminder</option>
-                                    <option value={2}>2nd Warning - Urgent</option>
-                                    <option value={3}>3rd Warning - Final Notice</option>
+                                <label className="block text-xs font-bold text-amber-900 mb-1">Warning Level</label>
+                                <p className="text-[10px] text-amber-700 font-bold mb-2 uppercase tracking-wider">
+                                    Consolidated Next Warning Level: {history.warnings?.length + 1 || 1}
+                                </p>
+                                <select value={warningLevel} onChange={e => setWarningLevel(Number(e.target.value))} className="w-full rounded-xl border border-amber-200 p-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500 mb-3 bg-white font-bold text-slate-700">
+                                    {Array.from({ length: Math.max(3, (history.warnings?.length || 0) + 1) }).map((_, i) => (
+                                        <option key={i + 1} value={i + 1}>
+                                            Warning Level {i + 1} {i + 1 === (history.warnings?.length || 0) + 1 ? ' (Recommended Next)' : ''}
+                                        </option>
+                                    ))}
                                 </select>
                                 <label className="block text-xs font-bold text-amber-900 mb-2">Custom Message *</label>
                                 <textarea value={reason} onChange={e => setReason(e.target.value)} rows="3" placeholder="Please settle your dues immediately..." className="w-full rounded-xl border border-amber-200 p-3 text-sm outline-none focus:ring-2 focus:ring-amber-500 mb-3" />
@@ -167,15 +214,42 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
                         {/* Warning History Preview */}
                         {history.warnings && history.warnings.length > 0 && (
                             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mt-4">
-                                <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center"><Clock className="w-4 h-4 mr-2 text-amber-500" /> Warning History</h4>
-                                <div className="space-y-2">
+                                <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center"><Clock className="w-4 h-4 mr-2 text-amber-500" /> Consolidated Warning History ({history.warnings.length})</h4>
+                                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
                                     {history.warnings.map((w, idx) => (
                                         <div key={idx} className="bg-amber-50 border border-amber-100 p-3 rounded-xl">
                                             <div className="flex justify-between items-center mb-1">
-                                                <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider bg-amber-200/50 px-2 py-0.5 rounded">Level {w.warning_level}</span>
+                                                <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider bg-amber-200/50 px-2 py-0.5 rounded">Level {w.warning_level} {w.booking_seq && `(Booking #${w.booking_seq})`}</span>
                                                 <span className="text-[10px] font-bold text-slate-500">{new Date(w.created_at).toLocaleString()}</span>
                                             </div>
                                             <p className="text-xs text-amber-950 font-medium italic">&quot;{w.message}&quot;</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Applicant's Bookings Panel */}
+                        {history.userBookings && history.userBookings.length > 1 && (
+                            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mt-4">
+                                <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center">
+                                    <FileText className="w-4 h-4 mr-2 text-indigo-500" /> 
+                                    All Applications for this Applicant ({history.userBookings.length})
+                                </h4>
+                                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                                    {history.userBookings.map((b) => (
+                                        <div key={b.booking_id} className={`p-2.5 rounded-xl border text-xs flex justify-between items-center ${b.booking_id === booking.booking_id ? 'bg-indigo-50/50 border-indigo-200 font-semibold' : 'bg-slate-50 border-slate-100'}`}>
+                                            <div>
+                                                <span className="font-bold font-mono">#{b.booking_seq}</span>
+                                                <span className="text-slate-400 mx-2">•</span>
+                                                <span>₹{b.total_estimated_amount}</span>
+                                                <span className="text-slate-400 mx-2">•</span>
+                                                <span className="text-slate-500 font-medium">In: {new Date(b.arrival_datetime).toLocaleDateString()}</span>
+                                            </div>
+                                            <div className="flex gap-1.5">
+                                                <span className="px-1.5 py-0.5 rounded bg-slate-200/60 text-slate-700 text-[10px] uppercase font-bold">{b.booking_state.replace(/_/g, ' ')}</span>
+                                                <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${b.payment_state === 'PAID' ? 'bg-emerald-100 text-emerald-800' : b.payment_state.includes('WARNING') ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{b.payment_state.replace(/_/g, ' ')}</span>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>

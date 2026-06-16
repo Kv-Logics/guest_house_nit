@@ -37,9 +37,11 @@ export const receptionService = {
     api.get(`/reception/completed-payments?limit=${limit}&offset=${offset}&search=${encodeURIComponent(search)}&month_filter=${monthFilter}`),
   confirmPayment: async (bookingId, payload) => api.post(`/reception/bookings/${bookingId}/confirm-payment`, payload),
   
-  // Institution Config
   getInstitutionConfig: async () => api.get('/reception/institution-config'),
   updateInstitutionConfig: async (payload) => api.post('/reception/institution-config', payload),
+  getSystemSettings: async () => api.get('/reception/system-settings'),
+  updateSystemSettings: async (payload) => api.post('/reception/system-settings', payload),
+  testSMTP: async (recipientEmail) => api.post('/reception/test-smtp', { recipientEmail }),
   
   decodeQrCode: async (code) => api.get(`/reception/decode-qr?code=${encodeURIComponent(code)}`),
   
