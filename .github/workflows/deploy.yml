@@ -18,12 +18,12 @@ jobs:
           git fetch origin main
           git reset --hard FETCH_HEAD
 
-      # The .env.production file lives in the FTP root one level above the project folder.
-      # FileZilla uploads it to: /var/www/rooms.nitt.edu/.env.production
-      # The project code is at:  /var/www/rooms.nitt.edu/guesthouse/
+      # The .env file lives in the FTP root one level above the project folder.
+      # FileZilla uploads it to: /www/wwwroot/rooms.nitt.edu/.env
+      # The project code is at:  /www/wwwroot/rooms.nitt.edu/guesthouse/
       # This step copies it into the project root so docker-compose can read it.
       - name: Copy .env from FTP root
-        run: cp /var/www/rooms.nitt.edu/.env .env
+        run: cp /www/wwwroot/rooms.nitt.edu/.env .env
 
       - name: Build and start containers
         run: docker compose up --build -d
