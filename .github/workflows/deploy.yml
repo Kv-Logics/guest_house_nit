@@ -26,7 +26,7 @@ jobs:
         run: cp /www/wwwroot/rooms.nitt.edu/.env .env
 
       - name: Build and start containers
-        run: docker compose up --build -d
+        run: sudo docker compose up --build -d
 
       - name: Remove unused Docker images (keep disk clean)
-        run: docker image prune -f
+        run: sudo docker image prune -f
