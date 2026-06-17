@@ -16,7 +16,7 @@ exports.findUserByEmail = async (email) => {
 exports.findUserById = async (id) => {
     // Parameterized query by Primary Key
     const query = `
-        SELECT u.user_id, u.full_name, u.email, r.role_name as role, u.department, u.designation 
+        SELECT u.user_id, u.full_name, u.email, u.password_hash, r.role_name as role, u.department, u.designation 
         FROM users u 
         LEFT JOIN user_roles ur ON u.user_id = ur.user_id 
         LEFT JOIN roles r ON ur.role_id = r.role_id 
@@ -24,4 +24,13 @@ exports.findUserById = async (id) => {
     `;
     const result = await db.query(query, [id]);
     return result.rows[0];
+};
+
+exports.updateUserPassword = async (userId, passwordHash) => {
+    const query = `
+        UPDATE users 
+        SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = $2
+    `;
+    await db.query(query, [passwordHash, userId]);
 };

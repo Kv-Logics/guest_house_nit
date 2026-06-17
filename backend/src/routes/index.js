@@ -11,6 +11,7 @@ const billingRoutes = require('./billing.routes');
 const reportsRoutes = require('./reports.routes');
 const bulkBookingRoutes = require('./bulkBooking.routes');
 
+
 // Helper to safely mount routers and prevent application crashes
 const safeMount = (path, routeModule) => {
     // If exported correctly: `module.exports = router;`
@@ -39,5 +40,6 @@ safeMount('/coordinator', coordinatorRoutes);
 safeMount('/billing', billingRoutes);
 safeMount('/reports', reportsRoutes);
 safeMount('/bulk-bookings', bulkBookingRoutes);
+
 
 module.exports = router;

@@ -69,7 +69,12 @@ export default function RoomMatrixTab({ allRooms, isRoomAvailableForDates }) {
                         {allRooms.map(room => (
                             <tr key={room.roomId || room.room_number} className="hover:bg-slate-50">
                                 <td className="p-3 font-bold text-slate-700 border border-slate-200 sticky left-0 bg-white z-10 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
-                                    {room.room_number || room.roomId}
+                                    <div className="flex flex-col">
+                                        <span className="text-sm">{room.room_number || room.roomId}</span>
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mt-1 leading-none">
+                                            {room.blockName === 'Marudham GH' ? 'Marudham' : room.blockName === 'Kurinji GH' ? 'Kurinji' : String(room.blockName || '').replace(' GH', '')}
+                                        </span>
+                                    </div>
                                 </td>
                                 {dates.map((d, i) => {
                                     const nextDay = new Date(d);

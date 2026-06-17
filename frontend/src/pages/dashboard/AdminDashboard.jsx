@@ -51,7 +51,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
 
   const userRole = String(user?.role || '').trim().toLowerCase();
-  const isSuperAdmin = ['super_admin', 'admin', 'guest_house_admin'].includes(userRole);
+  const isSuperAdmin = ['admin', 'guest_house_admin'].includes(userRole);
   const isApprover =
     isSuperAdmin ||
     ['hod', 'dean', 'registrar'].includes(userRole) ||
@@ -217,7 +217,7 @@ export default function AdminDashboard() {
               Welcome, {user.faculty_name || user.full_name || user.email.split('@')[0]}
             </p>
             <p className="text-[11px] font-black text-blue-600 bg-blue-50/60 border border-blue-100 rounded-full px-3 py-1 inline-block mt-3 capitalize tracking-wider">
-              {user.role === 'super_admin' ? 'GH Chairperson' : String(user.role || '').replace(/_/g, ' ')}
+              {user.role === 'guest_house_admin' ? 'GH Chairperson' : String(user.role || '').replace(/_/g, ' ')}
             </p>
           </div>
         </div>
@@ -294,19 +294,7 @@ export default function AdminDashboard() {
               <span>Occupancy</span>
             </button>
 
-            {isSuperAdmin && userRole !== 'guest_house_admin' && (
-            <button
-              onClick={() => setActiveTab('stay_register')}
-              className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all ${
-                activeTab === 'stay_register' 
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
-              }`}
-            >
-              <FileText className="w-5 h-5" />
-              <span>Stay Register</span>
-            </button>
-            )}
+
 
             {isSuperAdmin && (
               <button
@@ -353,7 +341,7 @@ export default function AdminDashboard() {
           </div>
           
           <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-            {isApprover && activeTab !== 'room_matrix' && activeTab !== 'occupancy' && activeTab !== 'master_logs' && (
+            {isApprover && activeTab !== 'room_matrix' && activeTab !== 'occupancy' && activeTab !== 'master_logs' && activeTab !== 'server_logs' && (
               <>
                 <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-auto flex-1 sm:flex-none">
                   <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>

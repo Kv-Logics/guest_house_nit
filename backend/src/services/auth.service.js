@@ -1,10 +1,9 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const authRepository = require('../repositories/auth.repository');
 const logger = require('../utils/logger');
 const mailService = require('./mail.service');
-
-// In-memory store for OTPs (For production, this could be moved to Redis or a DB table)
-const otpStore = new Map();
+const redis = require('../db/redis');
 
 exports.requestOtp = async (email) => {
     const user = await authRepository.findUserByEmail(email);
@@ -14,9 +13,9 @@ exports.requestOtp = async (email) => {
 
     // Generate a 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes expiry
 
-    otpStore.set(email, { otp, expiresAt });
+    // Store in Redis with 5 minutes (300 seconds) expiry
+    await redis.set(`otp:${email}`, otp, 'EX', 300);
 
     // Send OTP via SMTP (relying only on environment variables as specified)
     try {
@@ -42,43 +41,75 @@ exports.requestOtp = async (email) => {
 
     logger.info(`[DEV-ONLY] OTP for ${email} is: ${otp}`);
     
-    // Auto-fill OTP for testing
+    // Auto-fill OTP for testing (optional, depending on environment)
     return otp;
 };
 
 exports.verifyOtp = async (email, otp) => {
-    const stored = otpStore.get(email);
+    const storedOtp = await redis.get(`otp:${email}`);
     
-    if (!stored) {
-        logger.warn(`Failed login attempt for ${email}: OTP not found or already used.`);
+    if (!storedOtp) {
+        logger.warn(`Failed login attempt for ${email}: OTP not found or expired.`);
         throw new Error('OTP not requested or expired.');
     }
-    if (Date.now() > stored.expiresAt) {
-        otpStore.delete(email);
-        logger.warn(`Failed login attempt for ${email}: OTP expired.`);
-        throw new Error('OTP has expired.');
-    }
-    if (stored.otp !== otp) {
+    if (storedOtp !== otp) {
         logger.warn(`Failed login attempt for ${email}: Invalid OTP provided.`);
         throw new Error('Invalid OTP.');
     }
 
-    otpStore.delete(email); // Clear OTP after successful use
-
-    logger.info(`Successful login for email: ${email}`);
+    // Clear OTP after successful use
+    await redis.del(`otp:${email}`);
 
     const user = await authRepository.findUserByEmail(email);
     if (!user) throw new Error('User not found.');
 
+    logger.info(`OTP Verified successfully for email: ${email}`);
+
+    // Always return a setup token. The OTP flow acts as both "Setup Password" and "Forgot Password"
+    const setupToken = jwt.sign(
+        { id: user.user_id, email: user.email, action: 'setup_password' },
+        process.env.JWT_SECRET,
+        { expiresIn: '15m' }
+    );
+    return {
+        requirePasswordSetup: true,
+        setupToken
+    };
+};
+
+exports.setupPassword = async (userId, password) => {
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(password, salt);
+    await authRepository.updateUserPassword(userId, hash);
+    logger.info(`Password set successfully for user ID: ${userId}`);
+    return true;
+};
+
+exports.loginWithPassword = async (email, password) => {
+    const user = await authRepository.findUserByEmail(email);
+    if (!user) throw new Error('Invalid credentials.');
+
+    if (!user.password_hash) {
+        throw new Error('Password not set. Please use OTP to setup your password.');
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+        logger.warn(`Failed password login attempt for ${email}`);
+        throw new Error('Invalid credentials.');
+    }
+
+    logger.info(`Successful password login for email: ${email}`);
+
     const token = jwt.sign(
         { 
-            id: user.user_id,          // Required payload
-            user_id: user.user_id,     // Retained for backward compatibility with booking endpoints
+            id: user.user_id,
+            user_id: user.user_id,
             email: user.email, 
             role: user.role 
         }, 
         process.env.JWT_SECRET,
-        { expiresIn: '7d' }            // 7 Days expiration requirement
+        { expiresIn: '7d' }
     );
 
     return {

@@ -101,6 +101,13 @@ export default function RoomMatrix({
                                             <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border-2 border-white shadow-sm" title="Guest Overstaying!" />
                                         )}
                                         <span className="font-bold text-sm tracking-tight">{room.roomId}</span>
+                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider leading-none mt-0.5">
+                                            {(() => {
+                                                const num = String(room.roomId).trim();
+                                                const isMarudham = (parseInt(num, 10) >= 41 && parseInt(num, 10) <= 56) || num === 'B2';
+                                                return isMarudham ? 'Marudham' : 'Kurinji';
+                                            })()}
+                                        </span>
                                         {isBulkBlocked ? (
                                             <span className="text-[7px] font-bold px-1 py-0.5 mt-0.5 rounded leading-none uppercase tracking-wider bg-slate-400 text-white">
                                                 BULK BLOCKED

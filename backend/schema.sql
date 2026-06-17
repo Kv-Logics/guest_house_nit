@@ -37,6 +37,25 @@ DROP TABLE IF EXISTS roles CASCADE;
 -- 2. ENABLE EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
+-- 2.5 INSTITUTION CONFIGS
+DROP TABLE IF EXISTS institution_configs CASCADE;
+CREATE TABLE institution_configs (
+    config_id SERIAL PRIMARY KEY,
+    legal_name VARCHAR(255),
+    gstin VARCHAR(50),
+    pan VARCHAR(50),
+    address TEXT,
+    signatory_name VARCHAR(100),
+    signatory_designation VARCHAR(100),
+    invoice_prefix VARCHAR(50),
+    sac_code VARCHAR(50),
+    financial_year VARCHAR(20),
+    booking_prefix VARCHAR(50),
+    gst_rate NUMERIC DEFAULT 12,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 3. ENTERPRISE RBAC ARCHITECTURE
 -- Roles define a job function or title (e.g., 'HOD', 'Admin').
 CREATE TABLE roles (
@@ -70,6 +89,7 @@ CREATE TABLE users (
     user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     full_name VARCHAR(120) NOT NULL,
     email VARCHAR(120) UNIQUE NOT NULL,
+    password_hash VARCHAR(255),
     department VARCHAR(100),
     designation VARCHAR(100),
     employee_id VARCHAR(50),
@@ -137,6 +157,7 @@ CREATE TABLE rooms (
 CREATE TABLE booking_requests (
     booking_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     booking_seq SERIAL,
+    formatted_id VARCHAR(50),
     user_id UUID REFERENCES users(user_id),
     category_id INTEGER REFERENCES category_rules(category_id),
     purpose_of_visit TEXT NOT NULL,

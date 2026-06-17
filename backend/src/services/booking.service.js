@@ -211,7 +211,7 @@ exports.submitBookingRequest = async (data) => {
         let initialState = BOOKING_STATUS.PENDING_APPROVER;
         let autoApproveLog = null;
 
-        if (['super_admin', 'guest_house_admin'].includes(userRole)) {
+        if (['guest_house_admin'].includes(userRole)) {
             if (String(data.category_id) === '2') {
                 initialState = BOOKING_STATUS.PENDING_APPROVER;
                 autoApproveLog = null;
@@ -391,7 +391,7 @@ exports.reapplyBookingRequest = async (data) => {
         let newState = BOOKING_STATUS.PENDING_APPROVER;
         let autoApproveLog = null;
 
-        if (['super_admin', 'guest_house_admin'].includes(userRole)) {
+        if (['guest_house_admin'].includes(userRole)) {
             if (String(data.category_id) === '2') {
                 newState = BOOKING_STATUS.PENDING_APPROVER;
             } else {
@@ -646,7 +646,7 @@ exports.requestStayExtension = async (bookingId, userId, guestExtensions) => {
         const userRole = userRes.rows[0].role;
 
         let autoApproveLog = null;
-        const instantApply = ['super_admin', 'guest_house_admin'].includes(userRole);
+        const instantApply = ['guest_house_admin'].includes(userRole);
 
         if (instantApply) {
             autoApproveLog = 'Stay extension auto-approved (guest house admin).';
@@ -718,7 +718,7 @@ exports.cancelBooking = async (bookingId, user) => {
 
         const userId = user.user_id || user.id;
         const userRole = String(user.role).toLowerCase();
-        const isAdmin = ['super_admin', 'guest_house_admin'].includes(userRole);
+        const isAdmin = ['guest_house_admin'].includes(userRole);
         const isApprover = booking.assigned_approver_id === userId;
         const isApplicant = booking.user_id === userId;
 
@@ -819,11 +819,11 @@ exports.editBookingRequest = async (data) => {
         const existing = existingRes.rows[0];
 
         const userRole = String(data.role).toLowerCase();
-        const isAdmin = ['super_admin', 'guest_house_admin', 'gh_coordinator'].includes(userRole);
+        const isAdmin = ['guest_house_admin', 'gh_coordinator'].includes(userRole);
         const isApplicant = existing.user_id === data.user_id;
 
         if (existing.booking_type === 'BULK_BOOKING') {
-            const allowedStaffRoles = ['super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff'];
+            const allowedStaffRoles = ['guest_house_admin', 'gh_coordinator', 'reception_staff'];
             if (!allowedStaffRoles.includes(userRole)) {
                 throw new Error('Applicants are not authorized to edit bulk bookings.');
             }

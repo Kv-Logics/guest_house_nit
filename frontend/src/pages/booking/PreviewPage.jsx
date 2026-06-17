@@ -372,7 +372,7 @@ export default function PreviewPage() {
     4: 'CAT IV (Personal)',
   };
 
-  const isAdmin = ['super_admin', 'guest_house_admin'].includes(user?.role);
+  const isAdmin = ['guest_house_admin'].includes(user?.role);
   const isAdminCat2 = isAdmin && String(formData.category_id) === '2';
   const isSelfApproval = formData.assigned_approver_id === user?.user_id || formData.assigned_approver_id === user?.id;
 

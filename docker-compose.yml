@@ -7,6 +7,7 @@ services:
   # ─────────────────────────────────────────
   db:
     image: postgres:15-alpine
+    container_name: gh-db
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -25,16 +26,33 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────
+  # Redis Cache / OTP Store
+  # ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: gh-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────
   # Node.js Backend (Express API)
   # ─────────────────────────────────────────
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: gh-backend
     env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379
     volumes:
       - uploads:/app/uploads    # Named volume so uploads persist across deployments
       - logs:/app/logs          # Named volume so application logs persist across deployments
+      - ./Data_Of_Users:/app/Data_Of_Users:ro
+      - ./Data_Of_Rooms:/app/Data_Of_Rooms:ro
     depends_on:
       db:
         condition: service_healthy
@@ -54,6 +72,7 @@ services:
         VITE_API_URL: /api
         VITE_ENABLE_AUTOFILL: "false"
         VITE_ENABLE_TIME_MACHINE: "false"
+    container_name: gh-frontend
     ports:
       - "9006:80"               # The only host-exposed port — reverse proxy targets this
     depends_on:
@@ -62,6 +81,8 @@ services:
 
 volumes:
   pgdata:
+    driver: local
+  redisdata:
     driver: local
   uploads:
     driver: local

@@ -7,10 +7,14 @@ const { requireRole } = require('../middlewares/role.middleware');
 const { sendSuccess } = require('../utils/response');
 
 // All bulk booking routes require reception or admin roles
-const bulkBookingRoles = ['reception_staff', 'super_admin', 'guest_house_admin', 'gh_coordinator'];
+const bulkBookingRoles = ['reception_staff', 'guest_house_admin', 'gh_coordinator'];
 
 router.use(requireAuth);
 router.use(requireRole(bulkBookingRoles));
+
+// Mount stay records routes
+const bulkStayRecordsRoutes = require('./bulkStayRecords.routes');
+router.use('/:id/stay-records', bulkStayRecordsRoutes);
 
 // Create Bulk Booking
 router.post('/', async (req, res, next) => {

@@ -22,12 +22,14 @@ const ProtectedRoute = ({ allowedRoles = [] }) => {
   // Strict Role validation against arrays passed into Route configurations
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
     // Fallback routing: bounce unauthorized users back to their native dashboards
-    if ([ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN].includes(user.role))
+    if ([ROLES.GUEST_HOUSE_ADMIN].includes(user.role))
       return <Navigate to="/admin/dashboard" replace />;
     if ([ROLES.RECEPTIONIST].includes(user.role))
       return <Navigate to="/reception/dashboard" replace />;
     if ([ROLES.REGISTRAR, ROLES.DEAN, ROLES.HOD, ROLES.DIRECTOR].includes(user.role))
       return <Navigate to="/approvals/dashboard" replace />;
+    if (user.role === ROLES.GH_COORDINATOR)
+      return <Navigate to="/coordinator/dashboard" replace />;
     return <Navigate to="/dashboard" replace />;
   }
 

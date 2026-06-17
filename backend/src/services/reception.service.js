@@ -616,7 +616,7 @@ exports.checkOut = async (bookingId, checkedOutBy, overrideNow = null, payload =
 
         // --- PAYMENT GATE ENFORCEMENT ---
         // (Removed to allow check-out without prior payment. Payment collected via Reception Payments Tab)
-        const ADMIN_ROLES = ['super_admin', 'guest_house_admin'];
+        const ADMIN_ROLES = ['guest_house_admin'];
         const isForceCheckout = payload?.force === true && ADMIN_ROLES.includes(payload?.userRole);
 
         // If force checkout by admin — write override log entry (skip for category 1)
@@ -820,7 +820,7 @@ exports.checkOutStay = async (stayId, checkedOutBy, overrideNow = null, payload 
 
         // --- PAYMENT GATE ENFORCEMENT ---
         // (Removed to allow check-out without prior payment. Payment collected via Reception Payments Tab)
-        const ADMIN_ROLES = ['super_admin', 'guest_house_admin'];
+        const ADMIN_ROLES = ['guest_house_admin'];
         const isForceCheckout = payload?.force === true && ADMIN_ROLES.includes(payload?.userRole);
         const bookingId = stay.booking_id;
 

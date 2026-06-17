@@ -15,6 +15,9 @@ const routes = require('./routes/index');
 
 const app = express();
 
+// Trust proxy for rate limiter (necessary behind Nginx)
+app.set('trust proxy', 1);
+
 app.use(requestLogger);
 
 // Disable X-Powered-By header explicitly at application level

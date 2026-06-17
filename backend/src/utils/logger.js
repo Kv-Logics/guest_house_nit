@@ -32,7 +32,10 @@ function sanitizeObject(obj) {
 const log = (level, message, meta) => {
   const timestamp = new Date().toISOString();
   const sanitizedMeta = meta ? JSON.stringify(sanitizeObject(meta), null, 2) : '';
-  console[level](`[${timestamp}] [${level.toUpperCase()}] ${message}`, sanitizedMeta);
+  const logStr = `[${timestamp}] [${level.toUpperCase()}] ${message} ${sanitizedMeta}`;
+  
+  // Console logging (Docker will capture this automatically)
+  console[level](logStr);
 };
 
 const logger = {

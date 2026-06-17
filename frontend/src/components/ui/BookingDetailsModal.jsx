@@ -10,6 +10,20 @@ import nitLogo from '../../assets/images/nitt_logo.svg';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
 import { QRCodeCanvas } from 'qrcode.react';
 import { getFormattedBookingId } from '../../utils/booking';
+const formatRoomsWithGH = (roomsString) => {
+    if (!roomsString) return '';
+    return roomsString.split(',').map(r => {
+        const num = r.trim();
+        if (!num) return '';
+        const isMarudham = (parseInt(num, 10) >= 41 && parseInt(num, 10) <= 56) || num === 'B2';
+        if (isMarudham) return `${num} (Marudham)`;
+        const isKurinji = (parseInt(num, 10) >= 11 && parseInt(num, 10) <= 40) || 
+                          ['F1', 'F2', 'F3', 'A1', 'A2', 'B1'].includes(num);
+        if (isKurinji) return `${num} (Kurinji)`;
+        return num;
+    }).filter(Boolean).join(', ');
+};
+
 const getActionStyle = (action) => {
     const act = String(action || '').toUpperCase();
     if (act.includes('REJECT') || act === 'CANCELLED') {
@@ -96,7 +110,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
     const [showInvoice, setShowInvoice] = useState(false);
     const qrRef = useRef(null);
 
-    const isAuthorityOrAdmin = user && ['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff'].includes(user.role);
+    const isAuthorityOrAdmin = user && ['hod', 'dean', 'registrar', 'director', 'guest_house_admin', 'gh_coordinator', 'reception_staff'].includes(user.role);
 
     const { data, isLoading } = useQuery({
         queryKey: ['booking', bookingId],
@@ -113,7 +127,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
         enabled: !!bookingId
     });
 
-    const canViewOverrides = user && ['gh_coordinator', 'reception_staff', 'super_admin', 'guest_house_admin'].includes(user.role);
+    const canViewOverrides = user && ['gh_coordinator', 'reception_staff', 'guest_house_admin'].includes(user.role);
 
     const { data: overridesRes } = useQuery({
         queryKey: ['bookingOverrides', bookingId],
@@ -168,7 +182,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
 
     const renderTimeline = (booking) => {
         const isSuiteRoom = booking.room_type === 'Suite Room' || booking.room_type === 'Mini Suite Room' || booking.booking_state === 'PENDING_DIRECTOR' || booking.booking_state === 'DIRECTOR_REJECTED';
-        const isApplicant = !user || !['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff'].includes(user.role);
+        const isApplicant = !user || !['hod', 'dean', 'registrar', 'director', 'guest_house_admin', 'gh_coordinator', 'reception_staff'].includes(user.role);
 
         const steps = isSuiteRoom ? (
             isApplicant ? [
@@ -316,7 +330,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
     };
 
     const renderAdminCat2Timeline = (booking) => {
-        const isApplicant = !user || !['hod', 'dean', 'registrar', 'director', 'super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff'].includes(user.role);
+        const isApplicant = !user || !['hod', 'dean', 'registrar', 'director', 'guest_house_admin', 'gh_coordinator', 'reception_staff'].includes(user.role);
         const steps = isApplicant ? [
             { id: 1, title: 'Submitted', description: 'Admin Application' },
             { id: 2, title: 'Authority', description: 'Authority Review / Approved' }
@@ -422,7 +436,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
         );
     };
 
-    const isAdminApplicant = ['super_admin', 'guest_house_admin'].includes(booking?.applicant_role);
+    const isAdminApplicant = ['guest_house_admin'].includes(booking?.applicant_role);
     const isAdminCat2 = isAdminApplicant && String(booking?.category_id) === '2';
     const overrideLogs = overridesRes?.data || [];
 
@@ -609,7 +623,7 @@ export default function BookingDetailsModal({ bookingId, onClose }) {
                                                 </div>
                                             )}
                                         </div>
-                                        {booking.allocated_room_numbers && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Allocated Room(s)</p><p className="text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-100 inline-block">{booking.allocated_room_numbers}</p></div>}
+                                        {booking.allocated_room_numbers && <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Allocated Room(s)</p><p className="text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-100 inline-block">{formatRoomsWithGH(booking.allocated_room_numbers)}</p></div>}
                                         <div><p className="text-slate-500 font-medium mb-1 text-xs uppercase tracking-wider">Est. Amount</p><p className="text-emerald-700 font-bold">₹{booking.total_estimated_amount || booking.estimated_amount || 0}</p></div>
                                         {booking.room_priority && (
                                             <div className="col-span-1 sm:col-span-2 md:col-span-4 mt-2">

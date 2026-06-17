@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Users, Receipt, Loader2, FileText, History } from 'lucide-react';
+import { ArrowLeft, Users, Receipt, Loader2, FileText, History, BedDouble } from 'lucide-react';
 import { getFormattedBookingId } from '../../../utils/booking';
 import { BULK_BOOKING_STATUS_LABELS } from '../../../utils/constants';
 import api from '../../../services/api';
+import BulkStayLedger from './BulkStayLedger';
 
 const getActionStyle = (action) => {
     const act = String(action || '').toUpperCase();
@@ -67,6 +68,7 @@ export default function ApplicantBulkBookingDetail({ bookingId, onBack }) {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'ledger'
 
     useEffect(() => {
         const fetchDetails = async () => {
@@ -139,8 +141,30 @@ export default function ApplicantBulkBookingDetail({ bookingId, onBack }) {
                 </div>
             </div>
 
+            {/* Tabs */}
+            {['ADMIN_APPROVED', 'READY_FOR_CHECKIN', 'CHECKED_IN', 'CHECKED_OUT'].includes(booking.booking_state) && (
+                <div className="flex border-b border-slate-200 bg-white px-6 gap-6">
+                    <button 
+                        onClick={() => setActiveTab('overview')} 
+                        className={`py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'overview' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                    >
+                        Overview
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('ledger')} 
+                        className={`py-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'ledger' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <BedDouble className="w-4 h-4" /> Stay Records
+                    </button>
+                </div>
+            )}
+
             <div className="flex-1 overflow-auto p-6 bg-slate-50/50 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {activeTab === 'ledger' ? (
+                    <BulkStayLedger booking={booking} />
+                ) : (
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                         <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                             <FileText className="w-4 h-4" /> Event Info
@@ -287,6 +311,8 @@ export default function ApplicantBulkBookingDetail({ bookingId, onBack }) {
                             })}
                         </div>
                     </div>
+                )}
+                    </>
                 )}
             </div>
         </div>

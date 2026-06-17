@@ -13,7 +13,7 @@ import { ROLES } from '../../utils/constants';
 
 const ManagePayments = () => {
     const { user } = useAuth();
-    const isAdmin = [ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN, ROLES.GH_COORDINATOR].includes(user.role);
+    const isAdmin = [ROLES.GUEST_HOUSE_ADMIN, ROLES.GH_COORDINATOR].includes(user.role);
     const [subTab, setSubTab] = useState(isAdmin ? 'online_proofs' : 'pending'); // 'pending' | 'completed' | 'online_proofs'
     const [pending, setPending] = useState([]);
     const [completed, setCompleted] = useState([]);

@@ -1,5 +1,5 @@
 # ── Stage 1: Build ───────────────────────────────────────────────
-FROM node:18-alpine AS builder
+FROM node:20-bullseye-slim AS builder
 
 WORKDIR /app
 
@@ -12,9 +12,9 @@ ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_ENABLE_AUTOFILL=$VITE_ENABLE_AUTOFILL
 ENV VITE_ENABLE_TIME_MACHINE=$VITE_ENABLE_TIME_MACHINE
 
-# Install deps (layer-cached if package.json unchanged)
+# Install deps
 COPY package*.json ./
-RUN npm ci
+RUN rm -f package-lock.json && npm install
 
 # Copy source and build
 COPY . .

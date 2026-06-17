@@ -268,6 +268,7 @@ exports.generateGSTInvoice = async (bookingId, client = null) => {
   try {
     browser = await puppeteer.launch({
       headless: 'new',
+      executablePath: process.env.CHROME_BIN || '/usr/bin/chromium',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',

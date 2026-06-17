@@ -31,7 +31,7 @@ router.get('/tariffs', bookingController.getTariffs);
 router.get('/authorities', bookingController.getAuthorities);
 router.get('/users/search', bookingController.searchUsers);
 router.get('/users/by-email/:email', bookingController.getUserByEmail);
-router.get('/admin/all', requireRole(['super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff']), bookingController.getAllBookingsForAdmin);
+router.get('/admin/all', requireRole(['guest_house_admin', 'gh_coordinator', 'reception_staff']), bookingController.getAllBookingsForAdmin);
 
 // Handle multipart/form-data properly, parse JSON payload, then validate
 router.post('/', upload.fields([{ name: 'document_1', maxCount: 1 }, { name: 'document_2', maxCount: 1 }]), (req, res, next) => {
@@ -55,7 +55,7 @@ router.post('/:id/pay', bookingController.mockPayment);
 router.patch('/:id/cancel', bookingController.cancelBooking);
 router.post('/:id/stay-extension', validate(stayExtensionSchema), bookingController.requestStayExtension);
 
-router.patch('/:id/admin-status', bookingController.updateAdminStatus);
+router.patch('/:id/admin-status', requireRole(['guest_house_admin', 'gh_coordinator']), bookingController.updateAdminStatus);
 
 router.post('/:id/reapply', upload.fields([{ name: 'document_1', maxCount: 1 }, { name: 'document_2', maxCount: 1 }]), (req, res, next) => {
     if (req.body.payload) {

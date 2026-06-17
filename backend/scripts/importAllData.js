@@ -135,7 +135,6 @@ async function run() {
         console.log('Inserting standard RBAC roles...');
         await db.query(`
             INSERT INTO roles (role_id, role_name, description) VALUES 
-            (1, 'super_admin', 'System Administrator'),
             (2, 'guest_house_admin', 'Guest House Manager'),
             (3, 'reception_staff', 'Front Desk Staff'),
             (4, 'registrar', 'Registrar'),
@@ -154,7 +153,7 @@ async function run() {
         // 3. Insert default system accounts so reception/admin logins continue to work
         console.log('Seeding default staff and coordinator users...');
         const staffUsers = [
-            { full_name: 'GH Chairperson', email: 'ghchairperson@nitt.edu', role: 'super_admin', dept: 'Administration', desig: 'GH Chairperson', emp_id: 'EMP-001' },
+            { full_name: 'GH Chairperson', email: 'ghchairperson@nitt.edu', role: 'guest_house_admin', dept: 'Administration', desig: 'GH Chairperson', emp_id: 'EMP-001' },
             { full_name: 'Receptionist', email: 'ghreception@nitt.edu', role: 'reception_staff', dept: 'Guest House', desig: 'Front Desk', emp_id: 'EMP-006' },
             { full_name: 'GH Coordinator', email: 'guesthouse@nitt.edu', role: 'gh_coordinator', dept: 'Guest House', desig: 'Operations Coordinator', emp_id: 'EMP-007' }
         ];
@@ -359,18 +358,21 @@ async function run() {
             console.log('HODs imported.');
         }
 
-        // 7.4 Faculty
+        // 7.4 Faculty & Staff (combined in Faculty.csv)
         const facultyPath = path.join(usersDir, 'Faculty.csv');
         if (fs.existsSync(facultyPath)) {
             const rows = parseCSV(fs.readFileSync(facultyPath, 'utf8'));
             for (const r of rows) {
-                const userId = r['User ID'] || '';
-                const name = r['Name'] || '';
-                const email = r['Email'] || '';
-                const dept = r['Department'] || '';
-                await insertUserWithRole(name, email, dept, 'Faculty', userId ? `EMP-FAC-${userId}` : '', 'faculty');
+                const userId = r['emp_id'] || r['User ID'] || '';
+                const name = r['emp_name'] || r['Name'] || '';
+                const email = r['emp_email'] || r['Email'] || '';
+                const dept = r['Department'] || 'General';
+                // Insert as Faculty
+                await insertUserWithRole(name, email, dept, 'Faculty', userId ? `EMP-${userId}` : '', 'faculty');
+                // Also assign Staff role so they can apply as staff if needed
+                await insertUserWithRole(name, email, dept, 'Staff', userId ? `EMP-${userId}` : '', 'staff');
             }
-            console.log('Faculty imported.');
+            console.log('Faculty and Staff imported from Faculty.csv.');
         }
 
         // 7.5 Students

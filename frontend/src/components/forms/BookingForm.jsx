@@ -14,7 +14,7 @@ export default function BookingForm({ formData, setFormData, user, authorities =
   const [approverSearch, setApproverSearch] = useState('');
   const [isApproverDropdownOpen, setIsApproverDropdownOpen] = useState(false);
 
-  const isAdmin = ['super_admin', 'guest_house_admin'].includes(user?.role);
+  const isAdmin = ['guest_house_admin'].includes(user?.role);
 
   // Pre-fill the search bar if coming back from the Preview Page
   useEffect(() => {

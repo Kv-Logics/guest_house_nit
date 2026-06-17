@@ -17,22 +17,9 @@ api.interceptors.request.use((config) => {
     config.headers['X-CSRF-Token'] = csrfToken;
   }
 
-  let isTimeMachineEnabled = import.meta.env.VITE_ENABLE_TIME_MACHINE === 'true'; // Fallback to env
-  try {
-      const sysConfigStr = localStorage.getItem('sys-config');
-      if (sysConfigStr) {
-          const sysConfig = JSON.parse(sysConfigStr);
-          isTimeMachineEnabled = sysConfig.enable_time_machine !== false;
-      }
-  } catch (e) {
-      // config not set
-  }
-
-  const isMockActive = localStorage.getItem('mock-system-date-active') === 'true';
-  const mockDate = localStorage.getItem('mock-system-date');
-  if (isTimeMachineEnabled && isMockActive && mockDate) {
-    config.headers['X-Mock-Date'] = mockDate;
-  }
+  let isTimeMachineEnabled = false; // Forced off, connect to real time
+  const isMockActive = false;
+  const mockDate = null;
 
   return config;
 });

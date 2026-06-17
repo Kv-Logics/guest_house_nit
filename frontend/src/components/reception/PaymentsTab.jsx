@@ -6,7 +6,7 @@ import EditBillModal from './EditBillModal';
 
 const PaymentsTab = ({ onBillGenerated }) => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const isGHC = user.role === 'gh_coordinator' || user.role === 'super_admin' || user.role === 'guest_house_admin';
+    const isGHC = user.role === 'gh_coordinator' || user.role === 'guest_house_admin';
     const [subTab, setSubTab] = useState('pending'); // 'pending' | 'completed'
     const [pending, setPending] = useState([]);
     const [completed, setCompleted] = useState([]);

@@ -21,6 +21,20 @@ const DEPARTURE_WARNING_MS =
             ? MS_DAY
             : 3 * 60 * 1000;
 
+const formatRoomsWithGH = (roomsString) => {
+    if (!roomsString) return '';
+    return roomsString.split(',').map(r => {
+        const num = r.trim();
+        if (!num) return '';
+        const isMarudham = (parseInt(num, 10) >= 41 && parseInt(num, 10) <= 56) || num === 'B2';
+        if (isMarudham) return `${num} (Marudham)`;
+        const isKurinji = (parseInt(num, 10) >= 11 && parseInt(num, 10) <= 40) || 
+                          ['F1', 'F2', 'F3', 'A1', 'A2', 'B1'].includes(num);
+        if (isKurinji) return `${num} (Kurinji)`;
+        return num;
+    }).filter(Boolean).join(', ');
+};
+
 function stayDepartureAlert(booking) {
     if (booking.booking_state !== 'CHECKED_IN') return null;
     const dep = new Date(booking.departure_datetime).getTime();
@@ -356,7 +370,7 @@ export default function ApplicantDashboard() {
                                         <div>{b.rooms_required} Room{b.rooms_required > 1 ? 's' : ''}</div>
                                         {b.allocated_room_numbers && (
                                             <div className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 mt-1 inline-block">
-                                                {b.allocated_room_numbers}
+                                                {formatRoomsWithGH(b.allocated_room_numbers)}
                                             </div>
                                         )}
                                     </td>

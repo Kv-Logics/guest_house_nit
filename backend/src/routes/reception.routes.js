@@ -49,7 +49,7 @@ router.post(
 router.get('/institution-config', receptionController.getInstitutionConfig);
 
 // --- GENERAL RECEPTION/COORDINATOR/ADMIN ROUTES ---
-router.use(requireRole(['reception_staff', 'gh_coordinator', 'super_admin', 'guest_house_admin']));
+router.use(requireRole(['reception_staff', 'gh_coordinator', 'guest_house_admin']));
 
 router.get('/system-settings', receptionController.getSystemSettings);
 router.post('/system-settings', receptionController.updateSystemSettings);
@@ -85,7 +85,7 @@ router.get('/decode-qr', receptionController.decodeQrCode);
 router.post(
   '/bookings/:bookingId/update-bill',
 
-  requireRole(['gh_coordinator', 'super_admin', 'guest_house_admin']),
+  requireRole(['gh_coordinator', 'guest_house_admin']),
   receptionController.updateBill
 );
 

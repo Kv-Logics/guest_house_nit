@@ -25,8 +25,8 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } }); // 5M
 router.use(requireAuth);
 router.post('/:id/proof', upload.single('payment_proof'), paymentController.uploadProof);
 router.get('/:id/proofs', paymentController.getProofHistory);
-router.post('/:id/verify', requireRole(['super_admin', 'guest_house_admin', 'gh_coordinator']), validate(verifyPaymentSchema), paymentController.verifyPayment);
-router.post('/:id/warn', requireRole(['super_admin', 'guest_house_admin', 'gh_coordinator']), validate(warningSchema), paymentController.sendWarning);
-router.post('/:id/pos-complete', requireRole(['super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff']), paymentController.posComplete);
-router.post('/:id/pos-confirm', requireRole(['super_admin', 'guest_house_admin', 'gh_coordinator', 'reception_staff']), paymentController.posConfirm);
+router.post('/:id/verify', requireRole(['guest_house_admin', 'gh_coordinator']), validate(verifyPaymentSchema), paymentController.verifyPayment);
+router.post('/:id/warn', requireRole(['guest_house_admin', 'gh_coordinator']), validate(warningSchema), paymentController.sendWarning);
+router.post('/:id/pos-complete', requireRole(['guest_house_admin', 'gh_coordinator', 'reception_staff']), paymentController.posComplete);
+router.post('/:id/pos-confirm', requireRole(['guest_house_admin', 'gh_coordinator', 'reception_staff']), paymentController.posConfirm);
 module.exports = router;

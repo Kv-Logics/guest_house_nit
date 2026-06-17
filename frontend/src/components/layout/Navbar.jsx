@@ -36,7 +36,7 @@ export default function Navbar() {
   const role = user?.role;
 
   const isAuthority = [ROLES.REGISTRAR, ROLES.DEAN, ROLES.HOD, ROLES.DIRECTOR].includes(role);
-  const isAdmin = [ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN].includes(role);
+  const isAdmin = [ROLES.GUEST_HOUSE_ADMIN, ROLES.GH_COORDINATOR].includes(role);
 
   // Fetch pending count for authority (pending approvals waiting for them)
   const { data: approvalData } = useQuery({
@@ -120,85 +120,93 @@ export default function Navbar() {
   }
 
   return (
-    <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30">
-      <div className="w-full mx-auto px-4 sm:px-6 lg:px-10">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center">
-            <Link
-              to={primaryPath}
-              className="flex-shrink-0 flex items-center gap-3 transition-transform hover:scale-105 mr-6"
-            >
-              <img src={nitLogo} alt="NIT Logo" className="w-10 h-10 object-contain" />
-              <span className="font-extrabold text-xl text-slate-800 tracking-tight hidden sm:block">
-                National Institute of Technology Trichy Guest House
+    <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30 w-full flex-shrink-0 flex flex-col">
+      <div className="w-full px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          <Link
+            to={primaryPath}
+            className="flex-shrink-0 flex items-center gap-3 transition-transform hover:scale-102"
+          >
+            <img src={nitLogo} alt="NIT Logo" className="w-10 h-10 object-contain" />
+            <div className="flex flex-col">
+              <span className="font-black text-sm lg:text-base text-slate-800 tracking-tight hidden sm:block">
+                National Institute of Technology
               </span>
-            </Link>
+              <span className="font-extrabold text-blue-600 text-[10px] lg:text-xs tracking-widest hidden sm:block uppercase">
+                Guest House
+              </span>
+            </div>
+          </Link>
 
-            <nav className="hidden lg:flex md:space-x-1">
-              {dynamicNavLinks.map((link) => {
-                const Icon = link.icon;
-                const isActive = location.pathname === link.path;
-                return (
-                  <Link
-                    key={link.path}
-                    to={link.path}
-                    className={`inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-bold transition-all relative ${isActive ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
-                  >
-                    <Icon className="w-4 h-4 mr-2" />
-                    {link.name}
-                    <NavBadge count={link.count} />
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
+          <nav className="hidden lg:flex items-center space-x-2">
+            {dynamicNavLinks.map((link) => {
+              const Icon = link.icon;
+              const isActive = location.pathname === link.path;
+              return (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  className={`inline-flex items-center px-4 py-2 rounded-xl text-[13px] font-bold transition-all relative ${isActive ? 'bg-blue-600 text-white shadow-md shadow-blue-200/50' : 'text-slate-600 hover:bg-slate-50 hover:text-blue-600'}`}
+                >
+                  <Icon className={`w-4 h-4 mr-2 transition-colors ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-500'}`} />
+                  {link.name}
+                  {link.count > 0 && <NavBadge count={link.count} />}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
 
-          <div className="flex items-center gap-4">
-            {user && (
-              <div className="hidden sm:flex items-center gap-3 border-r border-slate-200 pr-5 mr-1">
-                <div className="text-right">
-                  <p className="text-sm font-bold text-slate-800 leading-none">
-                    Welcome, {user.faculty_name || user.name || user.email.split('@')[0]}
-                  </p>
-                  <p className="text-[10px] font-bold text-slate-500 mt-1.5 leading-none">
-                    Signed in as: {user.faculty_name || user.name || user.email.split('@')[0]}
-                  </p>
-                  <p className="text-[11px] font-bold text-slate-500 capitalize mt-2.5 tracking-wider">
-                    {user.role === 'super_admin' ? 'GH Chairperson' : String(user.role || '').replace(/_/g, ' ')}
-                  </p>
-                </div>
-                <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center font-bold shadow-inner">
-                  {(user.faculty_name || user.name || user.email || 'U').charAt(0).toUpperCase()}
-                </div>
+        <div className="flex items-center gap-4">
+          {user && (
+            <div className="hidden sm:flex items-center gap-3 border-r border-slate-200 pr-5 mr-1 flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-blue-100 border border-blue-200 text-blue-700 flex items-center justify-center font-bold shadow-inner flex-shrink-0">
+                {(user.faculty_name || user.name || user.email || 'U').charAt(0).toUpperCase()}
               </div>
-            )}
+              <div className="text-left overflow-hidden">
+                <p className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[120px]">
+                  {user.faculty_name || user.name || user.email.split('@')[0]}
+                </p>
+                <p className="text-[10px] font-bold text-slate-500 capitalize mt-0.5 tracking-wider truncate">
+                  {user.role === 'guest_house_admin' ? 'GH Chairperson' : String(user.role || '').replace(/_/g, ' ')}
+                </p>
+              </div>
+            </div>
+          )}
+          
+          <button
+            onClick={() => logout()}
+            className="hidden lg:inline-flex items-center justify-center px-4 py-2 border border-slate-200 shadow-sm text-xs font-bold rounded-xl text-slate-600 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all"
+          >
+            <LogOut className="w-3.5 h-3.5 mr-2" />
+            <span>Sign Out</span>
+          </button>
+
+          <div className="flex lg:hidden items-center gap-2">
             <button
               onClick={() => logout()}
-              className="inline-flex items-center justify-center px-4 py-2 border border-slate-200 shadow-sm text-sm font-bold rounded-xl text-slate-600 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all"
+              className="inline-flex items-center justify-center p-2 rounded-xl text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+              title="Logout"
             >
-              <LogOut className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Logout</span>
+              <LogOut className="w-5 h-5" />
             </button>
-
-            <div className="flex lg:hidden items-center">
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="inline-flex items-center justify-center p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="block h-6 w-6" />
-                ) : (
-                  <Menu className="block h-6 w-6" />
-                )}
-              </button>
-            </div>
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="inline-flex items-center justify-center p-2 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+            >
+              {isMobileMenuOpen ? (
+                <X className="block h-6 w-6" />
+              ) : (
+                <Menu className="block h-6 w-6" />
+              )}
+            </button>
           </div>
         </div>
       </div>
 
       {isMobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-100 bg-white absolute w-full shadow-xl z-40">
-          <div className="pt-2 pb-4 space-y-1 px-4">
+        <div className="lg:hidden border-t border-slate-100 bg-white absolute w-full shadow-2xl z-40 top-full left-0">
+          <div className="pt-2 pb-6 space-y-1 px-4">
             {dynamicNavLinks.map((link) => {
               const Icon = link.icon;
               const isActive = location.pathname === link.path;
@@ -211,7 +219,7 @@ export default function Navbar() {
                 >
                   <Icon className="w-5 h-5 mr-3" />
                   {link.name}
-                  <NavBadge count={link.count} />
+                  {link.count > 0 && <NavBadge count={link.count} />}
                 </Link>
               );
             })}

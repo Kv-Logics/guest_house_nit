@@ -42,12 +42,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   fonts-noto-color-emoji \
   # Misc
   ca-certificates \
+  unzip \
+  chromium \
   && rm -rf /var/lib/apt/lists/*
+
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV CHROME_BIN=/usr/bin/chromium
 
 # ── Install Node dependencies ────────────────────────────────────
 # Copy manifests first for layer caching
 COPY package*.json ./
-RUN npm ci --only=production
+RUN rm -f package-lock.json && npm install --production
 
 # ── Copy application source ──────────────────────────────────────
 COPY . .

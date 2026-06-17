@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Search, Loader2, Save, Printer, ShieldCheck, AlertCircle, Users, BedDouble, Calendar, CreditCard, ChevronRight, QrCode, Settings, FileText, Mail } from 'lucide-react';
+import { Search, Loader2, Save, Printer, ShieldCheck, AlertCircle, Users, BedDouble, Calendar, CreditCard, ChevronRight, QrCode, Settings, FileText, Mail, Terminal } from 'lucide-react';
 import api from '../../services/api';
 import QRScannerModal from '../../components/ui/QRScannerModal';
 import GSTInvoiceModal from '../../pages/booking/GSTInvoiceModal';
@@ -478,11 +478,11 @@ export default function GHCoordinatorDashboard() {
                             <input
                                 type="text"
                                 placeholder="Enter App ID..."
-                                className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-700"
+                                className="flex-1 min-w-0 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-700"
                                 value={searchId}
                                 onChange={(e) => setSearchId(e.target.value)}
                             />
-                            <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-md">
+                            <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-md shrink-0">
                                 Load
                             </button>
                             <button 

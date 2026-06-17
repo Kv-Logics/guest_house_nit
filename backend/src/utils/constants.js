@@ -4,7 +4,6 @@ exports.ROLES = {
     HOD: 'hod',
     DEAN: 'dean',
     REGISTRAR: 'registrar',
-    ADMIN: 'super_admin',
     GUEST_HOUSE_ADMIN: 'guest_house_admin',
     RECEPTIONIST: 'reception_staff',
     DIRECTOR: 'director',

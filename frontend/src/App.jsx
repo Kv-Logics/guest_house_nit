@@ -53,7 +53,7 @@ function App() {
                   {/* Admin Protected Routes */}
                   <Route
                     element={
-                      <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN]} />
+                      <ProtectedRoute allowedRoles={[ROLES.GUEST_HOUSE_ADMIN, ROLES.GH_COORDINATOR]} />
                     }
                   >
                     <Route path="/admin/dashboard" element={<AdminDashboard />} />
@@ -74,7 +74,7 @@ function App() {
                   <Route
                     element={
                       <ProtectedRoute
-                        allowedRoles={[ROLES.RECEPTIONIST, ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN]}
+                        allowedRoles={[ROLES.RECEPTIONIST, ROLES.GUEST_HOUSE_ADMIN]}
                       />
                     }
                   >
@@ -85,7 +85,7 @@ function App() {
                   <Route
                     element={
                       <ProtectedRoute
-                        allowedRoles={[ROLES.GH_COORDINATOR, ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN]}
+                        allowedRoles={[ROLES.GH_COORDINATOR, ROLES.GUEST_HOUSE_ADMIN]}
                       />
                     }
                   >
@@ -96,7 +96,7 @@ function App() {
                   <Route
                     element={
                       <ProtectedRoute
-                        allowedRoles={[ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN, ROLES.RECEPTIONIST, ROLES.GH_COORDINATOR]}
+                        allowedRoles={[ROLES.GUEST_HOUSE_ADMIN, ROLES.RECEPTIONIST, ROLES.GH_COORDINATOR]}
                       />
                     }
                   >
@@ -107,7 +107,7 @@ function App() {
                   <Route
                     element={
                       <ProtectedRoute
-                        allowedRoles={[ROLES.ADMIN, ROLES.GUEST_HOUSE_ADMIN, ROLES.GH_COORDINATOR]}
+                        allowedRoles={[ROLES.GUEST_HOUSE_ADMIN, ROLES.GH_COORDINATOR]}
                       />
                     }
                   >

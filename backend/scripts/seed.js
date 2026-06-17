@@ -86,7 +86,6 @@ async function seed() {
     console.log('▶ Seeding RBAC roles...');
     await db.query(`
         INSERT INTO roles (role_id, role_name, description) VALUES
-            (1,  'super_admin',       'System Administrator'),
             (2,  'guest_house_admin', 'Guest House Manager'),
             (3,  'reception_staff',   'Front Desk Staff'),
             (4,  'registrar',         'Registrar'),
@@ -106,7 +105,7 @@ async function seed() {
     // ── 2. Default Staff Accounts ──────────────────────────────────────────────
     console.log('▶ Seeding default staff accounts...');
     const staffUsers = [
-        { full_name: 'GH Chairperson',  email: 'ghchairperson@nitt.edu', role: 'super_admin',    dept: 'Administration', desig: 'GH Chairperson',         emp_id: 'EMP-001' },
+        { full_name: 'GH Chairperson',  email: 'ghchairperson@nitt.edu', role: 'guest_house_admin',    dept: 'Administration', desig: 'GH Chairperson',         emp_id: 'EMP-001' },
         { full_name: 'Receptionist',     email: 'ghreception@nitt.edu',   role: 'reception_staff', dept: 'Guest House',    desig: 'Front Desk',              emp_id: 'EMP-006' },
         { full_name: 'GH Coordinator',   email: 'guesthouse@nitt.edu',    role: 'gh_coordinator',  dept: 'Guest House',    desig: 'Operations Coordinator',  emp_id: 'EMP-007' },
     ];

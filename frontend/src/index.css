@@ -2,3 +2,8 @@
 
 /* Global styles using MUI CssBaseline are now in place. */
 /* Add any custom non-MUI overrides here if necessary. */
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}

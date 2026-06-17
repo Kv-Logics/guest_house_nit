@@ -6,7 +6,7 @@ import { BULK_BOOKING_STATUS_LABELS } from '../../../utils/constants';
 import api from '../../../services/api';
 
 import BulkBookingGuestsTab from './BulkBookingGuestsTab';
-import BulkBookingStayLogsTab from './BulkBookingStayLogsTab';
+import BulkStayLedger from '../../applicant/bulk_booking/BulkStayLedger';
 import BulkBookingBillingTab from './BulkBookingBillingTab';
 import BulkBookingPaymentsTab from './BulkBookingPaymentsTab';
 
@@ -225,7 +225,7 @@ export default function BulkBookingDetailPanel({ bookingId, onBack }) {
                                 activeTab === 'stays' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'
                             }`}
                         >
-                            <Clock className="w-4 h-4" /> Stay Logs
+                            <Clock className="w-4 h-4" /> Stay Ledger
                         </button>
                         <button
                             onClick={() => setActiveTab('billing')}
@@ -436,7 +436,9 @@ export default function BulkBookingDetailPanel({ bookingId, onBack }) {
                     <BulkBookingGuestsTab booking={booking} onRefresh={fetchBookingDetails} />
                 )}
                 {activeTab === 'stays' && isApproved && (
-                    <BulkBookingStayLogsTab booking={booking} onRefresh={fetchBookingDetails} />
+                    <div className="p-6">
+                        <BulkStayLedger booking={booking} />
+                    </div>
                 )}
                 {activeTab === 'billing' && isApproved && (
                     <BulkBookingBillingTab booking={booking} onRefresh={fetchBookingDetails} />

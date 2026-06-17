@@ -72,16 +72,8 @@ export default function ReceptionDashboard() {
     const [expandedArrivals, setExpandedArrivals] = useState({});
 
 
-    // Time machine clock mock state
-    let isTimeMachineEnabled = import.meta.env.VITE_ENABLE_TIME_MACHINE === 'true';
-    try {
-        const sysConfigStr = localStorage.getItem('sys-config');
-        if (sysConfigStr) {
-            isTimeMachineEnabled = JSON.parse(sysConfigStr).enable_time_machine !== false;
-        }
-    } catch (e) {
-        // config not set or invalid JSON
-    }
+    // Time machine clock mock state - Forced off to always connect to real system time
+    let isTimeMachineEnabled = false;
     
     const [isMockActive, setIsMockActive] = useState(isTimeMachineEnabled && localStorage.getItem('mock-system-date-active') === 'true');
     const [mockDateStr, setMockDateStr] = useState(localStorage.getItem('mock-system-date') || '');
@@ -165,6 +157,8 @@ export default function ReceptionDashboard() {
     };
 
     useEffect(() => {
+        localStorage.removeItem('mock-system-date-active');
+        localStorage.removeItem('mock-system-date');
         loadDashboardData();
     }, []);
 
@@ -945,12 +939,6 @@ export default function ReceptionDashboard() {
                             className="w-full px-4 py-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 rounded-2xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2"
                         >
                             <QrCode className="w-4 h-4" /> Scan App Pass
-                        </button>
-                        <button 
-                            onClick={loadDashboardData}
-                            className="w-full px-4 py-3 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-2xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2"
-                        >
-                            Force Refresh
                         </button>
                     </div>
                 </aside>

@@ -107,7 +107,7 @@ exports.approveBooking = async (bookingId, approverId, action, remarks) => {
                     newState = BOOKING_STATUS.PENDING_ADMIN;
                 }
 
-                if (['super_admin', 'guest_house_admin'].includes(applicantRole) && !requestedSuite) {
+                if (['guest_house_admin'].includes(applicantRole) && !requestedSuite) {
                     newState = BOOKING_STATUS.ADMIN_APPROVED;
                 }
             } else {
