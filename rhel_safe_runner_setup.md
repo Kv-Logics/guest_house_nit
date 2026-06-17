@@ -14,7 +14,7 @@ This guide shows how to set up automatic deployment for your website.
 ## 📂 Folder Structure (Inside RHEL Server)
 
 ```text
-/var/www/[YOUR_DOMAIN]/               # Your domain space
+/www/wwwroot/[YOUR_DOMAIN]/               # Your domain space
 ├── .env                              # You upload this file (contains passwords/secrets)
 ├── github-runner/                    # Folder for connection keys
 └── [YOUR_PROJECT_NAME]/              # Folder where your code goes automatically
@@ -45,15 +45,15 @@ sudo chown -R $USER:$USER /opt/github-runner-base
 
 #### 1. Setup Keys (Run once per project):
 ```bash
-cd /var/www/[YOUR_DOMAIN]/github-runner
-/opt/github-runner-base/bin/config.sh --url https://github.com/Kv-Logics/geofence-engine --token GITHUB_RUNNER_TOKEN --work ../[YOUR_PROJECT_NAME]
+cd /www/wwwroot/[YOUR_DOMAIN]/github-runner
+/opt/github-runner-base/bin/config.sh --url https://github.com/Kv-Logics/guest_house_nit --token GITHUB_RUNNER_TOKEN --work ../[YOUR_PROJECT_NAME]
 ```
 
 #### 2. Turn ON (Start Deployment):
 * **When to use**: Run this only when you want to deploy code updates from GitHub to your server.
 * **What it does**: Connects to GitHub, downloads your code, and deploys it.
 ```bash
-cd /var/www/[YOUR_DOMAIN]/github-runner
+cd /www/wwwroot/[YOUR_DOMAIN]/github-runner
 nohup /opt/github-runner-base/bin/run.sh &
 ```
 
@@ -75,15 +75,15 @@ When the Runner is **ON**, deployment happens automatically in three steps:
 ### 2. The Trigger ⚡
 * **Action**: GitHub signals the server runner over the open connection.
 * **Server Action**: The runner fetches and downloads the new files to:
-  `/var/www/[YOUR_DOMAIN]/[YOUR_PROJECT_NAME]/`
+  `/www/wwwroot/[YOUR_DOMAIN]/[YOUR_PROJECT_NAME]/`
 
 ### 3. The Auto-Build 🐳
 * **Action**: The runner automatically runs the Docker workflow commands:
   ```bash
-  docker compose down
-  docker compose up --build -d
+  sudo docker compose down
+  sudo docker compose up --build -d
   ```
-* **Result**: Docker reads the database passwords from your safe `.env` file at `/var/www/[YOUR_DOMAIN]/.env` and boots your React/Node/PostgreSQL containers. 
+* **Result**: Docker reads the database passwords from your safe `.env` file at `/www/wwwroot/[YOUR_DOMAIN]/.env` and boots your React/Node/PostgreSQL containers. 
 
 *No manual command entry or SSH logins required!*
 

@@ -64,7 +64,7 @@ rooms.nitt.edu
 After full setup, the RHEL server looks like this:
 
 ```
-/var/www/rooms.nitt.edu/              ← FTP root (what you see in FileZilla)
+/www/wwwroot/rooms.nitt.edu/              ← FTP root (what you see in FileZilla)
 │
 ├── .env                              ← ✅ You upload this (contains all secrets)
 ├── github-runner/                    ← ✅ You create this empty folder
@@ -111,14 +111,14 @@ Everything else (domain, CORS, ports) is already configured. For SMTP/email, you
 
 ### Step 3 — Create `github-runner/` folder
 
-In FileZilla, navigate to `/var/www/rooms.nitt.edu/` and create a new empty folder named exactly `github-runner`.
+In FileZilla, navigate to `/www/wwwroot/rooms.nitt.edu/` and create a new empty folder named exactly `github-runner`.
 
 ### Step 4 — Upload `.env`
 
-Upload your filled-in `.env` file to `/var/www/rooms.nitt.edu/`.
+Upload your filled-in `.env` file to `/www/wwwroot/rooms.nitt.edu/`.
 
 ```
-/var/www/rooms.nitt.edu/
+/www/wwwroot/rooms.nitt.edu/
 ├── github-runner/        ← created ✅
 └── .env                  ← uploaded ✅
 ```
@@ -157,7 +157,7 @@ tar xzf ./actions-runner.tar.gz
 
 ```bash
 # Navigate into the developer's github-runner folder
-cd /var/www/rooms.nitt.edu/github-runner
+cd /www/wwwroot/rooms.nitt.edu/github-runner
 
 # Register — configures keys directly inside the github-runner folder,
 # and sets the working directory to where the code will be deployed
@@ -177,7 +177,7 @@ cd /var/www/rooms.nitt.edu/github-runner
 * **What it does**: Connects to GitHub, downloads your code, and deploys it.
 
 ```bash
-cd /var/www/rooms.nitt.edu/github-runner
+cd /www/wwwroot/rooms.nitt.edu/github-runner
 nohup /opt/github-runner-base/bin/run.sh &
 ```
 
@@ -204,10 +204,10 @@ Every time a developer runs `git push origin main`, the following happens automa
 1. GitHub detects push to `main`
 2. GitHub sends job to the self-hosted runner on rooms.nitt.edu
 3. Runner executes .github/workflows/deploy.yml:
-   a. git pull (latest code → /var/www/rooms.nitt.edu/guesthouse/)
-   b. cp /var/www/rooms.nitt.edu/.env .env
-   c. docker compose up --build -d
-   d. docker image prune -f
+   a. git checkout (latest code → /www/wwwroot/rooms.nitt.edu/guesthouse/)
+   b. cp /www/wwwroot/rooms.nitt.edu/.env .env
+   c. sudo docker compose up --build -d
+   d. sudo docker image prune -f
 4. New containers are live at http://rooms.nitt.edu:9006
 ```
 
@@ -318,7 +318,7 @@ Once the RHEL admin adds SSL (via Let's Encrypt / institutional certificate):
 COOKIE_SECURE=true
 ```
 
-**2. Re-upload the file via FileZilla** to `/var/www/rooms.nitt.edu/.env`
+**2. Re-upload the file via FileZilla** to `/www/wwwroot/rooms.nitt.edu/.env`
 
 **3. Trigger a redeploy:**
 ```bash
@@ -417,7 +417,7 @@ docker volume inspect guesthouse_uploads
 sudo systemctl status github-runner-rooms
 
 # View runner logs
-tail -f /var/www/rooms.nitt.edu/github-runner/runner.log
+tail -f /www/wwwroot/rooms.nitt.edu/github-runner/runner.log
 
 # Restart runner
 sudo systemctl restart github-runner-rooms
