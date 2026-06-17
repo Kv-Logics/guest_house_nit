@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       # The .env.production file lives in the FTP root one level above the project folder.
       # FileZilla uploads it to: /var/www/rooms.nitt.edu/.env.production
