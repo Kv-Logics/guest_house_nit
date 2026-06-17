@@ -15,7 +15,7 @@ jobs:
         run: |
           git init
           git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Kv-Logics/guest_house_nit.git || git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Kv-Logics/guest_house_nit.git
-          git fetch origin main
+          git fetch --depth=1 origin main
           git reset --hard FETCH_HEAD
 
       # The .env file lives in the FTP root one level above the project folder.
