@@ -11,8 +11,13 @@ jobs:
     runs-on: self-hosted   # The GitHub runner registered on the RHEL server
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout code (Bypass Node.js)
+        run: |
+          git init
+          git remote remove origin || true
+          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Kv-Logics/guest_house_nit.git
+          git fetch origin main
+          git reset --hard origin/main
 
       # The .env.production file lives in the FTP root one level above the project folder.
       # FileZilla uploads it to: /var/www/rooms.nitt.edu/.env.production
