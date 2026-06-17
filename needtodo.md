@@ -8,3 +8,5 @@ Here are your tasks converted into the requested checklist format:
 
 * `[ ]` **GST Configuration Enhancements**
 * `[ ]` Implement dynamic GST control for GHC (allow the current 12% rate to be updated dynamically)
+
+* `[x]` Reverted GHC and Receptionist navigation layouts back to top navbar style.
