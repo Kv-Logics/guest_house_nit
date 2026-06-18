@@ -8,13 +8,10 @@ exports.requestOtp = async (req, res, next) => {
     try {
         const { email } = req.body;
         logger.info(`OTP requested for email: ${email}`);
-        const devOtp = await authService.requestOtp(email);
+        await authService.requestOtp(email);
         
-        return sendSuccess(res, 'OTP sent successfully to your email', devOtp ? { otp: devOtp } : undefined);
+        return sendSuccess(res, 'OTP sent successfully to your email');
     } catch (error) {
-        if (error.message === 'User not found.') {
-            return sendError(res, 'User not found. Please contact administration.', 404);
-        }
         next(error);
     }
 };
@@ -182,7 +179,8 @@ exports.checkUserStatus = async (req, res, next) => {
         }
         const user = await authRepository.findUserByEmail(email);
         if (!user) {
-            return sendError(res, 'User not found. Please contact administration.', 404);
+            // Return dummy status indicating password setup exists to prevent email enumeration
+            return sendSuccess(res, 'User status checked', { hasPassword: true });
         }
         const hasPassword = !!user.password_hash;
         return sendSuccess(res, 'User status checked', { hasPassword });

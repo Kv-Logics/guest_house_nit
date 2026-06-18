@@ -20,29 +20,29 @@ async function getApplicantDetails(bookingId) {
 }
 
 exports.sendPaymentWarning = async (bookingId, warningLevel, message) => {
-    logger.info(`[NOTIFICATION] Sent WARNING LEVEL ${warningLevel} to applicant of Booking ${bookingId}: ${message}`);
+    logger.info(`[NOTIFICATION] Sent PAYMENT REMINDER ${warningLevel} to applicant of Booking ${bookingId}: ${message}`);
     const applicant = await getApplicantDetails(bookingId);
     if (!applicant || !applicant.email) return;
 
     try {
         await mailService.sendEmail({
             to: applicant.email,
-            subject: `PAYMENT ALERT: Warning Level ${warningLevel} for Booking #${applicant.booking_seq}`,
+            subject: `Payment Reminder (Notification #${warningLevel}) for Booking #${applicant.booking_seq}`,
             html: `
-                <div style="font-family: sans-serif; padding: 20px; max-width: 600px; border: 1px solid #f87171; border-radius: 12px; background-color: #fef2f2;">
-                    <h2 style="color: #dc2626;">Payment Warning (Level ${warningLevel})</h2>
+                <div style="font-family: sans-serif; padding: 20px; max-width: 600px; border: 1px solid #bae6fd; border-radius: 12px; background-color: #f0f9ff;">
+                    <h2 style="color: #0369a1;">Payment Reminder</h2>
                     <p>Dear ${applicant.full_name},</p>
-                    <p>This is a formal payment warning regarding your NITT Guest House Booking <strong>#${applicant.booking_seq}</strong>.</p>
-                    <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; border-left: 4px solid #dc2626; margin: 15px 0; font-style: italic; color: #7f1d1d;">
+                    <p>This is a friendly reminder regarding the pending payment for your NITT Guest House Booking <strong>#${applicant.booking_seq}</strong>.</p>
+                    <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; border-left: 4px solid #0284c7; margin: 15px 0; font-style: italic; color: #0c4a6e;">
                         "${message}"
                     </div>
-                    <p>Please resolve outstanding dues immediately to avoid booking cancellation.</p>
+                    <p>Please update or upload your payment details at your earliest convenience to finalize your stay.</p>
                     <p style="color: #4b5563; font-size: 12px; margin-top: 25px;">NITT Guest House Administration Office</p>
                 </div>
             `
         });
     } catch (err) {
-        logger.error(`Failed to send warning email to ${applicant.email}: ${err.message}`);
+        logger.error(`Failed to send reminder email to ${applicant.email}: ${err.message}`);
     }
 };
 

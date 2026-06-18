@@ -18,6 +18,8 @@
 10. [Switching to HTTPS](#switching-to-https)
 11. [Useful Docker Commands](#useful-docker-commands)
 12. [Troubleshooting](#troubleshooting)
+13. [Alternative: Manual ZIP Deployment](#alternative-manual-zip-deployment)
+14. [Port Reference](#port-reference)
 
 ---
 
@@ -422,6 +424,48 @@ tail -f /www/wwwroot/rooms.nitt.edu/github-runner/runner.log
 # Restart runner
 sudo systemctl restart github-runner-rooms
 ```
+
+---
+
+## Alternative: Manual ZIP Deployment
+
+If you prefer to deploy manually without using GitHub Actions CI/CD:
+
+### 📦 Step 1: Download or Zip the Repository
+1. Go to your GitHub repository and download the source code as a ZIP archive (or zip your local project folder, excluding any `node_modules` or local temporary databases).
+
+### 🚀 Step 2: Upload Files via FileZilla
+1. Connect to the server in FileZilla using SFTP/SSH.
+2. Upload the ZIP archive to `/www/wwwroot/rooms.nitt.edu/`.
+3. Upload your populated `.env` file directly to `/www/wwwroot/rooms.nitt.edu/`.
+
+### 🖥️ Step 3: Unzip and Move Files (via SSH)
+1. Log in to the server via SSH.
+2. Extract the ZIP archive:
+   ```bash
+   cd /www/wwwroot/rooms.nitt.edu/
+   unzip archive.zip
+   ```
+3. Move files to the main directory `/www/wwwroot/rooms.nitt.edu/guesthouse/` (if deploying to the active application folder):
+   ```bash
+   mv guest_house_nit-main/* ./guesthouse/
+   rmdir guest_house_nit-main
+   ```
+
+### 🐳 Step 4: Run Docker Commands
+1. Navigate to the `guesthouse` directory where `docker-compose.yml` is located:
+   ```bash
+   cd /www/wwwroot/rooms.nitt.edu/guesthouse/
+   ```
+2. Build and start the containers:
+   ```bash
+   sudo docker compose up --build -d
+   ```
+3. Initialize the database and run schema/seed tasks if needed:
+   ```bash
+   sudo docker compose exec backend npm run migrate
+   sudo docker compose exec backend npm run seed
+   ```
 
 ---
 

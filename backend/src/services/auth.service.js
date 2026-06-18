@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const authRepository = require('../repositories/auth.repository');
 const logger = require('../utils/logger');
 const mailService = require('./mail.service');
@@ -8,62 +9,93 @@ const redis = require('../db/redis');
 exports.requestOtp = async (email) => {
     const user = await authRepository.findUserByEmail(email);
     if (!user) {
-        throw new Error('User not found.');
+        // Silently return to prevent user enumeration
+        logger.info(`OTP requested for non-existent email address (ignored silently)`);
+        return;
     }
 
     // Generate a 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Store in Redis with 5 minutes (300 seconds) expiry
-    await redis.set(`otp:${email}`, otp, 'EX', 300);
+    // Hash the OTP using SHA-256 for secure storage
+    const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
+
+    // Store the hashed OTP in Redis with 10 minutes (600 seconds) expiry
+    await redis.set(`otp:${email}`, hashedOtp, 'EX', 600);
 
     // Send OTP via SMTP (relying only on environment variables as specified)
     try {
         await mailService.sendEmail({
             to: email,
-            subject: 'Guest House Login Verification OTP',
+            subject: 'Verify Your Login',
             html: `
-                <div style="font-family: sans-serif; padding: 20px; max-width: 500px; border: 1px solid #e2e8f0; rounded-radius: 12px;">
-                    <h2 style="color: #4f46e5;">Verification Code</h2>
-                    <p>Dear User,</p>
-                    <p>Use the following One-Time Password (OTP) to access your NITT Guest House account. This code is valid for 5 minutes:</p>
-                    <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 4px; color: #1f2937; margin: 20px 0;">
-                        ${otp}
-                    </div>
-                    <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">If you did not request this, please ignore this email.</p>
-                </div>
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Verify Your Login</title>
+                </head>
+                <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+                    <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 24px; text-align: center; background-color: #4f46e5;">
+                                <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: 0.5px;">Guest House Portal</h1>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 40px 32px; border: 1px solid #e2e8f0; border-top: none; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;">
+                                <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #334155;">Hello,</p>
+                                <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 24px; color: #334155;">Use the following One-Time Password (OTP) to complete your login:</p>
+                                
+                                <table align="center" border="0" cellpadding="0" cellspacing="0" style="margin: 32px auto;">
+                                    <tr>
+                                        <td style="padding: 16px 32px; background-color: #f1f5f9; border: 2px dashed #4f46e5; border-radius: 8px; text-align: center;">
+                                            <span style="font-family: monospace; font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #1e293b;">[ ${otp} ]</span>
+                                        </td>
+                                    </tr>
+                                </table>
+
+                                <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 20px; color: #4f46e5; font-weight: 600; text-align: center;">This OTP is valid for 10 minutes.</p>
+                                <p style="margin: 0 0 32px 0; font-size: 14px; line-height: 20px; color: #64748b;">If you did not request this login, please ignore this email.</p>
+                                
+                                <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 32px 0 24px 0;">
+                                <p style="margin: 0; font-size: 14px; line-height: 20px; color: #64748b;">Regards,<br>Your Team</p>
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>
             `,
             useEnvOnly: true
         });
+        logger.info(`[MAIL DISPATCH] OTP email successfully dispatched to registration mailbox.`);
     } catch (err) {
-        logger.error(`[OTP MAIL ERROR] Failed to send OTP to ${email}: ${err.message}`);
+        logger.error(`[OTP MAIL ERROR] Failed to send OTP to recipient: ${err.message}`);
     }
-
-    logger.info(`[DEV-ONLY] OTP for ${email} is: ${otp}`);
-    
-    // Auto-fill OTP for testing (optional, depending on environment)
-    return otp;
 };
 
 exports.verifyOtp = async (email, otp) => {
-    const storedOtp = await redis.get(`otp:${email}`);
+    const storedHashedOtp = await redis.get(`otp:${email}`);
     
-    if (!storedOtp) {
-        logger.warn(`Failed login attempt for ${email}: OTP not found or expired.`);
+    if (!storedHashedOtp) {
+        logger.warn(`Failed login attempt: OTP not found or expired.`);
         throw new Error('OTP not requested or expired.');
     }
-    if (storedOtp !== otp) {
-        logger.warn(`Failed login attempt for ${email}: Invalid OTP provided.`);
+
+    const hashedInputOtp = crypto.createHash('sha256').update(otp).digest('hex');
+    if (storedHashedOtp !== hashedInputOtp) {
+        logger.warn(`Failed login attempt: Invalid OTP provided.`);
         throw new Error('Invalid OTP.');
     }
 
-    // Clear OTP after successful use
+    // Invalidate/clear OTP immediately after successful verification to prevent reuse
     await redis.del(`otp:${email}`);
 
     const user = await authRepository.findUserByEmail(email);
     if (!user) throw new Error('User not found.');
 
-    logger.info(`OTP Verified successfully for email: ${email}`);
+    logger.info(`OTP Verified successfully`);
 
     // Always return a setup token. The OTP flow acts as both "Setup Password" and "Forgot Password"
     const setupToken = jwt.sign(

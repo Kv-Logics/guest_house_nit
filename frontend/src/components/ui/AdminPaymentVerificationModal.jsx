@@ -141,7 +141,7 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
                                             <CheckCircle className="w-5 h-5 mr-3" /> Confirm & Mark as Paid
                                         </button>
                                         <button onClick={() => { setActiveForm('WARN'); setReason(''); }} disabled={isProcessing} className="w-full flex items-center px-4 py-3 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:border-amber-300 font-bold text-sm rounded-xl border border-amber-200 transition-colors shadow-sm">
-                                            <AlertTriangle className="w-5 h-5 mr-3" /> Issue Payment Warning
+                                            <AlertTriangle className="w-5 h-5 mr-3" /> Send Payment Reminder / Alert
                                         </button>
                                     </>
                                 ) : hasUnreviewedProof ? (
@@ -159,7 +159,7 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
                                             <CreditCard className="w-5 h-5 mr-3" /> Initiate POS / Online Payment
                                         </button>
                                         <button onClick={() => { setActiveForm('WARN'); setReason(''); }} disabled={isProcessing} className="w-full flex items-center px-4 py-3 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:border-amber-300 font-bold text-sm rounded-xl border border-amber-200 transition-colors shadow-sm">
-                                            <AlertTriangle className="w-5 h-5 mr-3" /> Issue Payment Warning
+                                            <AlertTriangle className="w-5 h-5 mr-3" /> Send Payment Reminder / Alert
                                         </button>
                                     </>
                                 )}
@@ -191,22 +191,22 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
 
                         {activeForm === 'WARN' && (
                             <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 animate-fade-in shadow-sm">
-                                <label className="block text-xs font-bold text-amber-900 mb-1">Warning Level</label>
+                                <label className="block text-xs font-bold text-amber-900 mb-1">Reminder / Alert Level</label>
                                 <p className="text-[10px] text-amber-700 font-bold mb-2 uppercase tracking-wider">
-                                    Consolidated Next Warning Level: {history.warnings?.length + 1 || 1}
+                                    Consolidated Next Reminder Level: {history.warnings?.length + 1 || 1}
                                 </p>
                                 <select value={warningLevel} onChange={e => setWarningLevel(Number(e.target.value))} className="w-full rounded-xl border border-amber-200 p-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500 mb-3 bg-white font-bold text-slate-700">
                                     {Array.from({ length: Math.max(3, (history.warnings?.length || 0) + 1) }).map((_, i) => (
                                         <option key={i + 1} value={i + 1}>
-                                            Warning Level {i + 1} {i + 1 === (history.warnings?.length || 0) + 1 ? ' (Recommended Next)' : ''}
+                                            Reminder Level {i + 1} {i + 1 === (history.warnings?.length || 0) + 1 ? ' (Recommended Next)' : ''}
                                         </option>
                                     ))}
                                 </select>
                                 <label className="block text-xs font-bold text-amber-900 mb-2">Custom Message *</label>
-                                <textarea value={reason} onChange={e => setReason(e.target.value)} rows="3" placeholder="Please settle your dues immediately..." className="w-full rounded-xl border border-amber-200 p-3 text-sm outline-none focus:ring-2 focus:ring-amber-500 mb-3" />
+                                <textarea value={reason} onChange={e => setReason(e.target.value)} rows="3" placeholder="Please upload or verify your payment details at your earliest convenience..." className="w-full rounded-xl border border-amber-200 p-3 text-sm outline-none focus:ring-2 focus:ring-amber-500 mb-3" />
                                 <div className="flex gap-2">
                                     <button onClick={() => setActiveForm('NONE')} className="flex-1 py-2 bg-white text-slate-600 font-bold text-sm rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">Cancel</button>
-                                    <button onClick={submitWarn} disabled={isProcessing} className="flex-1 py-2 bg-amber-600 text-white font-bold text-sm rounded-xl hover:bg-amber-700 transition-colors shadow-sm">{isProcessing ? 'Processing...' : 'Send Warning'}</button>
+                                    <button onClick={submitWarn} disabled={isProcessing} className="flex-1 py-2 bg-amber-600 text-white font-bold text-sm rounded-xl hover:bg-amber-700 transition-colors shadow-sm">{isProcessing ? 'Processing...' : 'Send Reminder'}</button>
                                 </div>
                             </div>
                         )}
@@ -214,7 +214,7 @@ export default function AdminPaymentVerificationModal({ booking, onClose, onSucc
                         {/* Warning History Preview */}
                         {history.warnings && history.warnings.length > 0 && (
                             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mt-4">
-                                <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center"><Clock className="w-4 h-4 mr-2 text-amber-500" /> Consolidated Warning History ({history.warnings.length})</h4>
+                                <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center"><Clock className="w-4 h-4 mr-2 text-amber-500" /> Consolidated Reminder History ({history.warnings.length})</h4>
                                 <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
                                     {history.warnings.map((w, idx) => (
                                         <div key={idx} className="bg-amber-50 border border-amber-100 p-3 rounded-xl">

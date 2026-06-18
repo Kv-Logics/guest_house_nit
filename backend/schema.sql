@@ -177,6 +177,7 @@ CREATE TABLE booking_requests (
     invoice_id UUID,
     payment_responsible VARCHAR(50) CHECK (payment_responsible IN ('guest', 'coordinator', 'department', 'project', 'institute')),
     assigned_approver_id UUID REFERENCES users(user_id),
+    financial_year VARCHAR(20),
     version INTEGER NOT NULL DEFAULT 1,
     pending_extension_datetime TIMESTAMP,
     allocated_room_numbers VARCHAR(100),
@@ -186,7 +187,6 @@ CREATE TABLE booking_requests (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE,
-    financial_year VARCHAR(20),
 
     CONSTRAINT chk_dates CHECK (departure_datetime > arrival_datetime),
     CONSTRAINT chk_undertaking CHECK (undertaking_accepted = true)
