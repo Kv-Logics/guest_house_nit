@@ -186,6 +186,7 @@ CREATE TABLE booking_requests (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE,
+    financial_year VARCHAR(20),
 
     CONSTRAINT chk_dates CHECK (departure_datetime > arrival_datetime),
     CONSTRAINT chk_undertaking CHECK (undertaking_accepted = true)
